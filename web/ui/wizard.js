@@ -7,7 +7,7 @@ import { View, html, nothing, chips, dateField, select, go } from './widgets.js'
 
 class Wizard extends View {
   static properties = {
-    kind: {}, item: {}, cancel: {}, step: { state: true }, values: { state: true }, error: { state: true },
+    kind: {}, item: {}, cancel: {}, skip: { type: Number }, step: { state: true }, values: { state: true }, error: { state: true },
     left: { state: true }, busy: { state: true },
   };
 
@@ -34,11 +34,11 @@ class Wizard extends View {
   }
 
   async start() {
-    const res = await this.run(() => store.wizardStart(this.kind, this.item));
+    const res = await this.run(() => store.wizardStart(this.kind, this.item, this.skip));
     if (!res) return;
     if (res.done) {
       this.step = null;
-      this.dispatchEvent(new CustomEvent('finished', { detail: { empty: true } }));
+      this.dispatchEvent(new CustomEvent('finished', { detail: { ...res, empty: true } }));
       return;
     }
     this.session = res.session;
@@ -99,6 +99,18 @@ class Wizard extends View {
       case 'chips':
         input = chips(f.options, v, (x) => this.set(f.key, x === v ? '' : x));
         break;
+      case 'checks': { // a list to tick; the value is the ticked ones, comma-separated
+        const on = v ? v.split(',') : [];
+        const info = Object.fromEntries((this.step.data?.notes || []).map((n) => [n.id, n]));
+        input = html`<div class="checks">${f.options.map((o) => html`
+          <label class="check"><input type="checkbox" .checked=${on.includes(o.value)}
+            @change=${(e) => this.set(f.key, f.options.map((x) => x.value).filter((x) => (x === o.value ? e.target.checked : on.includes(x))).join(','))}>
+            <span class="title">${label(o)}</span>
+            ${info[o.value]?.todos ? html`<span class="chip target">${t('sweep.todos', { n: info[o.value].todos })}</span>` : nothing}
+            ${info[o.value]?.folder ? html`<span class="chip">${info[o.value].folder}</span>` : nothing}
+            <a class="open" href=${'i/' + o.value} target="_blank" rel="noopener">↗</a></label>`)}</div>`;
+        break;
+      }
       default:
         input = html`<input type="text" .value=${v} list=${f.key === 'waiting_on' ? 'wizard-people' : nothing}
           @input=${(e) => this.set(f.key, e.target.value)}>`;
@@ -127,6 +139,7 @@ class Wizard extends View {
       ${(d.attachments || []).map((a) => (a.mime || '').startsWith('image/')
         ? html`<img class="att" src=${'api/v1/att/' + a.sha256} alt=${a.name}>`
         : html`<a class="chip file" href=${'api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}
+      ${d.folders?.length ? html`<p class="facts">${t('sweep.folders')} ${d.folders.map((x) => html`<span class="chip">${x}</span> `)}</p>` : nothing}
       ${d.inbox !== undefined ? html`<p class="facts">${t('review.inbox_count', { inbox: d.inbox, others: d.from_others })}</p>` : nothing}
       ${d.count !== undefined ? html`<p class="facts">${t('review.unsorted_count', { n: d.count })}</p>` : nothing}
       ${d.alive !== undefined ? html`<p class="facts">
@@ -202,6 +215,36 @@ class Clarify extends View {
   }
 }
 customElements.define('gtd-clarify', Clarify);
+
+// The unsorted sweep (SPEC §5.7): one cluster of unsorted notes at a time.
+// A skipped cluster is passed over for the rest of this visit.
+class Sweep extends View {
+  static properties = { skip: { state: true }, end: { state: true } };
+  constructor() {
+    super();
+    this.skip = 0;
+  }
+  next(e) {
+    if (e.detail.empty) {
+      this.end = e.detail;
+      return;
+    }
+    const w = this.querySelector('gtd-wizard');
+    if (!e.detail.ops?.length) this.skip += 1; // skipped: the same clusters come back, so step over it
+    w.skip = this.skip;
+    w.start();
+  }
+  render() {
+    if (this.end) {
+      const building = this.end.state && this.end.state !== 'ok';
+      return html`<section class="done"><h1>${t(building ? 'sweep.not_ready' : this.skip ? 'sweep.end' : 'sweep.empty')}</h1>
+        ${building ? html`<p>${t('ai.state.' + this.end.state)}</p>` : nothing}
+        <a class="button primary" href="notes">${t('nav.notes')}</a></section>`;
+    }
+    return html`<gtd-wizard kind="sweep" cancel="notes" .skip=${this.skip} @finished=${(e) => this.next(e)}></gtd-wizard>`;
+  }
+}
+customElements.define('gtd-sweep', Sweep);
 
 // The weekly review (SPEC §5.4). Its progress lives on the server, so opening
 // this page on another device continues where the last one stopped.

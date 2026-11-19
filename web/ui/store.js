@@ -149,7 +149,7 @@ export const store = {
   },
 
   // Wizards: the server holds the step machine, the client renders its steps.
-  wizardStart: (kind, item) => post(`/wizard/${kind}/start`, { item: item || '' }),
+  wizardStart: (kind, item, skip) => post(`/wizard/${kind}/start`, { item: item || '', skip: skip || 0 }),
   async wizardStep(kind, session, input) {
     const res = await post(`/wizard/${kind}/${session}/step`, input);
     if (res.done) changed(res);

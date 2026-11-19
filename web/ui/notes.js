@@ -57,6 +57,7 @@ class Notes extends View {
         <div class="tabs">${STATES.map((s) => html`
           <button class=${this.state === s ? 'on' : ''} @click=${() => this.set('state', s)}>
             ${s ? t('state.' + s) : t('notes.all')} <span class="n">${s ? d.counts[s] || 0 : total}</span></button>`)}</div>
+        ${d.counts.unsorted > 1 ? html`<a class="button" href="sweep">${t('notes.sweep', { n: d.counts.unsorted })}</a>` : nothing}
         <input type="search" placeholder=${t('notes.filter')} @input=${(e) => this.search(e)}>
         ${select(d.projects, this.project, (v) => this.set('project', v), t('board.all_projects'))}
       </div>

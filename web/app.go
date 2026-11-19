@@ -68,6 +68,7 @@ type wizardSession struct {
 	space   string
 	clarify wizard.Clarify
 	note    wizard.Note
+	sweep   wizard.Sweep
 	started time.Time
 	// What the embedding index said about the item when the wizard started.
 	similar  []wizard.Similar
@@ -116,6 +117,7 @@ func (s *Server) initApp() {
 	m.HandleFunc("POST /api/v1/ops", s.user(s.postOps))
 	m.HandleFunc("GET /api/v1/items/{id}/comments", s.user(s.comments))
 	m.HandleFunc("POST /api/v1/attachments", s.user(s.upload))
+	m.HandleFunc("GET /api/v1/ai/calibration", s.user(s.calibration))
 	m.HandleFunc("GET /api/v1/import", s.user(s.importState))
 	m.HandleFunc("POST /api/v1/import", s.user(s.importNotes))
 	m.HandleFunc("GET /api/v1/att/{sha}", s.user(s.attachment))
@@ -1068,7 +1070,9 @@ func (s *Server) putTemplates(w http.ResponseWriter, r *http.Request, a actor) e
 // the given one), note on a note with open task lines.
 func (s *Server) wizardStart(w http.ResponseWriter, r *http.Request, a actor) error {
 	var in struct {
-		Item string `json:"item"`
+		Item  string `json:"item"`
+		Space string `json:"space"` // sweep: the space to sweep (default: the personal space)
+		Skip  int    `json:"skip"`  // sweep: clusters to pass over
 	}
 	if err := body(r, &in); err != nil {
 		return err
@@ -1125,8 +1129,38 @@ func (s *Server) wizardStart(w http.ResponseWriter, r *http.Request, a actor) er
 		for _, h := range s.Embed.Projects(v, it, 3) {
 			ws.projects = append(ws.projects, h.ID)
 		}
+	case "sweep":
+		// One cluster of unsorted notes per session (SPEC §5.7). The clusters
+		// are computed again each time: filing notes changes them.
+		if ws.space = in.Space; ws.space == "" {
+			ws.space = a.user
+		}
+		if _, err := v.State(ws.space); err != nil {
+			return err
+		}
+		clusters, state := s.Embed.Clusters(v, ws.space)
+		if in.Skip < 0 || in.Skip >= len(clusters) {
+			return reply(w, map[string]any{"done": true, "empty": true, "state": state, "total": len(clusters)})
+		}
+		c := clusters[in.Skip]
+		var notes []*core.Item
+		for _, id := range c.IDs {
+			if n, err := v.Item(ws.space, id); err == nil {
+				notes = append(notes, n)
+			}
+		}
+		ws.sweep = wizard.StartSweep(notes, c.Cohesion, c.Loose, in.Skip+1, len(clusters))
+		if len(notes) > 0 {
+			it = notes[0] // the note nearest to the centre stands for the cluster
+			for _, h := range s.Embed.Projects(v, it, 3) {
+				ws.projects = append(ws.projects, h.ID)
+			}
+		}
 	default:
 		return fmt.Errorf("%w: wizard %q", core.ErrNotFound, ws.kind)
+	}
+	if it == nil {
+		return reply(w, map[string]any{"done": true, "empty": true})
 	}
 	env, err := s.wizardEnv(v, ws)
 	if err != nil {
@@ -1156,8 +1190,11 @@ func (s *Server) wizardEnv(v *store.View, ws *wizardSession) (wizard.Env, error)
 }
 
 func (ws *wizardSession) step(env wizard.Env) wizard.Step {
-	if ws.kind == "note" {
+	switch ws.kind {
+	case "note":
 		return ws.note.Step(env)
+	case "sweep":
+		return ws.sweep.Step(env)
 	}
 	return ws.clarify.Step(env)
 }
@@ -1198,9 +1235,12 @@ func (s *Server) wizardStep(w http.ResponseWriter, r *http.Request, a actor) err
 	)
 	// One answer at a time per session.
 	ap.mu.Lock()
-	if ws.kind == "note" {
+	switch ws.kind {
+	case "note":
 		ws.note, ops, done, err = ws.note.Next(env, in, s.st.NewID)
-	} else {
+	case "sweep":
+		ws.sweep, ops, done, err = ws.sweep.Next(env, in, s.st.NewID)
+	default:
 		ws.clarify, ops, done, err = ws.clarify.Next(env, in, s.st.NewID)
 	}
 	if done {

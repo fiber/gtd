@@ -478,3 +478,9 @@ div.facts { display: block; }
 .wizard .leave { display: flex; justify-content: flex-end; gap: 6px; margin: 0; }
 .wizard .leave .quiet { background: none; border-color: transparent; color: var(--muted); font-weight: 500; }
 .wizard .leave .quiet:hover { color: var(--text); border-color: var(--line); }
+.wizard .checks { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; max-height: 46vh; overflow: auto; }
+.wizard .check { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--line); font-weight: 500; cursor: pointer; }
+.wizard .check:first-child { border-top: 0; }
+.wizard .check .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wizard .check input { width: 18px; height: 18px; flex: none; }
+.wizard .check .open { text-decoration: none; padding: 0 4px; color: var(--muted); }

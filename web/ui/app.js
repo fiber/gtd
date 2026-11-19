@@ -156,6 +156,7 @@ class App extends LitElement {
     if ((m = p.match(/^\/i\/([^/]+)$/))) return html`<gtd-note .itemId=${m[1]}></gtd-note>`;
     if (p === '/notes') return html`<gtd-notes></gtd-notes>`;
     if (p === '/review') return html`<gtd-review></gtd-review>`;
+    if (p === '/sweep') return html`<gtd-sweep></gtd-sweep>`;
     if (p === '/help') return html`<gtd-help></gtd-help>`;
     if (p === '/board') return html`<gtd-board></gtd-board>`;
     if (p === '/areas') return html`<gtd-areas></gtd-areas>`;

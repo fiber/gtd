@@ -529,3 +529,101 @@ func TestClarifyWithSimilarItems(t *testing.T) {
 		t.Errorf("step without similarity: %+v", s)
 	}
 }
+
+// TestSweep walks every decision for a cluster (SPEC §5.7).
+func TestSweep(t *testing.T) {
+	setup := func(t *testing.T) (*world, Env, Sweep) {
+		w := newWorld(t)
+		var notes []*core.Item
+		for i, title := range []string{"Tile samples", "Plumber quote", "Paint colours", "Old receipt"} {
+			id := fmt.Sprintf("s%d", i)
+			it := core.Item{ID: id, Kind: core.KindNote, State: core.StUnsorted, Title: title, Imported: map[string]any{"folder": "Home/Kitchen"}}
+			if i == 1 {
+				it.Body = "- [ ] call back\n- [x] done\n- [ ] compare"
+				it.Imported = map[string]any{"folder": "Inbox"}
+			}
+			if err := w.apply([]core.Op{{Via: "cli", Type: core.OpCreate, Payload: mustJSON(it)}}); err != nil {
+				t.Fatal(err)
+			}
+			notes = append(notes, w.st.Items[id])
+		}
+		return w, NewEnv(w.st, "robin", today), StartSweep(notes, 0.71, false, 2, 5)
+	}
+	_, env, sw := setup(t)
+	s := sw.Step(env)
+	if s.Subject != "Tile samples · Plumber quote · Paint colours" || s.Fields[0].Type != "checks" || s.Fields[0].Value != "s0,s1,s2,s3" ||
+		len(s.Fields[0].Options) != 4 || s.Data["index"] != 2 || s.Data["total"] != 5 || s.Question != "sweep.cluster" {
+		t.Errorf("step: %+v", s)
+	}
+	if f := s.Data["folders"].([]string); !slices.Equal(f, []string{"Home/Kitchen", "Inbox"}) {
+		t.Errorf("folder hint: %v", f)
+	}
+	if n := s.Data["notes"].([]SweepNote); n[1].Todos != 2 || n[1].Folder != "Inbox" {
+		t.Errorf("notes: %+v", n)
+	}
+	sw.Loose = true
+	if sw.Step(env).Question != "sweep.loose" {
+		t.Error("the loose cluster is not announced as such")
+	}
+
+	for _, c := range []struct {
+		name string
+		in   Input
+		want []string
+	}{
+		{"skip changes nothing", in("skip"),
+			[]string{`s0: note/unsorted "Tile samples"`, `s1: note/unsorted "Plumber quote"`, `s2: note/unsorted "Paint colours"`, `s3: note/unsorted "Old receipt"`}},
+		{"file the checked ones into a project", in("file", "members", "s0,s2", "project", "p1"),
+			[]string{`s0: note/filed "Tile samples" project=p1`, `s1: note/unsorted "Plumber quote"`, `s2: note/filed "Paint colours" project=p1`, `s3: note/unsorted "Old receipt"`}},
+		{"new project from the cluster", in("project", "members", "s0,s1,s2", "new_project", "Kitchen renovated", "area", "area"),
+			[]string{`n1: project/active "Kitchen renovated" area=area`, `s0: note/filed "Tile samples" project=n1`, `s1: note/filed "Plumber quote" project=n1`, `s2: note/filed "Paint colours" project=n1`, `s3: note/unsorted "Old receipt"`}},
+		{"new theme", in("theme", "members", "s3", "new_project", "Paperwork"),
+			[]string{`n1: project/someday "Paperwork"`, `s0: note/unsorted "Tile samples"`, `s1: note/unsorted "Plumber quote"`, `s2: note/unsorted "Paint colours"`, `s3: note/filed "Old receipt" project=n1`}},
+		{"into an area", in("area", "members", "s0,s1,s2,s3", "area", "area"),
+			[]string{`s0: note/filed "Tile samples" area=area`, `s1: note/filed "Plumber quote" area=area`, `s2: note/filed "Paint colours" area=area`, `s3: note/filed "Old receipt" area=area`}},
+		{"archive", in("archive", "members", "s3"),
+			[]string{`s0: note/unsorted "Tile samples"`, `s1: note/unsorted "Plumber quote"`, `s2: note/unsorted "Paint colours"`, `s3: note/archived "Old receipt"`}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w, env, sw := setup(t)
+			_, ops, done, err := sw.Next(env, c.in, w.newID)
+			if err != nil || !done {
+				t.Fatalf("done %v, err %v", done, err)
+			}
+			if err := w.apply(ops); err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, line := range w.describe() {
+				if strings.HasPrefix(line, "s") || strings.HasPrefix(line, "n") {
+					line, _, _ = strings.Cut(line, " body=")
+					got = append(got, line)
+				}
+			}
+			if !slices.Equal(got, c.want) {
+				t.Errorf("got\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(c.want, "\n  "))
+			}
+		})
+	}
+	for _, c := range []struct {
+		name       string
+		in         Input
+		field, key string
+	}{
+		{"nothing checked", in("archive", "members", ""), "members", "err.required"},
+		{"a note that is not in the cluster", in("archive", "members", "s0,p1"), "members", "err.choice"},
+		{"a note twice", in("archive", "members", "s0,s0"), "members", "err.choice"},
+		{"file without a project", in("file", "members", "s0"), "project", "err.required"},
+		{"file into an unknown project", in("file", "members", "s0", "project", "nope"), "project", "err.choice"},
+		{"new project without a title", in("project", "members", "s0"), "new_project", "err.required"},
+		{"area without an area", in("area", "members", "s0"), "area", "err.required"},
+		{"unknown choice", in("delete", "members", "s0"), "choice", "err.choice"},
+	} {
+		w, env, sw := setup(t)
+		_, ops, done, err := sw.Next(env, c.in, w.newID)
+		var ie *InputError
+		if !errors.As(err, &ie) || ie.Field != c.field || ie.Key != c.key || done || ops != nil {
+			t.Errorf("%s: err %v, done %v", c.name, err, done)
+		}
+	}
+}

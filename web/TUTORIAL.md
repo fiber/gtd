@@ -138,6 +138,18 @@ When you mark a repeating action done, gtd makes the next one and hides it until
 day. There is only ever one of them open: if you skip a week, you find one reminder
 waiting, not seven. To stop, drop the action or set Repeat back to "Does not repeat".
 
+## Bringing in old notes
+
+`gtd import obsidian <vault folder>` brings an Obsidian vault in. Every note arrives
+as an **unsorted** note, with its links, images and attachments; nothing goes to the
+inbox. Run it with `-dry-run` first to see the report without changing anything. It
+is safe to run again: files that did not change are skipped.
+
+Then open **Notes** and press **Sweep**. gtd shows the unsorted notes in groups
+that are about the same thing, one group per screen. Untick what does not belong, and
+decide once for the rest: into a project, a new project, a new theme (a someday
+project), an area, or the archive. Skip a group you cannot decide on now.
+
 ## The weekly review
 
 The review is what keeps the rest honest. Without it, lists fill with things that are

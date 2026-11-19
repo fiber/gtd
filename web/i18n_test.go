@@ -78,7 +78,7 @@ func TestCatalogs(t *testing.T) {
 		"note.":          {"saving", "saved", "unsaved"},
 		"ai.state.":      {"off", "ok", "offline", "building"},
 		"ai.note.":       {"offline", "building"},
-		"wizard.title.":  {"clarify", "note", "review"},
+		"wizard.title.":  {"clarify", "note", "review", "sweep"},
 		"review.":        {"clear", "unsorted", "projects", "stale", "waiting", "dates", "someday", "areas"},
 		"review.opt.":    {"continue", "keep", "someday", "done", "drop", "defer", "nudge", "resolved", "activate"},
 		"clarify.":       {"what", "someday", "reference", "project", "action", "two_minutes", "do_now", "who", "person", "when", "after"},
@@ -102,7 +102,7 @@ func TestCatalogs(t *testing.T) {
 		}
 	}
 	// Keys in Go: the wizards' questions, labels and errors, and the server's own texts.
-	reGo := regexp.MustCompile(`"((?:clarify|note|field|option|answer|hint|date|err|login|capture|format|item|review|warning)\.[a-z_0-9.+]+)"`)
+	reGo := regexp.MustCompile(`"((?:clarify|note|field|option|answer|hint|date|err|login|capture|format|item|review|warning|sweep)\.[a-z_0-9.+]+)"`)
 	var gofiles []string
 	for _, pattern := range []string{"*.go", filepath.Join("..", "wizard", "*.go")} {
 		m, _ := filepath.Glob(pattern)

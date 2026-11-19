@@ -38,6 +38,7 @@ go build -o gtd ./cmd/gtd
 export GTD_DATA=/var/lib/gtd            # keep the path short: the daemon's Unix socket lives in it
 ./gtd user add -admin -name Robin -ssh-key ~/.ssh/id_ed25519.pub robin   # creates the database
 ./gtd user passwd robin                 # web password
+./gtd import obsidian -dry-run ~/vault   # report only; without -dry-run: import as unsorted notes
 ./gtd serve                             # CLI socket, and the web UI on http://127.0.0.1:8640/gtd/
 ```
 

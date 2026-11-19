@@ -61,3 +61,21 @@ func (s *Server) importNotes(w http.ResponseWriter, r *http.Request, a actor) er
 	}
 	return reply(w, res)
 }
+
+// calibration reports how similarity scores are distributed in one of the
+// user's spaces (numbers only), for choosing thresholds.
+func (s *Server) calibration(w http.ResponseWriter, r *http.Request, a actor) error {
+	v, err := s.st.View(a.user)
+	if err != nil {
+		return err
+	}
+	space := r.URL.Query().Get("space")
+	if space == "" {
+		space = a.user
+	}
+	c, err := s.Embed.Calibrate(r.Context(), v, space)
+	if err != nil {
+		return err
+	}
+	return reply(w, c)
+}

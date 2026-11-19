@@ -35,6 +35,7 @@ const usage = `usage: gtd [-data dir] [-user id] [-key pubkey-file] <command>
   ops tail [-space id] [-n 20]              show the last ops of a space
   export [-space id]... [-from snapshot] <dir>
   import -restore <dir>                     rebuild an empty data dir from a full export
+  calibrate [-space id]                     similarity score distributions and cluster statistics
   import obsidian [-space id] [-dry-run] <vault>
                                             import an Obsidian vault as unsorted notes
   snapshot create [-label l] | list | prune | verify [name]...
@@ -113,6 +114,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return cmdImport(g, args, stdout)
 	case "restore":
 		return cmdRestore(g, args, stdout)
+	case "calibrate":
+		return cmdCalibrate(g, args, stdout)
 	case "reindex":
 		c, err := connect(g, false)
 		if err != nil {

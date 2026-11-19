@@ -582,3 +582,87 @@ func TestPDFText(t *testing.T) {
 		t.Errorf("cached text: %q %v", text, ok)
 	}
 }
+
+// TestClusters: unsorted notes about the same thing end up together, the
+// result is deterministic, and only the asked space's unsorted notes take part
+// (AI_CONTRACT §2.5).
+func TestClusters(t *testing.T) {
+	s := newSite(t)
+	topics := map[string]string{
+		"kitchen": "kitchen renovation tiles plumber cabinets oven",
+		"garden":  "garden raised beds zucchini compost fence",
+		"sailing": "boat mooring sail harbour rigging engine",
+	}
+	want := map[string]string{} // note id → topic
+	for _, topic := range []string{"kitchen", "garden", "sailing"} {
+		for i := range 12 {
+			id := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: fmt.Sprintf("%s note %d", topic, i), Body: topics[topic]})
+			want[id] = topic
+		}
+	}
+	filed := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "kitchen filed", Body: topics["kitchen"], State: core.StFiled, Area: s.add("robin", "robin", core.Item{Kind: core.KindArea, Title: "Home"})})
+	action := s.add("robin", "robin", core.Item{Kind: core.KindAction, Title: "kitchen action", Body: topics["kitchen"]})
+	shared := s.add("dana", "net", core.Item{Kind: core.KindNote, Title: "kitchen in the shared space", Body: topics["kitchen"]})
+	s.start()
+	robin := s.view("robin")
+
+	clusters, state := s.svc.Clusters(robin, "robin")
+	if state != StateOK {
+		t.Fatalf("state %s", state)
+	}
+	seen := map[string]bool{}
+	whole := 0
+	for _, c := range clusters {
+		topicsIn := map[string]int{}
+		for _, id := range c.IDs {
+			if seen[id] {
+				t.Errorf("note %s is in two clusters", id)
+			}
+			seen[id] = true
+			topicsIn[want[id]]++
+		}
+		if !c.Loose && len(topicsIn) == 1 && len(c.IDs) == 12 && c.Cohesion > 0.8 {
+			whole++
+		}
+		if !c.Loose && (len(c.IDs) < 2 || c.Cohesion < clusterCohesion) {
+			t.Errorf("a cluster of %d notes with cohesion %.2f is not loose", len(c.IDs), c.Cohesion)
+		}
+	}
+	if whole != 3 {
+		t.Errorf("%d of the 3 topics came out as one clean cluster: %+v", whole, clusters)
+	}
+	for _, id := range []string{filed, action, shared} {
+		if seen[id] {
+			t.Errorf("item %s is clustered: only unsorted notes of the asked space are", id)
+		}
+	}
+	if len(seen) != 36 {
+		t.Errorf("%d notes clustered, want 36", len(seen))
+	}
+	// Deterministic.
+	again, _ := s.svc.Clusters(robin, "robin")
+	if fmt.Sprint(again) != fmt.Sprint(clusters) {
+		t.Error("two runs over the same notes differ")
+	}
+	// Isolation: jo is not a member of net, and has no notes.
+	if c, _ := s.svc.Clusters(s.view("jo"), "net"); len(c) != 0 {
+		t.Errorf("a non-member got clusters of another space: %+v", c)
+	}
+	if c, _ := s.svc.Clusters(s.view("jo"), "jo"); len(c) != 0 {
+		t.Errorf("clusters of an empty space: %+v", c)
+	}
+	// Notes that have nothing in common are one loose cluster, not a group.
+	for title, body := range map[string]string{"Xylophone": "quartz jukebox vortex", "Marmalade": "oranges sugar jars", "Tax": "receipts deadline form",
+		"Chess": "opening gambit endgame", "Glacier": "ice crevasse moraine", "Sonnet": "rhyme stanza verse"} {
+		s.add("jo", "jo", core.Item{Kind: core.KindNote, Title: title, Body: body})
+	}
+	s.settle()
+	if c, _ := s.svc.Clusters(s.view("jo"), "jo"); len(c) != 1 || !c[0].Loose || len(c[0].IDs) != 6 {
+		t.Errorf("six unrelated notes: %+v", c)
+	}
+	// A nil service says so.
+	var off *Service
+	if _, state := off.Clusters(robin, "robin"); state != StateOff {
+		t.Errorf("no service: %s", state)
+	}
+}

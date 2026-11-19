@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/fiber/gtd/core"
+	"github.com/fiber/gtd/embed"
 	"github.com/fiber/gtd/importer"
 	"github.com/fiber/gtd/store"
 )
@@ -180,4 +181,54 @@ func printReport(w io.Writer, r *importer.Report, space string, dry bool, took t
 	for _, g := range r.DuplicateGroups {
 		section("identical", g)
 	}
+}
+
+// cmdCalibrate prints the similarity statistics of a space (M5): numbers to
+// choose the thresholds in config.yaml from.
+func cmdCalibrate(g globals, args []string, stdout io.Writer) error {
+	space := ""
+	args, err := flags("calibrate", args, func(fs *flag.FlagSet) { fs.StringVar(&space, "space", "", "") })
+	if err != nil {
+		return err
+	}
+	if err := want("calibrate", args, 0, "[-space id]"); err != nil {
+		return err
+	}
+	c, err := connect(g, false)
+	if err != nil {
+		return err
+	}
+	defer c.close()
+	var cal embed.Calibration
+	if err := c.do("GET", "/api/v1/ai/calibration?space="+space, nil, &cal); err != nil {
+		return err
+	}
+	if cal.State != embed.StateOK {
+		return fmt.Errorf("gtd calibrate: similarity is %s (it needs the running daemon and its embedder)", cal.State)
+	}
+	row := func(label string, v []float32) {
+		fmt.Fprintf(stdout, "%-28s", label)
+		for _, x := range v {
+			fmt.Fprintf(stdout, " %5.2f", x)
+		}
+		fmt.Fprintln(stdout)
+	}
+	fmt.Fprintf(stdout, "embedder %s, %d items with a vector\n\n", cal.Identity, cal.Items)
+	fmt.Fprintf(stdout, "%-28s %5s %5s %5s %5s %5s %5s %5s\n", "percentile", "5", "25", "50", "75", "90", "95", "99")
+	row("nearest neighbour per item", cal.Nearest)
+	row("all pairs", cal.AllPairs)
+	fmt.Fprintf(stdout, "\npairs at or above 0.95: %d, 0.92: %d, 0.90: %d, 0.85: %d, 0.80: %d\n\n", cal.Above[0], cal.Above[1], cal.Above[2], cal.Above[3], cal.Above[4])
+	fmt.Fprintf(stdout, "%-28s %5s %5s %5s %5s %5s\n", "test sentences, percentile", "5", "25", "50", "75", "95")
+	row("German ↔ English", cal.Translated)
+	row("English paraphrase", cal.SameLang)
+	row("unrelated (de ↔ en)", cal.Unrelated)
+	fmt.Fprintf(stdout, "\n%d unsorted notes in %d clusters (size, cohesion):\n", cal.Unsorted, len(cal.Clusters))
+	for _, cl := range cal.Clusters {
+		loose := ""
+		if cl.Loose {
+			loose = "  loose"
+		}
+		fmt.Fprintf(stdout, "  %3d  %.2f%s\n", cl.Size, cl.Cohesion, loose)
+	}
+	return nil
 }
