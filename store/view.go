@@ -362,7 +362,7 @@ func (v *View) Apply(spaceID string, ops ...core.Op) ([]core.Op, error) {
 	s.mu.Lock()
 	for _, it := range st.Pending {
 		sp.items[it.ID] = it
-		sp.text[it.ID] = searchText(it)
+		sp.text[it.ID] = s.searchText(it)
 	}
 	for _, c := range comments {
 		if !c.Deleted {
@@ -371,6 +371,13 @@ func (v *View) Apply(spaceID string, ops ...core.Op) ([]core.Op, error) {
 	}
 	sp.seq = seq
 	s.mu.Unlock()
+	if s.OnCommit != nil && len(st.Pending) > 0 {
+		changed := make([]*core.Item, 0, len(st.Pending))
+		for _, it := range st.Pending {
+			changed = append(changed, it)
+		}
+		s.OnCommit(spaceID, changed)
+	}
 	return logged, nil
 }
 

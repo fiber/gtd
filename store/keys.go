@@ -20,6 +20,12 @@ import (
 //	sp/<space>/seq                  last op seq, be64
 //	opid/<opid>                     opRef
 //	sess/<id>                       Session (M1)
+//	x/vec/<space>/<itemid>          embedding: 32-byte text hash + float32s, little-endian (M4)
+//	x/vecid                         identity of the stored vectors (M4)
+//	x/pdf/<sha256>                  extracted PDF text (M4)
+//
+// Everything under x/ is derived: it is rebuilt from the items, never exported,
+// and its values are binary or plain text, not versioned JSON.
 //
 // User and space IDs match core.ValidID, so they never contain "/".
 
@@ -46,6 +52,9 @@ func opKey(space string, seq uint64) []byte   { return []byte(opPrefix(space) + 
 func seqKey(space string) []byte              { return []byte("sp/" + space + "/seq") }
 func opidKey(opid string) []byte              { return []byte("opid/" + opid) }
 func sessionKey(id string) []byte             { return []byte("sess/" + id) }
+func vecPrefix(space string) string           { return "x/vec/" + space + "/" }
+func vecKey(space, id string) []byte          { return []byte(vecPrefix(space) + id) }
+func pdfKey(sha string) []byte                { return []byte("x/pdf/" + sha) }
 func commentKey(space, item, id string) []byte {
 	return []byte(commentPrefix(space) + item + "/" + id)
 }

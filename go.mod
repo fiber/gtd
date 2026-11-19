@@ -4,6 +4,7 @@ go 1.27.4
 
 require (
 	github.com/cockroachdb/pebble/v2 v2.1.7
+	github.com/fiber/ai v0.1.2
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/yuin/goldmark v1.8.7
 	golang.org/x/crypto v0.59.0

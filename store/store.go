@@ -48,6 +48,14 @@ type Store struct {
 	Now   func() time.Time
 	NewID func() string
 
+	// OnCommit, if set, is called after every committed batch with the items it
+	// changed. The embedding service uses it to keep vectors current. It runs
+	// outside the store's locks and must not block.
+	OnCommit func(space string, items []*core.Item)
+
+	pdfMu sync.RWMutex
+	pdf   map[string]string // extracted PDF text by blob hash, for search
+
 	admin sync.Mutex // serializes user and space administration
 
 	mu     sync.RWMutex // guards users, spaces and everything inside a space except wmu
@@ -145,7 +153,7 @@ func newStore(dir string, db *pebble.DB) *Store {
 	return &Store{dir: dir, db: db,
 		Now:   time.Now,
 		NewID: func() string { return ulid.Make().String() },
-		users: map[string]*core.User{}, spaces: map[string]*space{}, nseq: map[string]uint64{}}
+		users: map[string]*core.User{}, spaces: map[string]*space{}, nseq: map[string]uint64{}, pdf: map[string]string{}}
 }
 
 func (s *Store) Close() error { return s.db.Close() }
@@ -181,6 +189,13 @@ func (s *Store) load() error {
 	if err != nil {
 		return err
 	}
+	// Extracted PDF text is part of what search scans.
+	if err := scan(s.db, "x/pdf/", func(key string, v []byte) error {
+		s.pdf[key[len("x/pdf/"):]] = string(v)
+		return nil
+	}); err != nil {
+		return err
+	}
 	ids, err := spaceIDs(s.db)
 	if err != nil {
 		return err
@@ -199,7 +214,7 @@ func (s *Store) load() error {
 				return fmt.Errorf("key %q: %v", key, err)
 			}
 			sp.items[it.ID] = it
-			sp.text[it.ID] = searchText(it)
+			sp.text[it.ID] = s.searchText(it)
 			return nil
 		})
 		if err != nil {
@@ -269,8 +284,9 @@ func mustJSON(v any) []byte {
 	return b
 }
 
-// searchText is the lowercase text grep scans: title, body and field values.
-func searchText(it *core.Item) string {
+// searchText is the lowercase text grep scans: title, body, field values and
+// the extracted text of attached PDFs.
+func (s *Store) searchText(it *core.Item) string {
 	var b strings.Builder
 	b.WriteString(it.Title)
 	b.WriteByte('\n')
@@ -279,6 +295,14 @@ func searchText(it *core.Item) string {
 		b.WriteByte('\n')
 		b.WriteString(it.Fields[k])
 	}
+	s.pdfMu.RLock()
+	for _, a := range it.Attachments {
+		if t := s.pdf[a.SHA256]; t != "" {
+			b.WriteByte('\n')
+			b.WriteString(t)
+		}
+	}
+	s.pdfMu.RUnlock()
 	return strings.ToLower(b.String())
 }
 

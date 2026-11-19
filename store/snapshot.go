@@ -194,7 +194,7 @@ func VerifySnapshot(dir, name string) error {
 	}
 	for it.First(); it.Valid(); it.Next() {
 		key := string(it.Key())
-		if v := it.Value(); !strings.HasSuffix(key, "/seq") && !json.Valid(v) {
+		if v := it.Value(); !strings.HasSuffix(key, "/seq") && !strings.HasPrefix(key, "x/") && !json.Valid(v) {
 			bad("key %q does not hold JSON", key)
 		}
 	}
