@@ -34,6 +34,8 @@ though collaboration features arrive in M6. Goal: Sven can use the tool daily
   warnings). Areas. Board. Note view (editor, images inline, attachment chips, link
   picker, URL-paste conversion, fork). Templates (YAML editing, fields, badges,
   tickler fields).
+- New note, Process note, and the project thread quick-add (SPEC §5.5; owner requests
+  R-1 and R-2 of 2026-11-19).
 - `wizard/` pure and table-tested for every Clarify path.
 - **Accept:**
   - Process a 20-item inbox on an Android phone with taps only (plus editing the

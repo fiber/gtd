@@ -54,9 +54,10 @@ Settled with the product owner (Sven). The agent must not change them.
   shared ones like "Family") goes to that provider. Should cloud generation be switchable per
   space, or is per server enough? Needed before M7.
 
-## Owner requests not yet in the spec (2026-11-19)
+## Owner requests (2026-11-19)
 
 Stated by Sven during M0. The wording after "Agent reading" is the agent's interpretation.
+R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 
 - **R-1 Project thread quick-add.** "I want to easily add a note to a project thread like
   'call Brent about Equinix API'", to support parallel conversations with people and AIs on several
@@ -116,3 +117,24 @@ Stated by Sven during M0. The wording after "Agent reading" is the agent's inter
 - 2026-11-19 — The attachment limit is a constant 25 MB in M0; `limits.attachment_mb` is read from config when the web upload arrives in M1.
 - 2026-11-19 — `ops tail` prints the last N ops (default 20, own personal space) and does not follow.
 - 2026-11-19 — staticcheck is run with `go run honnef.co/go/tools/cmd/staticcheck@latest`; it is not a module dependency.
+
+### M1
+
+- 2026-11-19 — Markdown is rendered by a hand-written renderer in `web/markdown.go`: headings, paragraphs, bold/italic/strike, code, quotes, nested lists, task lists, tables, links, and the tokens. It is a subset of CommonMark (no nested emphasis, no reference links, no HTML). Every tag in the output is written by the renderer and all source text is escaped — SPEC §3.1 asks for a small safe renderer and stdlib has none. Full CommonMark would need goldmark: ask the owner if the subset turns out too small.
+- 2026-11-19 — Clarify step 2 ("which space?") and the "member" answer of step 7 are left out until M6: both need the move op and delegation. Clarify works in the personal space, where captures live.
+- 2026-11-19 — What a capture becomes in Clarify: the note, the someday action, or the action. With a new project it becomes the project, and the next action is a new item with `derived_from` — `original` and the history stay with the thing the capture described.
+- 2026-11-19 — Someday in Clarify makes an action in `someday`. A project done in two minutes loops back to "next action, or is it complete?" — a project needs a next action or an end.
+- 2026-11-19 — Wizard sessions live in the daemon's memory (dropped after a day, or on restart). Ops are applied by the server on the last step, in one batch — leaving midway changes nothing and the capture stays at the head of the inbox, as SPEC §5.2 says. Review progress (M2) will be stored per user instead.
+- 2026-11-19 — The body editor is a textarea that shows tokens as labels (`[[Title]]`, `![[name.png]]`). The server sends the label form and the label→token map; the client substitutes on save. Two items with the same title get `(2)` — D-07 says users never see IDs, and a textarea cannot show chips.
+- 2026-11-19 — An uploaded file is attached to the item first (`attach` op), then its token is inserted — a blob is readable only through an item of a space the reader is a member of.
+- 2026-11-19 — Attachments are served with `Content-Security-Policy: sandbox`, `nosniff`, and as downloads unless they are images or PDFs. Thumbnails are not generated yet: images are shown at original size, scaled by CSS.
+- 2026-11-19 — Dragging in the plan view: an action dropped on another action waits for it (`blocked_by`); a project dropped on a project becomes its child. HTML5 drag and drop does not work on touch screens, so the item page has the same settings as selects ("waits for", "part of"), and the board's moves are the item page's state buttons.
+- 2026-11-19 — The board shows actions and inbox captures. A deferred item appears only in "Deferred". Dropping a card there asks for a date.
+- 2026-11-19 — Engage merges all of the user's spaces into one list in one order. "Not now" hides an action until the page is left. The answers to the three questions are kept in localStorage (per device).
+- 2026-11-19 — Templates are edited by any member of the space (space records are not ops). A template's body skeleton is not applied yet when a template is chosen.
+- 2026-11-19 — Web sessions: 32 random bytes as cookie value and `sess/` key, 90 days sliding with at most one write a day; five failed logins lock that user name for a minute; the cookie is `Secure` when `server.base_url` is https. Requests that a browser marks as cross-site (`Sec-Fetch-Site`) do not count as logged in.
+- 2026-11-19 — Admin routes refuse web sessions (D-21). `gtd user passwd <id>` sets the web password over the SSH-authenticated socket or by direct access.
+- 2026-11-19 — The daemon serves HTTP on `server.listen` (default `127.0.0.1:8640`, `off` disables it). UI files are served gzipped with content-hash ETags; the shell preloads all modules; the CSP allows scripts from the origin plus the hash of the import map.
+- 2026-11-19 — Components use the light DOM so that the one stylesheet applies. `store.js` is the only module that calls `fetch`.
+- 2026-11-19 — The vendored Lit bundle is `lit-core.min.js` 3.2.1 from the lit/dist release (BSD-3-Clause), 15 kB.
+- 2026-11-19 — The user's "today" is the server's local date.

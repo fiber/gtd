@@ -125,9 +125,13 @@ All wizards live in `wizard/` as pure step machines:
 ops applied in one batch. They are exposed as:
 
 ```
-POST /api/v1/wizard/{clarify|review|sweep}/start → {session, step}
-POST /api/v1/wizard/{kind}/{session}/step        → {step} | {done, ops}
+POST /api/v1/wizard/{clarify|note|review|sweep}/start → {session, step}
+POST /api/v1/wizard/{kind}/{session}/step             → {step} | {done, ops}
 ```
+
+The server holds the session and, on the last step, applies the wizard's ops in one
+batch and returns them as applied. A rejected answer is a 400 with `{error, field}`,
+where `error` is an i18n key. Leaving a wizard midway changes nothing.
 
 Each `step` is plain data: step type, question, options, preselection and the data
 to show. The Lit client renders steps generically by step type and posts the chosen
@@ -212,6 +216,16 @@ A progress bar, then a summary. A banner on the configured weekday.
 ### 5.5 Collate and organize notes
 - **Note view:** Markdown editor (textarea plus preview toggle, images inline), related
   sidebar (top 5 similar in the user's spaces, space shown), backlinks, thread.
+- **New note:** from a project's plan view. It is filed into that project and opens in
+  the editor. This is the place for call and meeting notes.
+- **Process note** (wizard `note`): walks the note's open task lines (`- [ ] …`), one
+  per screen: next-action wording, project (the note's project preselected), context,
+  not-before, target. Create / Skip / Stop. Each confirmed line becomes an action with
+  `derived_from: [note]`, and the line in the note is replaced by a link to the action,
+  so it is not offered again. From M7 the AI pass of `todo_detect` adds candidates.
+- **Thread quick-add:** the plan view has a one-line box that posts to the project's
+  thread ("call Brent about Equinix API"). Every thread entry has "Make this an
+  action", which creates an action in that project.
 - **Fork:** "New note from this" creates a note with `derived_from: [source]` and a
   link back, for ideas that turn into something else.
 - **Project view = plan view** (§6.4). It also has a "might belong here" strip: the
@@ -339,4 +353,16 @@ templates:
 - Outside `/api/v1`: every UI route returns the app shell, and the embedded
   `web/ui/` assets (JS modules, CSS, Lit bundle, i18n catalogs, manifest, `sw.js`)
   are served as static files.
-- Auth: session cookie or `Authorization: Bearer <token>` (COLLAB.md §6).
+- `POST /login` `{user, password}` · `POST /logout` · `GET /me` · `PUT /me` (language,
+  personal contexts)
+- `GET /inbox` · `GET /projects` · `GET /plan/{project}` · `GET /board?space=&area=&project=&field=`
+  · `GET /areas` · `GET /pick?q=` (link picker) · `POST /render` (Markdown preview)
+- `GET|PUT /spaces/{id}/templates` (YAML) · `GET /spaces/{id}/options`
+- `POST /ops` answers `{ops, prompts}`. A prompt of type `next_action` means a project
+  just lost its last open action (§5.3). A create op without an item ID gets one
+  from the server.
+- Item payloads also carry what the client must not compute: `transitions`, titles of
+  referenced items, roll-ups, warnings, and `body_edit` + `refs` (the body with tokens
+  shown as `[[Title]]`, and the mapping back).
+- Auth: session cookie or `Authorization: Bearer <token>` (COLLAB.md §6). Admin routes
+  (`/admin/…`) need the SSH-key challenge; a web session is not enough.

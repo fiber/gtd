@@ -32,3 +32,19 @@ Deployment shape: two servers running the same binary.
   "Family", "Trading" (with service user nuro).
 - **Work (company infrastructure):** users Sven, Eric, contractors; space `NIS`
   (areas Nora, Atlas, Collectors, Data curation, Automation).
+
+## Running it
+
+```sh
+go build -o gtd ./cmd/gtd
+export GTD_DATA=/var/lib/gtd            # keep the path short: the daemon's Unix socket lives in it
+./gtd user add -admin -name Sven -ssh-key ~/.ssh/id_ed25519.pub sven   # creates the database
+./gtd user passwd sven                  # web password
+./gtd serve                             # CLI socket, and the web UI on http://127.0.0.1:8640
+```
+
+`config.yaml` in the data directory sets `server.name`, `server.listen`, `server.base_url`
+and `snapshots` (STORAGE.md §10). Put nginx with TLS in front for anything but localhost.
+
+Tests: `go test -race ./...`. `go test ./store -update` rewrites the golden export after an
+intended format change.
