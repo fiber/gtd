@@ -66,12 +66,17 @@ func (s *Store) ResetVectors(identity string) error {
 	return b.Commit(pebble.Sync)
 }
 
-// PutVector stores an item's embedding with the hash of the text it was made from.
-func (s *Store) PutVector(space, id string, hash [32]byte, vec []float32) error {
-	buf := make([]byte, 32+4*len(vec))
+// PutVector stores an item's embedding with the hash of the text it was made
+// from. passages are the vectors of the item's passages, if its text was long
+// enough to be split. Value: hash, passage count, item vector, passage vectors.
+func (s *Store) PutVector(space, id string, hash [32]byte, vec []float32, passages [][]float32) error {
+	buf := make([]byte, 36, 36+4*len(vec)*(1+len(passages)))
 	copy(buf, hash[:])
-	for i, f := range vec {
-		binary.LittleEndian.PutUint32(buf[32+4*i:], math.Float32bits(f))
+	binary.LittleEndian.PutUint32(buf[32:], uint32(len(passages)))
+	for _, v := range append([][]float32{vec}, passages...) {
+		for _, f := range v {
+			buf = binary.LittleEndian.AppendUint32(buf, math.Float32bits(f))
+		}
 	}
 	return s.db.Set(vecKey(space, id), buf, pebble.NoSync)
 }
@@ -82,19 +87,27 @@ func (s *Store) DeleteVector(space, id string) error {
 }
 
 // EachVector calls f for every stored embedding, in key order.
-func (s *Store) EachVector(f func(space, id string, hash [32]byte, vec []float32)) error {
+func (s *Store) EachVector(f func(space, id string, hash [32]byte, vec []float32, passages [][]float32)) error {
 	return scan(s.db, "x/vec/", func(key string, v []byte) error {
 		space, id, ok := strings.Cut(key[len("x/vec/"):], "/")
-		if !ok || len(v) < 32 || (len(v)-32)%4 != 0 {
+		if !ok || len(v) < 36 {
 			return fmt.Errorf("key %q: not an embedding (%d bytes)", key, len(v))
 		}
 		var hash [32]byte
 		copy(hash[:], v)
-		vec := make([]float32, (len(v)-32)/4)
-		for i := range vec {
-			vec[i] = math.Float32frombits(binary.LittleEndian.Uint32(v[32+4*i:]))
+		rows := 1 + int(binary.LittleEndian.Uint32(v[32:]))
+		if (len(v)-36)%(4*rows) != 0 {
+			return fmt.Errorf("key %q: not an embedding (%d bytes for %d vectors)", key, len(v), rows)
 		}
-		f(space, id, hash, vec)
+		dim := (len(v) - 36) / (4 * rows)
+		vecs := make([][]float32, rows)
+		for r := range vecs {
+			vecs[r] = make([]float32, dim)
+			for i := range vecs[r] {
+				vecs[r][i] = math.Float32frombits(binary.LittleEndian.Uint32(v[36+4*(r*dim+i):]))
+			}
+		}
+		f(space, id, hash, vecs[0], vecs[1:])
 		return nil
 	})
 }

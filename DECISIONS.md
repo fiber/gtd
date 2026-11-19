@@ -231,3 +231,8 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 
 - 2026-11-19 — Owner: "What is it?", "Actionable?" and "More than one step?" are one screen. The title and notes fields are followed by Action, Project, Reference, Someday, Trash (and "Duplicate of…"). Enter means Action. Trash does not require a title. The steps `actionable` and `multi` are gone. Alt+number presses a step's nth button, also while typing; my addition, so the first screen needs no mouse.
 - 2026-11-19 — Clarify has Cancel (back to the inbox; nothing is changed, the capture stays at the head) and, after the first screen, Start over. Both only leave or restart the wizard, which SPEC §5.2 already allows. There is still no Skip: SPEC §5.2 rules it out; asked the owner.
+
+### Passages
+
+- 2026-11-19 — Owner said yes to per-passage embeddings. Long texts are split between paragraphs (a short single line counts as a heading and stays with the next paragraph). Passage vectors are stored in the item's `x/vec` value and indexed in a second matrix per space; only search by meaning uses them (max of item and best passage). The stored identity carries a layout tag (`|passages-1`), so existing vectors are rebuilt once on the first start.
+- 2026-11-19 — A search hit does not say which passage matched, and the item page does not jump to it. Not asked for.

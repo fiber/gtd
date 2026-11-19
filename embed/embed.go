@@ -47,7 +47,7 @@ func withPrompt(task Task, text string) string {
 }
 
 const (
-	chunkSize    = 1500 // characters per chunk
+	chunkSize    = 1500 // characters per passage
 	chunkOverlap = 200
 	maxChunks    = 16 // per item: 24,000 characters, the rest is not embedded
 )
@@ -114,21 +114,66 @@ func Text(it *core.Item, r Resolver) string {
 	return b.String()
 }
 
-// Chunks splits a text into overlapping pieces of about chunkSize characters.
+// Chunks splits a text into passages of at most chunkSize characters. It
+// cuts between paragraphs (blank lines), and keeps a heading with the
+// paragraph that follows it. Only a paragraph longer than chunkSize is
+// cut inside, into overlapping pieces. At most maxChunks are returned.
 func Chunks(text string) []string {
-	runes := []rune(text)
-	if len(runes) <= chunkSize {
+	if len([]rune(text)) <= chunkSize {
 		return []string{text}
 	}
 	var out []string
-	for start := 0; start < len(runes) && len(out) < maxChunks; start += chunkSize - chunkOverlap {
-		end := min(start+chunkSize, len(runes))
-		out = append(out, string(runes[start:end]))
-		if end == len(runes) {
-			break
+	cur, size := "", 0
+	flush := func() {
+		if cur != "" {
+			out = append(out, cur)
+		}
+		cur, size = "", 0
+	}
+	for _, para := range strings.Split(text, "\n\n") {
+		if strings.TrimSpace(para) == "" {
+			continue
+		}
+		runes := []rune(para)
+		if size > 0 && size+2+len(runes) > chunkSize {
+			// A heading goes with its section: a short single line at the
+			// end of the passage moves to the next one.
+			head := ""
+			if i := strings.LastIndex(cur, "\n\n"); i >= 0 && isHeading(cur[i+2:]) && len([]rune(cur[i+2:]))+2+len(runes) <= chunkSize {
+				cur, head = cur[:i], cur[i+2:]
+			}
+			flush()
+			cur, size = head, len([]rune(head))
+		}
+		if len(runes) <= chunkSize {
+			if cur != "" {
+				cur += "\n\n"
+				size += 2
+			}
+			cur += para
+			size += len(runes)
+			continue
+		}
+		flush()
+		for start := 0; start < len(runes); start += chunkSize - chunkOverlap {
+			end := min(start+chunkSize, len(runes))
+			out = append(out, string(runes[start:end]))
+			if end == len(runes) {
+				break
+			}
 		}
 	}
+	flush()
+	if len(out) > maxChunks {
+		out = out[:maxChunks]
+	}
 	return out
+}
+
+// isHeading guesses: Text has removed the Markdown markers, so a heading is a
+// short single line.
+func isHeading(para string) bool {
+	return !strings.Contains(para, "\n") && len([]rune(para)) <= 80
 }
 
 // Hash identifies the text a vector was made from.

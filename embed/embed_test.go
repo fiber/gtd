@@ -167,6 +167,20 @@ func TestTextAndChunks(t *testing.T) {
 	if len(c) != 3 || len([]rune(c[0])) != chunkSize || len([]rune(c[2])) != 4000-2*(chunkSize-chunkOverlap) {
 		t.Errorf("chunks of 4000 characters: %d chunks, sizes %d %d", len(c), len([]rune(c[0])), len([]rune(c[len(c)-1])))
 	}
+	// Paragraphs stay whole and are packed up to the size; a heading stays
+	// with what follows it.
+	para := func(word string, n int) string { return strings.TrimSpace(strings.Repeat(word+" ", n)) }
+	doc := "Title\n\n" + para("alpha", 150) + "\n\nSecond heading\n\n" + para("beta", 200) + "\n\n" + para("gamma", 100)
+	c = Chunks(doc)
+	if len(c) != 3 || !strings.HasPrefix(c[0], "Title\n\nalpha") || !strings.HasSuffix(c[0], "alpha") ||
+		!strings.HasPrefix(c[1], "Second heading\n\nbeta") || strings.Contains(c[1], "gamma") || c[2] != para("gamma", 100) {
+		t.Errorf("paragraph chunks: %d: %.30q… %.30q… %.30q…", len(c), c[0], c[1], c[len(c)-1])
+	}
+	for _, x := range c {
+		if len([]rune(x)) > chunkSize {
+			t.Errorf("a chunk of %d characters", len([]rune(x)))
+		}
+	}
 	if c := Chunks(strings.Repeat("x", 100_000)); len(c) != maxChunks {
 		t.Errorf("very long text: %d chunks, want the cap %d", len(c), maxChunks)
 	}
@@ -250,6 +264,84 @@ func TestSimilarityAndIsolation(t *testing.T) {
 
 // TestBackendDown: the embedder fails, nothing else notices, and the queue
 // recovers when it comes back (M4 acceptance).
+// TestPassages: a long document is found by what one of its passages says,
+// and its passage rows follow the item through edits, trash and restart.
+func TestPassages(t *testing.T) {
+	s := newSite(t)
+	filler := func(word string) string { return strings.TrimSpace(strings.Repeat(word+" ", 220)) }
+	long := filler("lorem") + "\n\n" + filler("ipsum") + "\n\nthe heating bill keeps rising because of the insulation\n\n" + filler("dolor") + "\n\n" + filler("amet")
+	doc := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Meeting minutes", Body: long, State: core.StFiled})
+	short := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Garden gate", Body: "fix the hinge", State: core.StFiled})
+	s.start()
+	robin := s.view("robin")
+	rows := func() int {
+		s.svc.mu.RLock()
+		defer s.svc.mu.RUnlock()
+		if px := s.svc.passages["robin"]; px != nil {
+			return len(px.ids)
+		}
+		return 0
+	}
+	if rows() < 4 || s.svc.npass[key{"robin", short}] != 0 {
+		t.Fatalf("%d passage rows for the long note, %d for the short one", rows(), s.svc.npass[key{"robin", short}])
+	}
+	query := "heating bill insulation"
+	find := func() (float32, bool) {
+		for _, h := range s.svc.Search(context.Background(), robin, query, 5).Hits {
+			if h.ID == doc {
+				return h.Score, true
+			}
+		}
+		return 0, false
+	}
+	byPassage, ok := find()
+	if !ok {
+		t.Fatal("the long note is not found by the content of one passage")
+	}
+	// The item as a whole scores lower: without passages it would be missed.
+	qv, _ := s.emb.Embed(context.Background(), []string{query}, Query)
+	whole := s.svc.similar(robin, qv[0], 5, key{}, nil, false)
+	for _, h := range whole.Hits {
+		if h.ID == doc && h.Score*1.5 >= byPassage {
+			t.Errorf("whole-item score %.3f is not clearly below the passage score %.3f", h.Score, byPassage)
+		}
+	}
+	// Item-to-item similarity uses the whole item, not passages.
+	if res := s.svc.SimilarTo(robin, must(robin.Item("robin", short)), 5, nil); len(res.Hits) > 0 && res.Hits[0].Score > 0.5 {
+		t.Errorf("similar items: %+v", res.Hits)
+	}
+	// After a restart the passages are loaded from the store, not embedded again.
+	calls := s.emb.calls.Load()
+	before := rows()
+	s.start()
+	if rows() != before || s.emb.calls.Load() != calls {
+		t.Errorf("restart: %d rows (was %d), %d new embed calls", rows(), before, s.emb.calls.Load()-calls)
+	}
+	if _, ok := find(); !ok {
+		t.Error("not found after a restart")
+	}
+	// Shortened to one passage: its passage rows are gone.
+	it := must(robin.Item("robin", doc))
+	body, _ := jsonMarshal("short now")
+	if _, err := robin.Apply("robin", core.Op{Via: "cli", Type: core.OpPatch, Item: doc, BaseRev: it.Rev, Changes: []core.FieldChange{{Field: "body", New: body}}}); err != nil {
+		t.Fatal(err)
+	}
+	s.settle()
+	if rows() != 0 {
+		t.Errorf("%d passage rows left after the note became short", rows())
+	}
+	if _, ok := find(); ok {
+		t.Error("still found by text that was removed")
+	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 func TestBackendDown(t *testing.T) {
 	s := newSite(t)
 	s.emb.fail.Store(1_000_000)
@@ -311,8 +403,8 @@ func TestReindexIsIdentical(t *testing.T) {
 	robin := s.view("robin")
 	snapshot := func() (map[string]string, []string) {
 		vecs := map[string]string{}
-		s.st.EachVector(func(space, id string, hash [32]byte, vec []float32) {
-			vecs[space+"/"+id] = fmt.Sprintf("%x %v", hash, vec)
+		s.st.EachVector(func(space, id string, hash [32]byte, vec []float32, passages [][]float32) {
+			vecs[space+"/"+id] = fmt.Sprintf("%x %v %v", hash, vec, passages)
 		})
 		var answers []string
 		for _, q := range []string{"boat engine", "garden gate", "example api trade"} {
@@ -360,7 +452,7 @@ func TestReindexIsIdentical(t *testing.T) {
 	s.emb = newFake()
 	s.emb.id = "fake:2"
 	s.start()
-	if got := s.emb.calls.Load(); got == 0 || s.st.VectorIdentity() != "fake:2" || s.svc.Status().Vectors != 60 {
+	if got := s.emb.calls.Load(); got == 0 || s.st.VectorIdentity() != "fake:2"+vectorLayout || s.svc.Status().Vectors != 60 {
 		t.Errorf("model change: %d calls, identity %q, %+v", got, s.st.VectorIdentity(), s.svc.Status())
 	}
 }

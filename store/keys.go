@@ -20,7 +20,7 @@ import (
 //	sp/<space>/seq                  last op seq, be64
 //	opid/<opid>                     opRef
 //	sess/<id>                       Session (M1)
-//	x/vec/<space>/<itemid>          embedding: 32-byte text hash + float32s, little-endian (M4)
+//	x/vec/<space>/<itemid>          embedding: 32-byte text hash, passage count, item vector, passage vectors (LE float32)
 //	x/vecid                         identity of the stored vectors (M4)
 //	x/pdf/<sha256>                  extracted PDF text (M4)
 //

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,8 +47,14 @@ type Service struct {
 	// Backoff is the first wait after an embedder error. It doubles up to a minute.
 	Backoff time.Duration
 
-	mu       sync.RWMutex
-	spaces   map[string]*index
+	mu     sync.RWMutex
+	spaces map[string]*index
+	// passages holds, per space, one row per passage of every item whose text
+	// was split (row id "<item>#<n>"). Search by meaning looks at them too, so
+	// that one matching passage of a long document is found. npass is the
+	// number of passage rows per item.
+	passages map[string]*index
+	npass    map[key]int
 	hashes   map[key][32]byte
 	building map[string]bool // spaces whose first build after start or reset is not finished
 	identity string
@@ -94,22 +101,23 @@ func (s *Service) prepare(ctx context.Context) error {
 		}
 	}
 	id := s.emb.Identity()
+	stored := id + vectorLayout
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.identity == id {
 		return nil // reconnected to the same model
 	}
 	s.spaces, s.hashes, s.building = map[string]*index{}, map[key][32]byte{}, map[string]bool{}
-	if s.st.VectorIdentity() != id {
+	s.passages, s.npass = map[string]*index{}, map[key]int{}
+	if s.st.VectorIdentity() != stored {
 		// Another model, another prompt set, or the first run: the old vectors
 		// are not comparable with new ones. Drop them all.
-		if err := s.st.ResetVectors(id); err != nil {
+		if err := s.st.ResetVectors(stored); err != nil {
 			return err
 		}
 	} else {
-		err := s.st.EachVector(func(space, itemID string, hash [32]byte, vec []float32) {
-			s.index(space).put(itemID, vec)
-			s.hashes[key{space, itemID}] = hash
+		err := s.st.EachVector(func(space, itemID string, hash [32]byte, vec []float32, passages [][]float32) {
+			s.setVectors(key{space, itemID}, hash, vec, passages)
 		})
 		if err != nil {
 			return err
@@ -139,6 +147,40 @@ func (s *Service) prepare(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// vectorLayout is part of the stored vectors' identity: it changes when the
+// way texts are split or vectors are stored changes, so old ones are rebuilt.
+const vectorLayout = "|passages-1"
+
+// setVectors replaces an item's rows in the indexes. vec == nil removes them.
+// The caller holds s.mu.
+func (s *Service) setVectors(k key, hash [32]byte, vec []float32, passages [][]float32) {
+	px := s.passages[k.space]
+	for n := range s.npass[k] {
+		px.delete(k.id + "#" + strconv.Itoa(n))
+	}
+	delete(s.npass, k)
+	if vec == nil {
+		if x := s.spaces[k.space]; x != nil {
+			x.delete(k.id)
+		}
+		delete(s.hashes, k)
+		return
+	}
+	s.index(k.space).put(k.id, vec)
+	s.hashes[k] = hash
+	if len(passages) == 0 {
+		return
+	}
+	if px == nil {
+		px = newIndex()
+		s.passages[k.space] = px
+	}
+	for n, p := range passages {
+		px.put(k.id+"#"+strconv.Itoa(n), p)
+	}
+	s.npass[k] = len(passages)
 }
 
 func (s *Service) index(space string) *index {
@@ -285,10 +327,7 @@ func (s *Service) embed(ctx context.Context, batch []key) error {
 		it := s.st.ItemOf(k.space, k.id)
 		if it == nil || it.State == core.StTrashed {
 			s.mu.Lock()
-			if x := s.spaces[k.space]; x != nil {
-				x.delete(k.id)
-			}
-			delete(s.hashes, k)
+			s.setVectors(k, [32]byte{}, nil, nil)
 			s.mu.Unlock()
 			s.st.DeleteVector(k.space, k.id)
 			continue
@@ -317,14 +356,17 @@ func (s *Service) embed(ctx context.Context, batch []key) error {
 	}
 	at := 0
 	for _, j := range jobs {
-		vec := Mean(vecs[at : at+j.chunks])
+		passages := vecs[at : at+j.chunks]
 		at += j.chunks
-		if err := s.st.PutVector(j.k.space, j.k.id, j.hash, vec); err != nil {
+		vec := Mean(passages)
+		if j.chunks == 1 {
+			passages = nil // the item's vector is its only passage
+		}
+		if err := s.st.PutVector(j.k.space, j.k.id, j.hash, vec, passages); err != nil {
 			return err
 		}
 		s.mu.Lock()
-		s.index(j.k.space).put(j.k.id, vec)
-		s.hashes[j.k] = j.hash
+		s.setVectors(j.k, j.hash, vec, passages)
 		s.mu.Unlock()
 	}
 	return nil
@@ -391,10 +433,11 @@ func (s *Service) Reindex() error {
 	if s.identity == "" {
 		return nil // nothing built yet: prepare will do it
 	}
-	if err := s.st.ResetVectors(s.identity); err != nil {
+	if err := s.st.ResetVectors(s.identity + vectorLayout); err != nil {
 		return err
 	}
 	s.spaces, s.hashes, s.building = map[string]*index{}, map[key][32]byte{}, map[string]bool{}
+	s.passages, s.npass = map[string]*index{}, map[key]int{}
 	s.st.EachItem(func(it *core.Item) {
 		if it.State != core.StTrashed {
 			s.building[it.Space] = true
@@ -427,7 +470,10 @@ func (s *Service) usable() string {
 // keep filters by item (it may be nil). A space that is still being built is
 // not searched, and the answer then says "building": a partial index is not
 // ranked (AI_CONTRACT §2.1).
-func (s *Service) similar(v *store.View, vec []float32, k int, exclude key, keep func(*core.Item) bool) Result {
+//
+// With passages set, an item scores as its best passage if that is higher
+// than the score of the item as a whole.
+func (s *Service) similar(v *store.View, vec []float32, k int, exclude key, keep func(*core.Item) bool, passages bool) Result {
 	res := Result{State: s.usable(), Hits: []Hit{}}
 	if res.State != StateOK || vec == nil {
 		return res
@@ -443,7 +489,16 @@ func (s *Service) similar(v *store.View, vec []float32, k int, exclude key, keep
 		if x == nil {
 			continue
 		}
-		for i, score := range x.scores(vec) {
+		scores := x.scores(vec)
+		if px := s.passages[sp.ID]; passages && px != nil {
+			for i, score := range px.scores(vec) {
+				id, _, _ := strings.Cut(px.ids[i], "#")
+				if at, ok := x.pos[id]; ok && score > scores[at] {
+					scores[at] = score
+				}
+			}
+		}
+		for i, score := range scores {
 			all = append(all, Hit{sp.ID, x.ids[i], score})
 		}
 	}
@@ -522,7 +577,7 @@ func (s *Service) SimilarTo(v *store.View, it *core.Item, k int, keep func(*core
 	if _, err := v.Item(it.Space, it.ID); err != nil {
 		return Result{State: StateOK, Hits: []Hit{}}
 	}
-	return s.similar(v, s.vector(it.Space, it.ID), k, key{it.Space, it.ID}, keep)
+	return s.similar(v, s.vector(it.Space, it.ID), k, key{it.Space, it.ID}, keep, false)
 }
 
 // Search embeds a query and returns the nearest items. It gives the embedder
@@ -539,7 +594,7 @@ func (s *Service) Search(ctx context.Context, v *store.View, query string, k int
 	}
 	// Every kind is searched, captures in the inbox included: search is for
 	// finding things, wherever they are.
-	res := s.similar(v, vecs[0], k, key{}, nil)
+	res := s.similar(v, vecs[0], k, key{}, nil, true)
 	for i, h := range res.Hits { // best first: cut at the floor
 		if h.Score < s.SearchThreshold {
 			res.Hits = res.Hits[:i]

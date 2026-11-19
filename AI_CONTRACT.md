@@ -54,8 +54,13 @@ Rules, taken from the NIS embedding brief:
 `title + "\n\n" + body` with Markdown stripped, link tokens replaced by the linked
 item's title (if visible in the same space), image tokens by the attachment name,
 mention tokens by the display name. Then template field values as `key: value`
-lines, `imported.folder` and `imported.tags` (if any), and extracted PDF text. Chunks
-are ~1,500 characters with 200 overlap. **Item vector = L2-normalized mean of its chunk
+lines, `imported.folder` and `imported.tags` (if any), and extracted PDF text. The text
+is split into passages of at most 1,500 characters, between paragraphs, a heading
+staying with its section; only a longer paragraph is cut inside (200 overlap); at most
+16 passages. The passage vectors of an item with more than one passage are stored
+with it. Search by meaning scores an item as the better of its item vector and its
+best passage; item-to-item similarity, duplicates and project vectors use the item
+vector only. **Item vector = L2-normalized mean of its chunk
 vectors.** Comments are not embedded in v1.
 
 ### 2.3 Storage and search
