@@ -334,7 +334,7 @@ class Note extends View {
           byDays ? 'days' : it.repeat || '',
           (v) => { this.repeatDays = v === 'days'; if (v !== 'days') this.set('repeat', v); else this.requestUpdate(); }, t('repeat.none'))}
         ${byDays ? chips(weekdays.map((d, i) => ({ value: d, text: dayName(i) })), onDays,
-          (d) => this.set('repeat', (onDays.includes(d) ? onDays.filter((x) => x !== d) : [...onDays, d]).join(','))) : nothing}
+          (d) => this.set('repeat', weekdays.filter((x) => (x === d) !== onDays.includes(x)).join(','))) : nothing}
       </div>`);
       const candidates = o.actions.filter((a) => a.id !== it.id && !(it.blocked_by || []).includes(a.id));
       out.push(html`<div class="field"><label>${t('field.blocked_by')}</label>
