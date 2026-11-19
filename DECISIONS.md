@@ -46,8 +46,19 @@ Settled with the product owner (Sven). The agent must not change them.
 ## Open questions (owner to answer; agent: ask, don't guess)
 
 - **Q-1** The generation backend on each server and its API: at work, what serves the local Gemma (fiber/ai? norad? something else); at home, which provider and model (D-25). Needed before M7.
-- **Q-2** The norad embedding server's API (endpoint, request/response, batch limit, max input, model and dim). Needed before M4 for the work server. Check whether it matches fiber/ai's protocol.
-- **Q-3** Which package provides the SIMD SGEMM/dot kernels: `github.com/fiber/ai`, vektor (import path?), or both. Needed before M4.
+- **Q-2** (answered 2026-11-19 by Sven's brief "NIS embeddings: what exists and how to use it",
+  read from go.gtt.net at 36c524f2.) At work, EmbeddingGemma (~300M, 768-dim unit vectors) runs
+  in-process on CPU through `github.com/fiber/ai`; there is no HTTP embedding server. A NIS host
+  can share one loaded model through `embedsrv` (`norad embed`, TLV frames over a Unix socket or
+  the SSH proxy; limits announced in WELCOME). norad's `embed` assist op (1–16 texts of ≤ 2 KB,
+  shared with live chat) is not for bulk work, and an atlas vector index would put gtd's texts
+  into atlas: neither is used. See AI_CONTRACT §2.1. Still open: may this repository import
+  `go.gtt.net/aiops/embedsrv` and `go.gtt.net/tlv` for the shared-server backend, or does the
+  work server also run the model in-process (1.2 GB RAM)? Needed only if the shared server is wanted.
+- **Q-3** (answered 2026-11-19 by reading `github.com/fiber/ai` v0.1.2.) The SIMD kernels are
+  internal to fiber/ai; its public `cluster` package is the way in: `Similarities(queries, docs)`
+  (SGEMM), `Cosine`, `Nearest`, `KMeans`, `Normalize`. Embedding is `models/gemma`: `Load(dir)`,
+  `Embed(texts, gemma.Prompt("document"|"query"))`, `Dim()`, `Close()`.
 - **Q-4** nuro side of the integration: which events nuro will post (backtest finished, pipeline failure, …). Needed before M8. gtd only provides the generic `append` mechanism.
 - **Q-5** Sven's personal extra contexts and review weekday (config, any time).
 - **Q-6** (answered 2026-11-19: generation is per server and per user, see D-25.) Still open

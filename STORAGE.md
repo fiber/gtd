@@ -38,6 +38,7 @@ sp/<space>/op/<seq:be64>         → op record (§3)
 sp/<space>/seq                   → last op seq for the space
 opid/<opid>                      → {space, seq} idempotency index (offline replay)
 x/vec/<space>/<itemid>           → embedding row (derived; excluded from export)
+x/vecid                          → identity of the stored vectors (model + prompt set)
 x/ai/<type>/<contenthash>        → cached AI result (derived; excluded from export)
 x/pdf/<sha256>                   → extracted PDF text (derived)
 ```

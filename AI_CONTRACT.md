@@ -25,15 +25,29 @@ type Embedder interface {
     Dim() int
 }
 ```
-- **fiber-ai** (home server): **first read the embeddinggemma example in
-  `github.com/fiber/ai`** and use that integration (in-process or HTTP, whichever
-  it is). Record what you found in DECISIONS › Agent decisions.
-- **norad** (work server): an HTTP client for the existing norad embedding server
-  (API: DECISIONS Q-2; ask before implementing). If it speaks the same protocol as
-  fiber/ai, one client covers both.
-- The model is `embeddinggemma`, and the dim comes from the backend (768 unless
-  truncated). A model or dim change in config invalidates `x/vec/` and triggers a
-  background re-embed with progress.
+- **in-process** (both servers, the default): `github.com/fiber/ai/models/gemma`.
+  `gemma.Load(dir)` reads the EmbeddingGemma files (config, tokenizer, safetensors,
+  1.2 GB, a few seconds to load); `Embed(texts, gemma.Prompt("document"))` for stored
+  items and `gemma.Prompt("query")` for searches. One forward pass at a time; about
+  0.5 s per 2 KB text on CPU. The model reads at most 2048 tokens.
+- **embedsrv** (optional, a NIS host that already runs `norad embed`): a client for the
+  shared embedding server, so that gtd does not load its own copy of the weights. The
+  server does not add task prompts: the client wraps the texts itself
+  (`"title: none | text: "` for documents, `"task: search result | query: "` for
+  queries). See DECISIONS Q-2 for the open dependency question.
+- Not used: norad's `embed` assist op (interactive use only) and atlas vector indexes
+  (gtd's texts stay in Pebble).
+
+Rules, taken from the NIS embedding brief:
+- **A vector's identity is the model identity plus the prompt set.** It is stored with
+  the vectors. Vectors of different identities are never compared: a changed identity
+  invalidates `x/vec/` and triggers a background re-embed.
+- **No answers from a partial index.** While a space's vectors are being built or
+  rebuilt, similarity features for it say "building, N of M" instead of ranking what
+  exists so far.
+- **Fall back visibly.** When the embedder cannot answer, search uses the text match
+  and says so; suggestions are hidden, not replaced by guesses.
+- The model is `embeddinggemma`, 768 dimensions.
 
 ### 2.2 Input text
 `title + "\n\n" + body` with Markdown stripped, link tokens replaced by the linked
@@ -46,9 +60,9 @@ vectors.** Comments are not embedded in v1.
 ### 2.3 Storage and search
 - `x/vec/<space>/<id>` → `{hash, vec}`. At startup, load into one contiguous
   `[]float32` matrix per space plus an ID slice, updated in place.
-- Search = query vector(s) × matrix via the in-house SIMD kernels (DECISIONS Q-3:
-  SGEMM for batches, dot for single queries), then top-k with filters (kind, state,
-  exclude self), across the allowed spaces only.
+- Search = query vector(s) × matrix with `cluster.Similarities` from
+  `github.com/fiber/ai` (SGEMM on its SIMD kernels), then top-k with filters (kind,
+  state, exclude self), across the allowed spaces only.
 - Target: a top-k query over 50k × 768 in under 5 ms (report it).
 
 ### 2.4 Uses
@@ -70,7 +84,8 @@ embeddinggemma is multilingual) and proposes values.
 
 ### 2.5 Clustering (unsorted sweep)
 Spherical k-means over `note`/`unsorted` vectors per space: `k = ceil(n/15)`,
-k-means++ with a fixed seed, at most 50 iterations, dot products via the SIMD kernels.
+k-means++ with a fixed seed, at most 50 iterations (`cluster.KMeans` from fiber/ai if it
+fits these rules, else our own loop on `cluster.Similarities`).
 Cohesion = mean cosine to the centroid. Clusters with cohesion under 0.45 or fewer than
 2 members go to "loose notes", shown last. Order: cohesion × size, descending.
 Deterministic. Recomputed per sweep session.

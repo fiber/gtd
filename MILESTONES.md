@@ -62,8 +62,8 @@ though collaboration features arrive in M6. Goal: Sven can use the tool daily
   arrives as a capture with the attachment.
 
 ## M4 — Embeddings and similarity
-- **First:** read the `github.com/fiber/ai` embeddinggemma example, and ask about
-  Q-2 (norad) and Q-3 (SIMD kernels).
+- Q-2 and Q-3 are answered (DECISIONS): in-process `fiber/ai` on both servers, its
+  `cluster` package for similarity. The shared `embedsrv` backend only if wanted.
 - Embedder backends, vector storage, job queue, AI status indicator, similarity in
   Clarify steps 1–4, "might belong here", related sidebar, semantic search, PDF text.
 - **Accept:**
