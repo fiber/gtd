@@ -200,6 +200,20 @@ class Settings extends View {
         <div class="field"><label>${t('settings.contexts')}</label>
           <input type="text" .value=${me.user.personal_contexts.join(', ')} @change=${(e) => this.setContexts(e)}>
           <small>${t('settings.contexts_hint')}</small></div>
+        <div class="field"><label>${t('settings.aliases')}</label>
+          <input type="text" .value=${(me.user.aliases || []).join(', ')} @change=${async (e) => {
+            const list = e.target.value.split(',').map((x) => x.trim()).filter(Boolean);
+            await this.run(async () => { await store.setMe({ aliases: list }); toast(t('settings.saved')); });
+          }}>
+          <small>${t('settings.aliases_hint')}</small></div>
+        <h2>${t('settings.ai')}</h2>
+        <p><small>${me.ai?.on ? t('settings.ai_about', { model: me.ai.name }) : t('settings.ai_none')}</small></p>
+        ${me.ai?.on ? me.spaces.map((sp) => html`
+          <div class="field"><label>${sp.id === me.user.id ? t('clarify.opt.personal') : sp.name}</label>
+            ${select(['off', 'local', 'any'].map((x) => ({ id: x, title: t('ai.policy.' + x) })), sp.ai || 'local', async (v) => {
+              await this.run(async () => { await store.setAIPolicy(sp.id, v); sp.ai = v; toast(t('settings.saved')); });
+              this.requestUpdate();
+            })}</div>`) : nothing}
         ${me.spaces.filter((sp) => sp.kind === 'shared').map((sp) => html`
           <div class="field"><label>${t('settings.space_contexts', { name: sp.name })}</label>
             <input type="text" .value=${(sp.contexts || []).join(', ')} @change=${(e) => this.setSpaceContexts(sp, e)}>

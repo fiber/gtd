@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fiber/gtd/ai"
 	"github.com/fiber/gtd/embed"
 	"github.com/fiber/gtd/store"
 	"github.com/fiber/gtd/web"
@@ -141,6 +142,17 @@ func serve(g globals, stdout, stderr io.Writer) error {
 	}
 	app.SecureCookies = strings.HasPrefix(cfg.Server.BaseURL, "https://")
 	app.Admins = cfg.Admins
+	if cfg.AI.APIKey != "" {
+		p, err := ai.New(ai.Options{Provider: cfg.AI.Provider, APIKey: cfg.AI.APIKey, Model: cfg.AI.Model, MaxTokens: cfg.AI.MaxTokens})
+		if err != nil {
+			return fmt.Errorf("config.yaml: %w", err)
+		}
+		app.AI = p
+		fmt.Fprintf(stdout, "gtd: ai: %s (asked only on a user's request, for spaces that allow it)\n", p.Name())
+		if info, err := os.Stat(filepath.Join(g.data, "config.yaml")); err == nil && info.Mode().Perm()&0o077 != 0 {
+			fmt.Fprintf(stderr, "gtd: config.yaml holds an API key and is readable by others (mode %04o): chmod 600 it\n", info.Mode().Perm())
+		}
+	}
 	// Linked servers: this server's own SSH key (made on the first start),
 	// and a loop that delivers and collects every minute, or when asked.
 	if app.LinkKey, err = linkKey(g.data); err != nil {

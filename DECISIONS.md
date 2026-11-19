@@ -45,7 +45,7 @@ Settled with the product owner (Sven). The agent must not change them.
 
 ## Open questions (owner to answer; agent: ask, don't guess)
 
-- **Q-1** (partly answered 2026-11-19: the home server uses Gemini, the work servers the internal Gemma 32B. The owner is "unsure about the value of this AI integration right now": M7 is not started. Still open when it is: which API serves Gemma at work.) The generation backend on each server and its API: at work, what serves the local Gemma (fiber/ai? norad? something else); at home, which provider and model (D-25). Needed before M7.
+- **Q-1** (answered for the cloud side 2026-11-19: "check how nuro does it, the API would be the same" — one provider per server, `anthropic` or `gemini`, with one key, as in nuro's config. What serves Gemma at work is still open.) (partly answered 2026-11-19: the home server uses Gemini, the work servers the internal Gemma 32B. The owner is "unsure about the value of this AI integration right now": M7 is not started. Still open when it is: which API serves Gemma at work.) The generation backend on each server and its API: at work, what serves the local Gemma (fiber/ai? norad? something else); at home, which provider and model (D-25). Needed before M7.
 - **Q-2** (answered 2026-11-19 by Sven's brief "NIS embeddings: what exists and how to use it",
   read from go.gtt.net at 36c524f2.) At work, EmbeddingGemma (~300M, 768-dim unit vectors) runs
   in-process on CPU through `github.com/fiber/ai`; there is no HTTP embedding server. A NIS host
@@ -332,3 +332,13 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — What is let go behind: an item that was blocked by something that left is no longer blocked by it (a patch by the mover, then the dependency rule). Links in text (`[[id]]`) are left as they are and show "unavailable item" to those who cannot see the target.
 - 2026-11-19 — An imported note that was moved is not imported again into its old space by a later import run.
 - 2026-11-19 — There is no bulk move from a list, and a move is not undone by a button: move it back.
+
+### AI, first button (M7 begun)
+
+- 2026-11-19 — Owner: build AI the way nuro does. `ai/` is a small client with two providers, Anthropic (Messages API) and Gemini (generateContent), over plain HTTP without an SDK, as nuro's is, and with nuro's config keys (`ai: {provider, api_key, model, max_tokens}`). No new dependency. Only the one-shot call is ported: no tools, no chat, no usage accounting.
+- 2026-11-19 — Default models when `model` is empty: `claude-opus-5-5` for anthropic, `gemini-3.8-flash` for gemini (nuro's default). For Anthropic models that support it, a request their safeguards decline is passed to the API's default fallback model (`fallbacks: "default"`); a refusal that remains is shown as "the model declined".
+- 2026-11-19 — The per-space AI policy (Q-11) is built: `ai` on the space is `off`, `local` or `any`; nothing set means `local`. One function in `web` (`aiFor`) hands out the backend for a space's text and is the only way to it. Both providers are cloud backends, so with the default nothing is sent until a member sets a space to `any`. A local backend (Gemma at work) does not exist yet. Any member of a space may change its policy.
+- 2026-11-19 — "Suggest task lines" (owner: "an AI button generate task lines"): on an item with text, in a space that allows the backend. The model returns who, what and the passage it took it from; an entry whose passage is not in the text is dropped before the user sees it. The user ticks, and only then are the lines appended to the body under "Action items" as `- [ ] Me: …`, `- [ ] Dana: …`, `- [ ] Open: …`. The request waits for the model (up to four minutes) while the rest of the page stays usable; nothing else in the app waits for AI.
+- 2026-11-19 — Users have "names in notes" (Settings) so that the model can tell which commitments are the reader's.
+- 2026-11-19 — Not built: Process note does not yet preselect "Someone else" for a line that starts with another person's name; the other AI buttons; a local provider; per-user keys; usage and cost display.
+- 2026-11-19 — Not verified: no real request has been made to Anthropic or Gemini from gtd (no key was available). Both providers are tested against stand-in servers for request and answer shapes; the Gemini shapes are taken from nuro's working client.

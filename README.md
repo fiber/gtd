@@ -107,6 +107,32 @@ gtd export /backup/gtd-$(date +%F)      # a full, lossless export; `gtd import -
 
 To upgrade, replace the binary and restart the service.
 
+### AI (optional)
+
+gtd asks a language model only when someone presses an AI button, and only with the
+text of a space that allows it. The first such button is **Suggest task lines** on a
+note: it proposes `- [ ]` lines for the commitments in the text, you tick the ones
+you want, and Process note takes it from there.
+
+The config is the same as nuro's: one provider and one key per server.
+
+```yaml
+ai:
+  provider: anthropic        # or gemini
+  api_key: "…"
+  # model: claude-opus-5-5   # optional; that is the default for anthropic,
+  #                          # gemini-3.8-flash for gemini
+```
+
+`config.yaml` then holds a secret: `chmod 600` it (the daemon says so at start if
+others can read it). Every user of the server who presses an AI button uses this
+key.
+
+Each space has an AI setting (Settings › AI): **Never**, **Only a model on our own
+machines** (the default) or **Also a cloud model**. Anthropic and Gemini are cloud
+models, so until a space is set to "Also a cloud model", nothing of it is sent
+anywhere and it shows no AI buttons.
+
 ### Capturing from outside the app
 
 A capture-only token can put things into your inbox and can do nothing else: it

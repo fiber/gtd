@@ -201,6 +201,7 @@ type spaceYAML struct {
 	Members   []string        `yaml:"members"`
 	People    []string        `yaml:"people,omitempty"`
 	Contexts  []string        `yaml:"contexts,omitempty"`
+	AI        string          `yaml:"ai,omitempty"`
 	Templates []core.Template `yaml:"templates,omitempty"`
 }
 
@@ -308,7 +309,7 @@ func exportSpace(snap pebble.Reader, rec *core.Space, put func(string, []byte) e
 	ms := ManifestSpace{ID: rec.ID}
 	dir := "spaces/" + rec.ID + "/"
 	y, err := yaml.Marshal(spaceYAML{ID: rec.ID, Name: rec.Name, Kind: rec.Kind,
-		Created: rec.Created.Format(time.RFC3339Nano), Members: rec.Members, People: rec.People, Contexts: rec.Contexts, Templates: rec.Templates})
+		Created: rec.Created.Format(time.RFC3339Nano), Members: rec.Members, People: rec.People, Contexts: rec.Contexts, AI: rec.AI, Templates: rec.Templates})
 	if err != nil {
 		return ms, err
 	}

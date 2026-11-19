@@ -167,7 +167,7 @@ silently picked.
 server: { name: "home", base_url: "https://gtd.example.org", listen: "127.0.0.1:8640" }
 embed:  { provider: internal | gtt-nora | ollama, model_dir: "/home/sven/models/embeddinggemma-300m",
           url: "…", model: embeddinggemma }   # model_dir for internal, url for the other two
-gen:    { provider: "<Q-1>", url: "…", model: "…", timeout: 120s }   # optional
+ai:     { provider: anthropic | gemini, api_key: "…", model: "…" }   # optional, as in nuro
 snapshots: { schedule: hourly, keep: { hourly: 24, daily: 14, weekly: 8 } }
 limits: { attachment_mb: 25 }
 admins: [sven]                     # who may administer (users, spaces, backups)

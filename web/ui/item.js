@@ -14,7 +14,7 @@ class Note extends View {
   static properties = {
     itemId: {}, item: { state: true }, comments: { state: true }, editing: { state: true },
     preview: { state: true }, picks: { state: true }, showOriginal: { state: true }, more: { state: true },
-    showPreview: { state: true }, saveState: { state: true }, moving: { state: true },
+    showPreview: { state: true }, saveState: { state: true }, moving: { state: true }, proposals: { state: true }, asking: { state: true },
   };
 
   willUpdate(changed) {
@@ -39,6 +39,36 @@ class Note extends View {
 
   set(field, value) {
     return this.run(() => store.patch(this.item, { [field]: value }));
+  }
+
+  // AI, on request: ask for task lines in this text. What comes back is a
+  // list to tick; nothing changes until "Add to the note".
+  aiAllowed() {
+    const ai = store.me.ai;
+    const sp = store.me.spaces.find((x) => x.id === this.item.space);
+    const policy = sp?.ai || 'local';
+    return ai?.on && (policy === 'any' || (policy === 'local' && ai.local));
+  }
+  async suggest() {
+    this.asking = true;
+    this.proposals = null;
+    try {
+      const res = await store.suggestTaskLines(this.item.id);
+      this.proposals = res.lines.map((l) => ({ ...l, on: true }));
+      if (!res.lines.length) toast(t('tasklines.none'));
+    } catch (e) {
+      toast(t(e.message), true);
+    }
+    this.asking = false;
+  }
+  async addProposals() {
+    const lines = this.proposals.filter((l) => l.on).map(({ who, text }) => ({ who, text }));
+    if (!lines.length) return;
+    const res = await this.run(() => store.addTaskLines(this.item.id, lines));
+    if (!res) return;
+    this.proposals = null;
+    toast(t('tasklines.added', { n: res.added }));
+    await this.reload();
   }
 
   // Move to another space: first ask what would move and who would see it,
@@ -401,6 +431,8 @@ class Note extends View {
         <div class="body" .innerHTML=${it.body_html}></div>
         <div class="buttons">
           <button @click=${() => this.startEdit()}>${t(it.body ? 'action.edit' : 'note.write')}</button>
+          ${it.body && this.aiAllowed() ? html`<button ?disabled=${this.asking} @click=${() => this.suggest()}
+            title=${t('tasklines.hint', { model: store.me.ai.name })}>${this.asking ? t('tasklines.asking') : '✦ ' + t('tasklines.suggest')}</button>` : nothing}
           ${it.tasks ? html`<a class="button primary" href=${'process/' + it.id}>${t('note.process', { n: it.tasks })}</a>` : nothing}
           <label class="button">${icon.clip} ${t('note.attach')}<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
         </div>`;
@@ -460,6 +492,14 @@ class Note extends View {
           </div>
         </header>
         ${it.state === 'trashed' ? html`<p class="notice">${t('item.in_trash')}</p>` : nothing}
+        ${this.proposals?.length ? html`<div class="notice proposals">
+          <label>${t('tasklines.title')}</label>
+          ${this.proposals.map((l) => html`
+            <label class="check"><input type="checkbox" .checked=${l.on} @change=${(e) => { l.on = e.target.checked; this.requestUpdate(); }}>
+              <span><b>${l.who === 'me' ? t('tasklines.me') : l.who || t('tasklines.open')}:</b> ${l.text}
+                <small>“${l.quote}”</small></span></label>`)}
+          <div class="buttons"><button class="primary" @click=${() => this.addProposals()}>${t('tasklines.add')}</button>
+            <button @click=${() => { this.proposals = null; }}>${t('action.cancel')}</button></div></div>` : nothing}
         ${this.moving ? html`<p class="notice moving">
           <span>${t(this.moving.count > 1 ? 'move.confirm_many' : 'move.confirm_one', { n: this.moving.count, space: this.moving.space, members: this.moving.members.join(', ') })}
             ${this.moving.attachments ? ' ' + t('move.attachments') : ''}</span>

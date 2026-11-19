@@ -129,6 +129,18 @@ The tabs **Waiting for** and **Due and targets** are for a quick look, not for w
 Keys: `c` capture, `e` Engage, `n` new note, `/` search, `j`/`k` move, `x` done,
 `f` full screen, and number keys to answer a wizard question.
 
+## Minutes and call notes
+
+Paste or write the minutes as a note. The things to do in them become actions through
+**task lines**: lines that start with `- [ ]`. **Process note** walks through them
+and makes each one an action in the project you choose.
+
+If the server has an AI model and the note's space allows it (Settings › AI), the
+note has **✦ Suggest task lines**. It reads the text and proposes a line for every
+commitment it finds, yours and other people's, each with the sentence it comes from.
+Tick the ones that are right and add them; nothing changes before that. Check them
+against the minutes: it can miss things.
+
 ## Working with others
 
 A **shared space** is what you share: everyone in it sees everything in it. Clarify's

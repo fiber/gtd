@@ -163,13 +163,17 @@ type Template struct {
 }
 
 type Space struct {
-	V         int        `json:"v" yaml:"-"`
-	ID        string     `json:"id" yaml:"id"`
-	Name      string     `json:"name" yaml:"name"`
-	Kind      string     `json:"kind" yaml:"kind"`
-	Members   []string   `json:"members" yaml:"members"`
-	People    []string   `json:"people,omitempty" yaml:"people,omitempty"`
-	Contexts  []string   `json:"contexts,omitempty" yaml:"contexts,omitempty"` // a shared space\'s own contexts, besides the canonical ones
+	V        int      `json:"v" yaml:"-"`
+	ID       string   `json:"id" yaml:"id"`
+	Name     string   `json:"name" yaml:"name"`
+	Kind     string   `json:"kind" yaml:"kind"`
+	Members  []string `json:"members" yaml:"members"`
+	People   []string `json:"people,omitempty" yaml:"people,omitempty"`
+	Contexts []string `json:"contexts,omitempty" yaml:"contexts,omitempty"` // a shared space\'s own contexts, besides the canonical ones
+	// AI says which generation backends may read this space's text: "off"
+	// (none), "local" (only one that runs on the operator's machines; the
+	// default, also when empty) or "any" (also a cloud model).
+	AI        string     `json:"ai,omitempty" yaml:"ai,omitempty"`
 	Templates []Template `json:"templates,omitempty" yaml:"templates,omitempty"`
 	Created   time.Time  `json:"created" yaml:"-"`
 }
@@ -183,6 +187,7 @@ type User struct {
 	PasswordHash     string   `json:"password_hash,omitempty"`
 	SSHKeys          []string `json:"ssh_keys,omitempty"`
 	PersonalContexts []string `json:"personal_contexts,omitempty"`
+	Aliases          []string `json:"aliases,omitempty"` // how the user appears in notes ("Sven", "SE")
 	ReviewWeekday    int      `json:"review_weekday,omitempty"`
 	PersonalSpace    string   `json:"personal_space"`
 }

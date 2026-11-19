@@ -139,6 +139,8 @@ func (s *Server) initApp() {
 	m.HandleFunc("GET /api/v1/spaces/{id}/templates", s.user(s.getTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/templates", s.user(s.putTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/contexts", s.user(s.putContexts))
+	m.HandleFunc("PUT /api/v1/spaces/{id}/ai", s.user(s.putAIPolicy))
+	m.HandleFunc("POST /api/v1/items/{id}/tasklines", s.user(s.taskLines))
 	m.HandleFunc("POST /api/v1/items/{id}/move", s.user(s.moveItem))
 	m.HandleFunc("DELETE /api/v1/wizard/review", s.user(s.reviewStop))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/start", s.user(s.wizardStart))
@@ -463,7 +465,9 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, a actor) error {
 		contexts = []string{}
 	}
 	return reply(w, map[string]any{
-		"user":    map[string]any{"id": u.ID, "name": u.Name, "admin": slices.Contains(s.Admins, u.ID), "personal_contexts": contexts},
+		"user": map[string]any{"id": u.ID, "name": u.Name, "admin": slices.Contains(s.Admins, u.ID), "personal_contexts": contexts,
+			"aliases": append([]string{}, u.Aliases...)},
+		"ai":      s.aiInfo(),
 		"lang":    s.lang(r, a.user),
 		"spaces":  v.Spaces(),
 		"today":   s.today(),
@@ -477,6 +481,7 @@ func (s *Server) setMe(w http.ResponseWriter, r *http.Request, a actor) error {
 	var in struct {
 		Lang             *string   `json:"lang"`
 		PersonalContexts *[]string `json:"personal_contexts"`
+		Aliases          *[]string `json:"aliases"`
 		ReviewWeekday    *int      `json:"review_weekday"` // 1 Monday … 7 Sunday, 0 none
 	}
 	if err := body(r, &in); err != nil {
@@ -494,6 +499,14 @@ func (s *Server) setMe(w http.ResponseWriter, r *http.Request, a actor) error {
 				return fmt.Errorf("%w: review_weekday %d (1 Monday to 7 Sunday, 0 none)", core.ErrInvalid, *in.ReviewWeekday)
 			}
 			u.ReviewWeekday = *in.ReviewWeekday
+		}
+		if in.Aliases != nil {
+			u.Aliases = nil
+			for _, n := range *in.Aliases {
+				if n = strings.Join(strings.Fields(n), " "); n != "" && len([]rune(n)) <= 40 && !slices.Contains(u.Aliases, n) {
+					u.Aliases = append(u.Aliases, n)
+				}
+			}
 		}
 		if in.PersonalContexts != nil {
 			list, err := core.CleanContexts(*in.PersonalContexts)
@@ -1675,4 +1688,18 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request, a actor) error
 		return err
 	}
 	return reply(w, map[string]any{"moved": len(set), "space": in.Space})
+}
+
+// aiInfo tells the client whether there is a generation backend and of
+// which kind, so that it shows AI buttons only where they can work.
+func (s *Server) aiInfo() map[string]any {
+	if s.AI == nil {
+		return map[string]any{"on": false}
+	}
+	return map[string]any{"on": true, "name": s.AI.Name(), "local": s.AI.Local()}
+}
+
+func jsonOf(v any) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return b
 }

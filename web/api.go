@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fiber/gtd/ai"
 	"github.com/fiber/gtd/auth"
 	"github.com/fiber/gtd/core"
 	"github.com/fiber/gtd/embed"
@@ -39,6 +40,10 @@ type Server struct {
 	// SecureCookies marks the session cookie Secure. The daemon sets it when
 	// server.base_url is https.
 	SecureCookies bool
+	// AI is the generation backend (config.yaml, `ai:`), or nil. It is asked
+	// only when a user presses a button, and only for spaces whose policy
+	// allows this backend.
+	AI ai.Provider
 	// LinkKey is this server's SSH key for connecting to linked servers.
 	LinkKey ssh.Signer
 	// Kick, if set, asks the daemon to run SyncLinks soon.

@@ -150,6 +150,9 @@ export const store = {
 
   // Wizards: the server holds the step machine, the client renders its steps.
   setSpaceContexts: (space, contexts) => put(`/spaces/${encodeURIComponent(space)}/contexts`, { contexts }),
+  suggestTaskLines: (id) => post(`/items/${encodeURIComponent(id)}/tasklines`, {}),
+  addTaskLines: (id, lines) => post(`/items/${encodeURIComponent(id)}/tasklines`, { accept: lines }),
+  setAIPolicy: (space, policy) => put(`/spaces/${encodeURIComponent(space)}/ai`, { policy }),
   moveItem: (id, space, confirm) => post(`/items/${encodeURIComponent(id)}/move`, { space, confirm: !!confirm }),
   stopReview: () => request('DELETE', '/wizard/review'),
   tokens: () => get('/me/tokens'),

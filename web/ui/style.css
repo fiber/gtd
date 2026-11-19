@@ -499,3 +499,7 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .leave-review .quiet { background: none; border-color: transparent; color: var(--muted); }
 .notice.moving { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .notice.moving span { flex: 1; min-width: 220px; }
+.notice.proposals { display: flex; flex-direction: column; gap: 6px; }
+.notice.proposals .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+.notice.proposals .check input { margin-top: 3px; flex: none; }
+.notice.proposals small { display: block; color: var(--muted); }

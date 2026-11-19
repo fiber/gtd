@@ -144,7 +144,7 @@ func (r *restorer) space(ms ManifestSpace) error {
 		return fmt.Errorf("space.yaml: id %q, created %q", y.ID, y.Created)
 	}
 	rec := core.Space{V: core.Version, ID: y.ID, Name: y.Name, Kind: y.Kind, Members: y.Members,
-		People: y.People, Contexts: y.Contexts, Templates: y.Templates, Created: created}
+		People: y.People, Contexts: y.Contexts, AI: y.AI, Templates: y.Templates, Created: created}
 	if err := r.set(spaceKey(ms.ID), mustJSON(rec)); err != nil {
 		return err
 	}

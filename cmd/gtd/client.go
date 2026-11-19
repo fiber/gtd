@@ -39,6 +39,14 @@ type config struct {
 		URL      string `yaml:"url"`
 		Model    string `yaml:"model"`
 	} `yaml:"embed"`
+	// AI is the generation backend, with the same keys as nuro's config: one
+	// provider per server. Without api_key there is no AI and nothing misses it.
+	AI struct {
+		Provider  string `yaml:"provider"` // anthropic (default) | gemini
+		APIKey    string `yaml:"api_key"`
+		Model     string `yaml:"model"`      // the provider's default when empty
+		MaxTokens int    `yaml:"max_tokens"` // output cap, default 16000
+	} `yaml:"ai"`
 	Similarity struct {
 		DupThreshold     float32 `yaml:"dup_threshold"`
 		SuggestThreshold float32 `yaml:"suggest_threshold"`
