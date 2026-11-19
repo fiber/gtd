@@ -169,11 +169,12 @@ user confirms with one tap or overrides.
      project", or "unsorted"; offer a template if the space has any).
    - **Someday** (with optional `defer_until`).
    - **Trash**.
-2. **Which space?** Personal (highlighted, first) or a shared space the user belongs
-   to, each named with its members. Asked right after step 1 for everything but
-   Trash and a duplicate; skipped if the user has no shared spaces. The steps that
-   follow offer the chosen space's projects, areas, contexts and people. At the end
-   the capture moves there and becomes what was decided, in one batch (COLLAB §1).
+2. **Which space?** Not a screen of its own: a row of choices on the first screen,
+   only if the user has shared spaces. "Only me" is set; the others are the shared
+   spaces, each named with its members. Untouched, the capture stays private and
+   Clarify needs no extra tap. With a shared space chosen, the steps that follow
+   offer that space's projects, areas, contexts and people, and at the end the
+   capture moves there and becomes what was decided, in one batch (COLLAB §1).
 5. **Next physical action?** A verb-first sentence (AI-prefilled, editable). Area
    preselected from the project.
 6. **Under 2 minutes?**

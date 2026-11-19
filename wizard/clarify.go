@@ -10,7 +10,6 @@ import (
 // Clarify step keys, in the order of SPEC §5.2.
 const (
 	StepWhat       = "what"        // 1. what is it, and what becomes of it?
-	StepSpace      = "space"       // 2. which space? (only with shared spaces)
 	StepSomeday    = "someday"     //    no → someday: not before?
 	StepReference  = "reference"   //    no → reference: where does it belong?
 	StepProject    = "project"     //    yes → which project, or a new one
@@ -108,6 +107,23 @@ func (c Clarify) Step(env Env) Step {
 			{Key: "body", Type: "textarea", Label: "field.body", Value: c.Body},
 		}
 		s.Data = map[string]any{"original": c.Original, "attachments": c.Attachments}
+		// Where it belongs (SPEC §5.2 step 2), only with shared spaces to choose
+		// from: the space it is in is set, so nothing has to be touched for
+		// what stays private. A suggestion never chooses (invariant 2).
+		if len(env.Spaces) > 1 {
+			f := Field{Key: "space", Type: "chips", Label: "field.space", Value: env.Spaces[0].ID}
+			for i, sp := range env.Spaces {
+				o := Option{Value: sp.ID, Text: sp.Title}
+				if i == 0 {
+					o.Label = "clarify.opt.personal"
+				}
+				f.Options = append(f.Options, o)
+			}
+			if len(c.Attachments) > 0 {
+				f.Hint = "hint.space_attachments"
+			}
+			s.Fields = append(s.Fields, f)
+		}
 		// One screen decides what the capture becomes. The first option is
 		// what Enter does.
 		s.Options = []Option{{Value: "action", Label: "clarify.opt.action"}, {Value: "project", Label: "clarify.opt.project"},
@@ -123,21 +139,6 @@ func (c Clarify) Step(env Env) Step {
 				}
 			}
 		}
-	case StepSpace:
-		// Where it belongs, and so who will see it. The personal space is
-		// first and highlighted; a suggestion never chooses (invariant 2).
-		s.Type, s.Options = TypeChoice, nil
-		for i, sp := range env.Spaces {
-			o := Option{Value: sp.ID, Text: sp.Title}
-			if i == 0 {
-				o.Label = "clarify.opt.personal" // the space it is in: the personal one
-			}
-			s.Options = append(s.Options, o)
-		}
-		if len(s.Options) > 0 {
-			s.Preselect = s.Options[0].Value
-		}
-		s.Data = map[string]any{"visible": len(c.Attachments) > 0}
 	case StepSomeday:
 		s.Fields = []Field{{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)}}
 	case StepReference:
@@ -214,7 +215,7 @@ func (c Clarify) Step(env Env) Step {
 	return s
 }
 
-// afterSpace is the step that follows the decision of what and where.
+// afterSpace is the step that follows the first screen: what it is and where it belongs.
 func (c Clarify) afterSpace() string {
 	switch {
 	case c.Outcome == "someday":
@@ -277,14 +278,15 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 		default:
 			c.Outcome, c.Multi = "action", in.Choice == "project"
 		}
-		c.At = c.afterSpace()
-		if len(env.Spaces) > 1 {
-			c.At = StepSpace
-		}
-	case StepSpace:
-		// The first option is the space the capture is in: it stays.
-		if c.Space = in.Choice; len(step.Options) > 0 && c.Space == step.Options[0].Value {
-			c.Space = ""
+		// The first space is the one the capture is in: it stays. No chip
+		// selected means the same.
+		if f := field("space"); len(f.Options) > 0 {
+			if c.Space, err = oneOf(in, "space", f.Options); err != nil {
+				return c, nil, false, err
+			}
+			if c.Space == f.Options[0].Value {
+				c.Space = ""
+			}
 		}
 		c.At = c.afterSpace()
 	case StepSomeday:

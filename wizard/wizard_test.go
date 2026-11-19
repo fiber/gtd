@@ -628,51 +628,49 @@ func TestSweep(t *testing.T) {
 	}
 }
 
-// TestClarifySpaceStep: with a shared space to choose, Clarify asks where the
-// capture belongs right after what it is (SPEC §5.2 step 2).
-func TestClarifySpaceStep(t *testing.T) {
+// TestClarifySpace: with a shared space to choose, Clarify's first screen
+// also asks where the capture belongs, preset to "stays" (SPEC §5.2 step 2).
+func TestClarifySpace(t *testing.T) {
 	w := newWorld(t)
 	env := NewEnv(w.st, "robin", today)
-	// Without shared spaces the step does not exist (every other test).
+	if s := StartClarify(w.st.Items["c"]).Step(env); len(s.Fields) != 2 {
+		t.Fatalf("without shared spaces the first screen has %d fields", len(s.Fields))
+	}
 	env.Spaces = []Ref{{ID: "robin"}, {ID: "net", Title: "NET · Robin, Dana"}}
-	start := func(choice string) Clarify {
-		cl, _, done, err := StartClarify(w.st.Items["c"]).Next(env, in(choice, title...), w.newID)
-		if err != nil || done {
-			t.Fatalf("%s: done %v, err %v", choice, done, err)
-		}
-		return cl
+	s := StartClarify(w.st.Items["c"]).Step(env)
+	f := s.Fields[len(s.Fields)-1]
+	if s.Key != StepWhat || f.Key != "space" || f.Type != "chips" || f.Value != "robin" || len(f.Options) != 2 ||
+		f.Options[0].Label != "clarify.opt.personal" || f.Options[1].Text != "NET · Robin, Dana" || f.Hint != "" {
+		t.Fatalf("space field: %+v", f)
 	}
-	cl := start("action")
-	s := cl.Step(env)
-	if s.Key != StepSpace || s.Type != TypeChoice || s.Preselect != "robin" || len(s.Options) != 2 ||
-		s.Options[0].Label != "clarify.opt.personal" || s.Options[1].Text != "NET · Robin, Dana" {
-		t.Fatalf("space step: %+v", s)
+	start := func(choice, space string) (Clarify, error) {
+		cl, _, _, err := StartClarify(w.st.Items["c"]).Next(env, in(choice, append([]string{"space", space}, title...)...), w.newID)
+		return cl, err
 	}
-	if _, _, _, err := cl.Next(env, in("elsewhere"), w.newID); !errors.Is(err, core.ErrInvalid) {
+	if _, err := start("action", "elsewhere"); !errors.Is(err, core.ErrInvalid) {
 		t.Errorf("a space that is not offered: %v", err)
 	}
-	// Each outcome goes on where it would have gone.
+	// No extra step: each outcome goes straight on, staying or moving.
 	for choice, next := range map[string]string{"action": StepAction, "project": StepProject, "reference": StepReference, "someday": StepSomeday} {
-		stay, _, _, err := start(choice).Next(env, in("robin"), w.newID)
-		if err != nil || stay.At != next || stay.Space != "" {
-			t.Errorf("%s, staying: at %s, space %q, %v", choice, stay.At, stay.Space, err)
-		}
-		move, _, _, err := start(choice).Next(env, in("net"), w.newID)
-		if err != nil || move.At != next || move.Space != "net" {
-			t.Errorf("%s, moving: at %s, space %q, %v", choice, move.At, move.Space, err)
+		for space, want := range map[string]string{"robin": "", "": "", "net": "net"} {
+			if cl, err := start(choice, space); err != nil || cl.At != next || cl.Space != want {
+				t.Errorf("%s with space %q: at %s, space %q, %v", choice, space, cl.At, cl.Space, err)
+			}
 		}
 	}
-	// Trash and duplicate never ask.
-	if _, ops, done, err := StartClarify(w.st.Items["c"]).Next(env, in("trash"), w.newID); err != nil || !done || len(ops) != 1 {
-		t.Errorf("trash with shared spaces: %v %v", done, err)
+	// Trash does not move anything.
+	if cl, ops, done, err := StartClarify(w.st.Items["c"]).Next(env, in("trash", "space", "net"), w.newID); err != nil || !done || len(ops) != 1 || cl.Space != "" {
+		t.Errorf("trash with a space chosen: space %q, %v %v", cl.Space, done, err)
 	}
 	// Moving: the ops are based on the revision after the arrival, and the
 	// action gets the one who clarified it as its owner.
 	walk := func(space string) []core.Op {
-		cl := start("action")
+		cl, err := start("action", space)
+		if err != nil {
+			t.Fatal(err)
+		}
 		var ops []core.Op
-		for _, a := range []Input{in(space), in("continue", "action", "Do it"), in("no"), in("me"), in("continue")} {
-			var err error
+		for _, a := range []Input{in("continue", "action", "Do it"), in("no"), in("me"), in("continue")} {
 			if cl, ops, _, err = cl.Next(env, a, w.newID); err != nil {
 				t.Fatal(err)
 			}

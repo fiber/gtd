@@ -279,3 +279,4 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — In a shared space the action that the capture becomes gets the user who clarified it as its owner (in a personal space the rule does that).
 - 2026-11-19 — The confirmation COLLAB §1 asks for is the step itself: each choice names the space's members, and a capture with attachments says that they become visible too.
 - 2026-11-19 — A move cannot be submitted through `POST /ops`: it changes two spaces and only `View.Move` builds the pair.
+- 2026-11-19 — Owner: "it does add a click to clarify, can we avoid this? like keep it private by default". The separate "which space?" screen is gone. The choice is a row of chips on the first screen, set to "Only me"; untouched, Clarify is as short as before. This replaces the entry above about where the step comes.

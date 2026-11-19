@@ -427,12 +427,10 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	if code, _ := s.login("dana").do("POST", "/api/v1/wizard/clarify/"+session+"/step", map[string]any{"choice": "continue"}, nil); code != 404 {
 		t.Errorf("foreign wizard session: %d", code)
 	}
-	// robin has a shared space, so Clarify asks where it belongs. It stays.
-	if r := answer("project", "title", "Engine survives resets", "body", "notes"); r.Step.Key != "space" || len(r.Step.Options) != 2 || r.Step.Options[0].Value != "robin" || r.Step.Options[1].Value != "net" {
-		t.Fatalf("the first screen did not lead to the space step: %+v", r)
-	}
-	if r := answer("robin"); r.Step.Key != "project" {
-		t.Fatalf("after the space step: %+v", r)
+	// robin has a shared space; untouched, the capture stays private and
+	// Clarify goes straight on.
+	if r := answer("project", "title", "Engine survives resets", "body", "notes"); r.Step.Key != "project" {
+		t.Fatalf("the first screen did not lead to the project step: %+v", r)
 	}
 	if r := answer("continue", "title", "Engine survives resets"); r.Step.Key != "action" {
 		t.Fatalf("after project: %+v", r)
@@ -668,15 +666,15 @@ func TestClarifyIntoSharedSpace(t *testing.T) {
 		code, _ := c.do("POST", "/api/v1/wizard/clarify/"+w.Session+"/step", map[string]any{"choice": choice, "values": values}, &r)
 		return code, r
 	}
-	_, r := answer(robin, "project", "title", "Ask about the shared thing")
-	if r.Step.Key != "space" || r.Step.Options[0].Label != "clarify.opt.personal" || r.Step.Options[1].Text != "NET · Dana, Robin" {
-		t.Fatalf("space step: %+v", r.Step)
+	space := w.Step.Fields[len(w.Step.Fields)-1]
+	if w.Step.Key != "what" || space.Key != "space" || len(space.Options) != 2 || space.Options[0].Value != "robin" || space.Options[1].Text != "NET · Dana, Robin" {
+		t.Fatalf("first screen: %+v", w.Step)
 	}
 	// A space the user is not in is not a choice.
-	if code, _ := answer(robin, "jo"); code != 400 {
+	if code, _ := answer(robin, "project", "title", "Ask about the shared thing", "space", "jo"); code != 400 {
 		t.Errorf("choosing someone else's space: %d", code)
 	}
-	_, r = answer(robin, "net")
+	_, r := answer(robin, "project", "title", "Ask about the shared thing", "space", "net")
 	// The project step now offers the shared space's projects, not the private ones.
 	var offered []string
 	for _, o := range r.Step.Fields[0].Options {
