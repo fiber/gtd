@@ -323,3 +323,12 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — Still command line only: SSH keys of users, snapshots, export and restore, the Obsidian import, reindex, calibrate. They work on files on the server or are the operator's business.
 - 2026-11-19 — Not built: renaming or deleting a user or a space, and a space's "people" list.
 - 2026-11-19 — Owner: "why does the 'Your weekly review is in progress' bar keep showing up?" Opening the Review page stored a review as started, and a started review could only be ended by finishing it. Now a review is in progress only once its first step was answered, and the Review page has "Stop this review", which forgets the place in the review and nothing else.
+
+### Moving anything between spaces (the rest of the move, from M6)
+
+- 2026-11-19 — Owner: "I can still not move an idea to a space?" Every item but an area can now move to another space of the user, from its page. The two open questions of DECISIONS (cross-space blockers, where the history lives) are settled the simple way: nothing references across spaces, and each space's log keeps what happened in it.
+- 2026-11-19 — What moves together: a project with its sub-projects and every action and note in them. Everything else moves alone: an action or note taken out of a project leaves the project.
+- 2026-11-19 — What is let go on arrival: project, parent and blockers that do not move too; the area always (areas do not move); a context the target space does not have; a template it does not have (the field values stay); an owner or delegator who is not a member there. In a personal space an action belongs to its user. A planned action whose blockers all stayed behind arrives as next.
+- 2026-11-19 — What is let go behind: an item that was blocked by something that left is no longer blocked by it (a patch by the mover, then the dependency rule). Links in text (`[[id]]`) are left as they are and show "unavailable item" to those who cannot see the target.
+- 2026-11-19 — An imported note that was moved is not imported again into its old space by a later import run.
+- 2026-11-19 — There is no bulk move from a list, and a move is not undone by a button: move it back.

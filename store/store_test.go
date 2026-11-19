@@ -993,12 +993,14 @@ func TestMove(t *testing.T) {
 		t.Errorf("after the move: %s", p)
 	}
 
+	areaID := s.NewID()
+	must(robin.Apply("robin", createOp(core.Item{ID: areaID, Kind: core.KindArea, Title: "Home"})))
 	// What cannot move.
 	for name, c := range map[string]struct {
 		from, to, item string
 		want           error
 	}{
-		"not a capture any more":    {"net", "robin", cap.ID, core.ErrInvalid},
+		"an area":                   {"robin", "net", areaID, core.ErrInvalid},
 		"into the same space":       {"robin", "robin", other.ID, core.ErrInvalid},
 		"an item that is not there": {"robin", "net", "01NOPE", core.ErrNotFound},
 		"into a space of others":    {"robin", "jo", other.ID, core.ErrNotFound},
@@ -1055,5 +1057,105 @@ func TestCaptureOnce(t *testing.T) {
 	}
 	if n := len(must(robin.Items("robin", nil))) + len(must(dana.Items("dana", nil))); n != 1 {
 		t.Errorf("%d captures, want 1", n)
+	}
+}
+
+// TestMoveProject: a project moves with everything in it; what does not come
+// along is let go on both sides.
+func TestMoveProject(t *testing.T) {
+	s := must(Create(t.TempDir(), "test"))
+	defer s.Close()
+	deterministic(s)
+	for _, u := range []string{"robin", "dana"} {
+		check0(s.AddUser(core.User{ID: u}))
+	}
+	check0(s.CreateSpace("net", "NET", []string{"robin", "dana"}))
+	check0(s.UpdateUser("robin", func(u *core.User) error { u.PersonalContexts = []string{"boat"}; return nil }))
+	robin, dana := must(s.View("robin")), must(s.View("dana"))
+	mk := func(it core.Item) string {
+		it.ID = s.NewID()
+		must(robin.Apply("robin", createOp(it)))
+		return it.ID
+	}
+	area := mk(core.Item{Kind: core.KindArea, Title: "Home"})
+	other := mk(core.Item{Kind: core.KindProject, Title: "Another project"})
+	p := mk(core.Item{Kind: core.KindProject, Title: "Kitchen renovated", Area: area, Parent: other})
+	sub := mk(core.Item{Kind: core.KindProject, Title: "Tiles chosen", Parent: p})
+	first := mk(core.Item{Kind: core.KindAction, Title: "Get quotes", Project: p, Context: "boat"})
+	second := mk(core.Item{Kind: core.KindAction, Title: "Pick one", Project: sub, BlockedBy: []string{first}})
+	outside := mk(core.Item{Kind: core.KindAction, Title: "Unrelated blocker"})
+	third := mk(core.Item{Kind: core.KindAction, Title: "Order", Project: p, BlockedBy: []string{second, outside}})
+	note := mk(core.Item{Kind: core.KindNote, Title: "The quote", Project: p, State: core.StFiled, Body: "see [[" + outside + "]]"})
+	must(robin.Apply("robin", core.Op{Via: "web", Type: core.OpComment, Item: note, Payload: raw(core.Comment{Body: "a comment on the note"})}))
+	waits := mk(core.Item{Kind: core.KindAction, Title: "Stays, waited for the project's action", BlockedBy: []string{first}})
+	stays := mk(core.Item{Kind: core.KindNote, Title: "A loose note"})
+	if st := must(robin.Item("robin", waits)).State; st != core.StPlanned {
+		t.Fatalf("setup: the waiting action is %s", st)
+	}
+
+	logged, err := robin.Move("robin", "net", p)
+	check0(err)
+	if len(logged) != 6 {
+		t.Errorf("%d ops in the target space, want 6 arrivals", len(logged))
+	}
+	// Everything in the project is in net now, for both members.
+	want := map[string]struct {
+		state, project, parent, area, context, owner string
+		blocked                                      []string
+	}{
+		p:      {core.StActive, "", "", "", "", "", nil}, // its area and its parent stayed behind
+		sub:    {core.StActive, "", p, "", "", "", nil},
+		first:  {core.StNext, p, "", "", "", "robin", nil}, // "boat" is robin's own context: not known in net
+		second: {core.StPlanned, sub, "", "", "", "robin", []string{first}},
+		third:  {core.StPlanned, p, "", "", "", "robin", []string{second}}, // the blocker that stayed is let go
+		note:   {core.StFiled, p, "", "", "", "", nil},
+	}
+	for id, w := range want {
+		it, err := dana.Item("net", id)
+		if err != nil {
+			t.Errorf("%s did not arrive: %v", id, err)
+			continue
+		}
+		if it.State != w.state || it.Project != w.project || it.Parent != w.parent || it.Area != w.area || it.Context != w.context ||
+			it.Owner != w.owner || !slices.Equal(it.BlockedBy, w.blocked) || it.Space != "net" {
+			t.Errorf("%q in net: %s project=%s parent=%s area=%s context=%s owner=%s blocked=%v", it.Title, it.State, it.Project, it.Parent, it.Area, it.Context, it.Owner, it.BlockedBy)
+		}
+		if _, err := robin.Item("robin", id); !errors.Is(err, core.ErrNotFound) {
+			t.Errorf("%q is still in the personal space", it.Title)
+		}
+	}
+	if c := must(dana.Comments("net", note)); len(c) != 1 {
+		t.Errorf("the note's thread: %+v", c)
+	}
+	// What stayed: it no longer waits for what left, and is next.
+	if it := must(robin.Item("robin", waits)); it.State != core.StNext || len(it.BlockedBy) != 0 {
+		t.Errorf("the action that waited for a moved one: %s blocked by %v", it.State, it.BlockedBy)
+	}
+	for _, id := range []string{area, other, outside, stays} {
+		if _, err := robin.Item("robin", id); err != nil {
+			t.Errorf("%s should have stayed: %v", id, err)
+		}
+	}
+	for _, p := range check(s) {
+		t.Errorf("after the move: %s", p)
+	}
+
+	// Back again, into the personal space: actions belong to its user.
+	must(dana.Apply("net", core.Op{Via: "web", Type: core.OpPatch, Item: first, BaseRev: must(dana.Item("net", first)).Rev,
+		Changes: []core.FieldChange{{Field: "owner", Old: raw("robin"), New: raw("dana")}}}))
+	if _, err := dana.Move("net", "dana", sub); err != nil {
+		t.Fatal(err)
+	}
+	if it := must(dana.Item("dana", second)); it.Owner != "dana" || it.State != core.StNext || it.Project != sub || len(it.BlockedBy) != 0 {
+		t.Errorf("an action moved into dana's personal space: owner %s, %s, project %s, blocked %v", it.Owner, it.State, it.Project, it.BlockedBy)
+	}
+	if it := must(robin.Item("net", third)); it.State != core.StNext || len(it.BlockedBy) != 0 {
+		t.Errorf("what waited in net for a moved action: %s blocked by %v", it.State, it.BlockedBy)
+	}
+	if _, err := robin.Item("net", p); err != nil {
+		t.Errorf("the parent project should have stayed in net: %v", err)
+	}
+	for _, p := range check(s) {
+		t.Errorf("after the second move: %s", p)
 	}
 }

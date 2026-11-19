@@ -14,7 +14,7 @@ class Note extends View {
   static properties = {
     itemId: {}, item: { state: true }, comments: { state: true }, editing: { state: true },
     preview: { state: true }, picks: { state: true }, showOriginal: { state: true }, more: { state: true },
-    showPreview: { state: true }, saveState: { state: true },
+    showPreview: { state: true }, saveState: { state: true }, moving: { state: true },
   };
 
   willUpdate(changed) {
@@ -39,6 +39,21 @@ class Note extends View {
 
   set(field, value) {
     return this.run(() => store.patch(this.item, { [field]: value }));
+  }
+
+  // Move to another space: first ask what would move and who would see it,
+  // then, confirmed, do it. The item keeps its address.
+  async moveTo(space, confirm) {
+    if (!space) return;
+    const res = await this.run(() => store.moveItem(this.item.id, space, confirm));
+    if (!res) return;
+    if (!confirm) {
+      this.moving = { ...res, id: space };
+      return;
+    }
+    this.moving = null;
+    toast(t('move.done', { n: res.moved }));
+    await this.reload();
   }
 
   // Hand a delegated action back, with the reason in its thread.
@@ -318,6 +333,11 @@ class Note extends View {
     if (['action', 'project', 'note'].includes(it.kind)) {
       out.push(f('area', select(o.areas, it.area, (v) => this.set('area', v), t('option.none'))));
     }
+    const elsewhere = store.me.spaces.filter((sp) => sp.id !== it.space);
+    if (it.kind !== 'area' && elsewhere.length) {
+      out.push(f('space', select(elsewhere.map((sp) => ({ id: sp.id, title: sp.id === store.me.user.id ? t('clarify.opt.personal') : sp.name })), '',
+        (v) => this.moveTo(v, false), it.space === store.me.user.id ? t('clarify.opt.personal') : it.space_name)));
+    }
     if (it.kind === 'action') {
       out.push(f('context', chips(o.contexts, it.context, (v) => this.set('context', v === it.context ? '' : v))));
       if (space?.kind === 'shared') {
@@ -440,6 +460,11 @@ class Note extends View {
           </div>
         </header>
         ${it.state === 'trashed' ? html`<p class="notice">${t('item.in_trash')}</p>` : nothing}
+        ${this.moving ? html`<p class="notice moving">
+          <span>${t(this.moving.count > 1 ? 'move.confirm_many' : 'move.confirm_one', { n: this.moving.count, space: this.moving.space, members: this.moving.members.join(', ') })}
+            ${this.moving.attachments ? ' ' + t('move.attachments') : ''}</span>
+          <button class="primary" @click=${() => this.moveTo(this.moving.id, true)}>${t('move.do')}</button>
+          <button @click=${() => { this.moving = null; }}>${t('action.cancel')}</button></p>` : nothing}
         ${it.delegated_by && it.owner === store.me.user.id && !['done', 'dropped', 'trashed'].includes(it.state) ? html`
           <form class="notice handback" @submit=${(e) => this.handBack(e)}>
             <span>${t('item.delegated_to_you', { name: it.delegated_by })}</span>

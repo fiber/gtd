@@ -135,6 +135,11 @@ A **shared space** is what you share: everyone in it sees everything in it. Clar
 first screen has **Where does it belong?**, set to **Only me**; pick a shared space
 for what the others should see.
 
+**Moving something later.** Anything but an area can change spaces from its own page:
+**Where does it belong?** in the details. A project (or a theme on the Ideas tab)
+takes everything in it along. gtd says how many items move and who will see them
+before it does it.
+
 **Giving something to someone.** At "Who does it?" pick a member of the space. It
 becomes their next action and shows up in their inbox under "From others" as
 *Delegated to you*. It stays on your **Waiting for** list until they finish it. They

@@ -497,3 +497,5 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .admin form.password .check { display: inline-flex; gap: 6px; align-items: center; font-weight: 500; }
 .leave-review { text-align: center; margin-top: 10px; }
 .leave-review .quiet { background: none; border-color: transparent; color: var(--muted); }
+.notice.moving { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.notice.moving span { flex: 1; min-width: 220px; }

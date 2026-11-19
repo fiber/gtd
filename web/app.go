@@ -139,6 +139,7 @@ func (s *Server) initApp() {
 	m.HandleFunc("GET /api/v1/spaces/{id}/templates", s.user(s.getTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/templates", s.user(s.putTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/contexts", s.user(s.putContexts))
+	m.HandleFunc("POST /api/v1/items/{id}/move", s.user(s.moveItem))
 	m.HandleFunc("DELETE /api/v1/wizard/review", s.user(s.reviewStop))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/start", s.user(s.wizardStart))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/{session}/step", s.user(s.wizardStep))
@@ -1619,4 +1620,59 @@ func (s *Server) reviewStep(w http.ResponseWriter, r *http.Request, v *store.Vie
 		return err
 	}
 	return s.reviewAnswer(w, v, next, env, logged, true)
+}
+
+// moveItem moves an item, and for a project everything in it, to another
+// space of the user (COLLAB §1). Without confirm it only says what would
+// move and who would see it: the client shows that before the user decides.
+func (s *Server) moveItem(w http.ResponseWriter, r *http.Request, a actor) error {
+	var in struct {
+		Space   string `json:"space"`
+		Confirm bool   `json:"confirm"`
+	}
+	if err := body(r, &in); err != nil {
+		return err
+	}
+	v, err := s.st.View(a.user)
+	if err != nil {
+		return err
+	}
+	it, err := v.Find(r.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	target, err := v.State(in.Space)
+	if err != nil {
+		return err
+	}
+	if in.Space == it.Space {
+		return fmt.Errorf("%w: item %s is already in space %q", core.ErrInvalid, it.ID, in.Space)
+	}
+	from, err := v.State(it.Space)
+	if err != nil {
+		return err
+	}
+	set, err := core.MoveSet(from, it.ID)
+	if err != nil {
+		return err
+	}
+	if !in.Confirm {
+		names := []string{}
+		for _, m := range target.Space.Members {
+			if u := s.st.User(m); u != nil && u.Name != "" {
+				names = append(names, u.Name)
+			} else {
+				names = append(names, m)
+			}
+		}
+		files := 0
+		for _, x := range set {
+			files += len(x.Attachments)
+		}
+		return reply(w, map[string]any{"count": len(set), "attachments": files, "space": target.Space.Name, "members": names})
+	}
+	if _, err := v.Move(it.Space, in.Space, it.ID); err != nil {
+		return err
+	}
+	return reply(w, map[string]any{"moved": len(set), "space": in.Space})
 }

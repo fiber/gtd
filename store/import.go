@@ -127,7 +127,9 @@ func (v *View) Import(spaceID string, notes []ImportNote) (ImportResult, error) 
 		it.Kind, it.Source.Via, it.Owner = core.KindNote, "import", v.user
 		if e, ok := entries[name]; ok {
 			it.ID = e.ID
-			if e.Hash == n.Hash {
+			if e.Hash == n.Hash || sp.items[e.ID] == nil {
+				// Unchanged, or imported before and since moved to another
+				// space: it is not imported a second time.
 				res.Unchanged++
 				continue
 			}

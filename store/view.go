@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -456,11 +457,12 @@ func (s *Store) commit(b *pebble.Batch, groups ...*staged) error {
 	return nil
 }
 
-// Move takes an item of space from to space to, with its comments, as the
-// view's user, who must be a member of both (COLLAB §1). The ops then are
-// applied to the target space right after, in the same batch: either the item
-// arrives and they all apply, or nothing happens. It returns the ops logged
-// in the target space.
+// Move takes an item of space from to space to, as the view's user, who must
+// be a member of both (COLLAB §1). A project takes everything in it along;
+// every moved item takes its comments. What stays behind stops waiting for
+// what leaves. The ops then are applied to the target space right after, in
+// the same batch: either everything arrives and they all apply, or nothing
+// happens. It returns the ops logged in the target space.
 func (v *View) Move(from, to, item string, then ...core.Op) ([]core.Op, error) {
 	v.s.mu.RLock()
 	src, err := v.space(from)
@@ -485,31 +487,59 @@ func (v *View) Move(from, to, item string, then ...core.Op) ([]core.Op, error) {
 	second.wmu.Lock()
 	defer second.wmu.Unlock()
 
-	it := src.items[item]
-	if it == nil {
-		return nil, fmt.Errorf("%w: item %s", core.ErrNotFound, item)
-	}
-	var comments []*core.Comment
-	if err := scan(v.s.db, commentItemPrefix(from, item), func(_ string, val []byte) error {
-		c := &core.Comment{}
-		if err := json.Unmarshal(val, c); err != nil {
-			return err
-		}
-		comments = append(comments, c)
-		return nil
-	}); err != nil {
-		return nil, err
-	}
 	b := v.s.db.NewBatch()
 	defer b.Close()
 	out, in := v.s.stage(src, from), v.s.stage(dst, to)
-	seen := map[string]bool{}
-	ts := v.s.Now()
-	if err := v.s.stageOps(b, out, v.user, []core.Op{{Via: "web", Type: core.OpMove, Item: item, TS: ts, Payload: mustJSON(core.Move{To: to})}}, seen); err != nil {
+	set, err := core.MoveSet(out.st, item)
+	if err != nil {
 		return nil, err
 	}
-	arrive := core.Op{Via: "web", Type: core.OpMove, Item: item, TS: ts, Payload: mustJSON(core.Move{From: from, Item: it, Comments: comments})}
-	if err := v.s.stageOps(b, in, v.user, append([]core.Op{arrive}, then...), seen); err != nil {
+	moving := map[string]bool{}
+	for _, it := range set {
+		moving[it.ID] = true
+	}
+	seen := map[string]bool{}
+	ts := v.s.Now()
+
+	// What stays behind and was blocked by something that leaves is no longer
+	// blocked by it. The dependency rule then does what it always does.
+	var staying []*core.Item
+	out.st.Each(func(x *core.Item) {
+		if !moving[x.ID] && slices.ContainsFunc(x.BlockedBy, func(id string) bool { return moving[id] }) {
+			staying = append(staying, x)
+		}
+	})
+	sort.Slice(staying, func(i, j int) bool { return staying[i].ID < staying[j].ID })
+	for _, x := range staying {
+		left := slices.DeleteFunc(slices.Clone(x.BlockedBy), func(id string) bool { return moving[id] })
+		op := core.Op{Via: "web", Type: core.OpPatch, Item: x.ID, BaseRev: x.Rev, TS: ts,
+			Changes: []core.FieldChange{{Field: "blocked_by", Old: mustJSON(x.BlockedBy), New: mustJSON(left)}}}
+		if err := v.s.stageOps(b, out, v.user, []core.Op{op}, seen); err != nil {
+			return nil, err
+		}
+	}
+	var arrive []core.Op
+	for _, it := range set {
+		var comments []*core.Comment
+		if err := scan(v.s.db, commentItemPrefix(from, it.ID), func(_ string, val []byte) error {
+			c := &core.Comment{}
+			if err := json.Unmarshal(val, c); err != nil {
+				return err
+			}
+			comments = append(comments, c)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		there := core.Relocate(it, in.st, func(id string) bool { return moving[id] })
+		arrive = append(arrive, core.Op{Via: "web", Type: core.OpMove, Item: it.ID, TS: ts,
+			Payload: mustJSON(core.Move{From: from, Item: there, Comments: comments})})
+		leave := core.Op{Via: "web", Type: core.OpMove, Item: it.ID, TS: ts, Payload: mustJSON(core.Move{To: to})}
+		if err := v.s.stageOps(b, out, v.user, []core.Op{leave}, seen); err != nil {
+			return nil, err
+		}
+	}
+	if err := v.s.stageOps(b, in, v.user, append(arrive, then...), seen); err != nil {
 		return nil, err
 	}
 	if err := v.s.commit(b, out, in); err != nil {

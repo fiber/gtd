@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -1124,5 +1125,71 @@ func TestAdminInTheBrowser(t *testing.T) {
 	now = now.Add(adminUnlock + time.Second)
 	if code, body := robin.do("GET", "/api/v1/admin/users", nil, nil); code != 403 || !strings.Contains(body, "admin.locked") {
 		t.Errorf("after the unlock ran out: %d %s", code, body)
+	}
+}
+
+// TestMoveItemOverHTTP: an idea (a someday project with its notes) moves from
+// the personal space to a shared one: first the preview, then the move.
+func TestMoveItemOverHTTP(t *testing.T) {
+	s := newSite(t)
+	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
+	theme := robin.create("robin", map[string]any{"kind": "project", "title": "Greenhouse", "state": "someday"})
+	note := robin.create("robin", map[string]any{"kind": "note", "title": "Greenhouse sizes", "project": theme, "state": "filed"})
+	loose := robin.create("robin", map[string]any{"kind": "note", "title": "A loose note"})
+	area := robin.create("robin", map[string]any{"kind": "area", "title": "Home"})
+
+	move := func(c *client, id, space string, confirm bool) (int, map[string]any) {
+		var out map[string]any
+		code, _ := c.do("POST", "/api/v1/items/"+id+"/move", map[string]any{"space": space, "confirm": confirm}, &out)
+		return code, out
+	}
+	// The preview says what moves and who will see it, and changes nothing.
+	code, pre := move(robin, theme, "net", false)
+	if code != 200 || pre["count"] != float64(2) || pre["space"] != "NET" || fmt.Sprint(pre["members"]) != "[Dana Robin]" {
+		t.Fatalf("preview: %d %v", code, pre)
+	}
+	if code, _ := dana.do("GET", "/api/v1/items/"+theme, nil, nil); code != 404 {
+		t.Fatalf("the preview moved something: dana gets %d", code)
+	}
+	if code, out := move(robin, theme, "net", true); code != 200 || out["moved"] != float64(2) {
+		t.Fatalf("move: %d %v", code, out)
+	}
+	var iv ItemView
+	dana.ok("GET", "/api/v1/items/"+note, nil, &iv)
+	if iv.Space != "net" || iv.Project != theme || iv.State != core.StFiled {
+		t.Errorf("the note as dana sees it: %s project %s %s", iv.Space, iv.Project, iv.State)
+	}
+	dana.ok("GET", "/api/v1/items/"+theme, nil, &iv)
+	if iv.Space != "net" || iv.State != core.StSomeday {
+		t.Errorf("the theme as dana sees it: %s %s", iv.Space, iv.State)
+	}
+	// A single note, and back.
+	if code, out := move(robin, loose, "net", true); code != 200 || out["moved"] != float64(1) {
+		t.Errorf("single note: %d %v", code, out)
+	}
+	if code, _ := move(dana, loose, "dana", true); code != 200 {
+		t.Errorf("dana takes the note into her own space: %d", code)
+	}
+	if code, _ := robin.do("GET", "/api/v1/items/"+loose, nil, nil); code != 404 {
+		t.Errorf("robin still sees a note that is now dana's own: %d", code)
+	}
+	// What is refused.
+	for name, c := range map[string]struct {
+		who       *client
+		id, space string
+		want      int
+	}{
+		"an area":                         {robin, area, "net", 400},
+		"into the space it is in":         {robin, theme, "net", 400},
+		"into a space of others":          {robin, theme, "jo", 404},
+		"an item of a space of others":    {jo, theme, "jo", 404},
+		"an item that does not exist":     {robin, "01NOPE", "net", 404},
+		"a non-member previews the space": {jo, theme, "net", 404},
+	} {
+		for _, confirm := range []bool{false, true} {
+			if code, _ := move(c.who, c.id, c.space, confirm); code != c.want {
+				t.Errorf("%s (confirm %v): %d, want %d", name, confirm, code, c.want)
+			}
+		}
 	}
 }
