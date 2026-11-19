@@ -88,7 +88,10 @@ type Env struct {
 	Spaces []Ref
 	// Members are the other members of the space, by name: whom an action
 	// can be delegated to. Empty in a personal space.
-	Members   []Ref
+	Members []Ref
+	// Links are the names of the user's linked servers: a capture can be
+	// sent to the inbox of one of them.
+	Links     []string
 	User      string
 	Today     string // YYYY-MM-DD
 	Space     *core.Space

@@ -2,8 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
+	"path/filepath"
+
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"net/http"
@@ -135,6 +141,37 @@ func serve(g globals, stdout, stderr io.Writer) error {
 	}
 	app.SecureCookies = strings.HasPrefix(cfg.Server.BaseURL, "https://")
 	app.Admins = cfg.Admins
+	// Linked servers: this server's own SSH key (made on the first start),
+	// and a loop that delivers and collects every minute, or when asked.
+	if app.LinkKey, err = linkKey(g.data); err != nil {
+		fmt.Fprintf(stderr, "gtd: linked servers are off: %v\n", err)
+	} else {
+		app.Kick = make(chan struct{}, 1)
+		go func() {
+			tick := time.NewTicker(time.Minute)
+			defer tick.Stop()
+			last := ""
+			for {
+				if n, err := app.SyncLinks(ctx); err != nil {
+					if err.Error() != last { // say it once, not every minute
+						fmt.Fprintf(stderr, "gtd: linked servers: %v\n", err)
+					}
+					last = err.Error()
+				} else {
+					last = ""
+					if n > 0 {
+						fmt.Fprintf(stdout, "gtd: linked servers: %d captures delivered or collected\n", n)
+					}
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick.C:
+				case <-app.Kick:
+				}
+			}
+		}()
+	}
 	for _, id := range cfg.Admins {
 		if st.User(id) == nil {
 			fmt.Fprintf(stderr, "gtd: config.yaml names admin %q, but there is no such user\n", id)
@@ -195,4 +232,28 @@ func scheduledSnapshot(st *store.Store, interval time.Duration, keep store.Keep)
 	}
 	pruned, err = store.PruneSnapshots(st.Dir(), keep)
 	return man.Name, pruned, err
+}
+
+// linkKey loads this server's SSH key for linked servers from the data
+// directory, and makes it on the first call.
+func linkKey(dir string) (ssh.Signer, error) {
+	path := filepath.Join(dir, "link_ed25519")
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		_, priv, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return nil, err
+		}
+		block, err := ssh.MarshalPrivateKey(priv, "gtd link key")
+		if err != nil {
+			return nil, err
+		}
+		data = pem.EncodeToMemory(block)
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, err
+	}
+	return ssh.ParsePrivateKey(data)
 }

@@ -424,7 +424,7 @@ func TestIsolation(t *testing.T) {
 		},
 	}
 	// Methods that take no space: they must only ever return the user's own data.
-	unscoped := []string{"User", "Spaces", "Grep", "Notifications", "Capture", "Find", "Blob", "Dismiss"}
+	unscoped := []string{"User", "Spaces", "Grep", "Notifications", "Capture", "CaptureOnce", "Find", "Blob", "Dismiss"}
 	typ := reflect.TypeOf(&View{})
 	for i := 0; i < typ.NumMethod(); i++ {
 		name := typ.Method(i).Name
@@ -1031,5 +1031,29 @@ func TestMove(t *testing.T) {
 	diffMaps(t, "export after restore", tree(t, exp2), tree(t, exp1))
 	if it, err := must(s2.View("dana")).Item("net", cap.ID); err != nil || it.Kind != core.KindNote {
 		t.Errorf("the moved item after restore: %+v %v", it, err)
+	}
+}
+
+// TestCaptureOnce: a capture with a sender-chosen op ID is created once, in
+// the sender's own inbox.
+func TestCaptureOnce(t *testing.T) {
+	s := must(Create(t.TempDir(), "test"))
+	defer s.Close()
+	check0(s.AddUser(core.User{ID: "robin"}))
+	check0(s.AddUser(core.User{ID: "dana"}))
+	robin, dana := must(s.View("robin")), must(s.View("dana"))
+	first := must(robin.CaptureOnce("link-abc", "from the other server", "", core.Source{Via: "server"}, nil))
+	if first == nil || first.Space != "robin" || first.State != core.StInbox {
+		t.Fatalf("first: %+v", first)
+	}
+	if again := must(robin.CaptureOnce("link-abc", "from the other server", "", core.Source{Via: "server"}, nil)); again != nil {
+		t.Errorf("the same op created a second capture: %+v", again)
+	}
+	// The op ID is taken for everyone: it names one event.
+	if other := must(dana.CaptureOnce("link-abc", "x", "", core.Source{Via: "server"}, nil)); other != nil {
+		t.Errorf("the same op ID created a capture for another user: %+v", other)
+	}
+	if n := len(must(robin.Items("robin", nil))) + len(must(dana.Items("dana", nil))); n != 1 {
+		t.Errorf("%d captures, want 1", n)
 	}
 }

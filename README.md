@@ -125,6 +125,36 @@ curl -H "Authorization: Bearer $(cat ~/.gtd-token)" -H 'Content-Type: applicatio
      -d '{"text":"call the plumber about the quote"}' https://example.org/gtd/api/v1/capture
 ```
 
+### Linked servers
+
+If you have an account on two gtd servers (say home and work), a capture that
+belongs on the other one can be sent there from Clarify ("Send to work"). It leaves
+your inbox here and arrives in your inbox there.
+
+The two servers talk over SSH, and only one of them has to be able to reach the
+other. Captures going the other way wait until the connecting server next comes by
+(once a minute).
+
+Say home can reach work:
+
+1. **On work**, in Settings › Linked servers: add a link named `home` and leave the
+   SSH address empty. You get a token; copy it.
+2. **On home**, Settings shows "This server's key". On the work host, put that line
+   into `~/.ssh/authorized_keys` of an account that may open the port gtd listens on,
+   and nothing else:
+
+   ```
+   restrict,port-forwarding,permitopen="127.0.0.1:8640" ssh-ed25519 AAAA… gtd-link-home
+   ```
+3. **On home**, add a link named `work` with the SSH address (`account@work-host`),
+   where gtd listens on that host (`127.0.0.1:8640`) and the token from step 1.
+   Home connects at once: the link then shows the host key's fingerprint, which you
+   can compare with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on work.
+
+From then on home accepts only that host key, and the token lets home do two things
+on work: capture into your inbox, and collect what you sent to `home` there. Links
+are between two servers and one person; nothing is passed on to a third server.
+
 **Mail in.** `gtd capture-mail` reads one message on stdin and captures it: the
 subject becomes the title, then sender, date and text, with the attachments attached.
 gtd runs no mail service; your mail server hands the message over. With Postfix, an

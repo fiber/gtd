@@ -77,7 +77,7 @@ class Search extends View {
 customElements.define('gtd-search', Search);
 
 class Settings extends View {
-  static properties = { space: { state: true }, yaml: { state: true }, error: { state: true }, ai: { state: true } };
+  static properties = { space: { state: true }, yaml: { state: true }, error: { state: true }, ai: { state: true }, links: { state: true }, linkError: { state: true }, newToken: { state: true } };
   constructor() {
     super();
     this.space = store.me.user.id;
@@ -86,6 +86,7 @@ class Settings extends View {
     const res = await this.run(() => store.templates(this.space));
     if (res) this.yaml = res.yaml;
     this.ai = await this.run(() => store.aiStatus());
+    this.links = await this.run(() => store.links());
   }
   async setLang(lang) {
     await this.run(async () => {
@@ -111,6 +112,24 @@ class Settings extends View {
       toast(t('settings.saved'));
     });
     this.requestUpdate();
+  }
+  // A linked server: without an address the other side connects to us and we
+  // show the token to enter there; with one, this server connects.
+  async addLink(e) {
+    e.preventDefault();
+    const f = e.target;
+    this.linkError = this.newToken = null;
+    try {
+      const res = await store.addLink({ name: f.name.value, ssh: f.ssh.value, target: f.target.value, token: f.token.value });
+      this.links = res;
+      this.newToken = res.links.find((l) => l.token);
+      f.reset();
+    } catch (err) {
+      this.linkError = t(err.message);
+    }
+  }
+  async removeLink(name) {
+    this.links = await this.run(() => store.removeLink(name));
   }
   async saveTemplates() {
     this.error = '';
@@ -176,6 +195,25 @@ class Settings extends View {
         ${this.ai ? html`<p class="notice">${t('ai.label')}: ${t('ai.state.' + this.ai.state)}
           ${this.ai.state === 'off' ? '' : ' · ' + t('ai.counts', { vectors: this.ai.vectors, queued: this.ai.queued })}
           ${this.ai.error ? html`<br><small>${this.ai.error}</small>` : nothing}</p>` : nothing}
+        <h2>${t('links.title')}</h2>
+        <p><small>${t('links.about')}</small></p>
+        ${(this.links?.links || []).map((l) => html`
+          <div class="row"><span class="row-main"><span class="title">${l.name}</span>
+            <span class="meta"><span class="chip">${l.ssh ? t('links.dials', { ssh: l.ssh }) : t('links.waits')}</span>
+              ${l.fingerprint ? html`<span class="chip">${l.fingerprint}</span>` : nothing}
+              ${l.waiting ? html`<span class="chip waiting">${t('links.waiting', { n: l.waiting })}</span>` : nothing}</span></span>
+            <span class="row-actions"><button @click=${() => this.removeLink(l.name)}>${t('links.remove')}</button></span></div>`)}
+        ${this.newToken ? html`<p class="notice">${t('links.token_once', { name: this.newToken.name })}<br><code class="token">${this.newToken.token}</code></p>` : nothing}
+        <form class="password" @submit=${(e) => this.addLink(e)}>
+          <div class="field"><label>${t('links.name')}</label><input type="text" name="name" required maxlength="30"></div>
+          <div class="field"><label>${t('links.ssh')}</label><input type="text" name="ssh" placeholder="gtd@host" autocapitalize="off">
+            <small>${t('links.ssh_hint')}</small></div>
+          <div class="field"><label>${t('links.target')}</label><input type="text" name="target" placeholder="127.0.0.1:8640" autocapitalize="off"></div>
+          <div class="field"><label>${t('links.token')}</label><input type="text" name="token" autocomplete="off" autocapitalize="off"></div>
+          ${this.linkError ? html`<p class="error">${this.linkError}</p>` : nothing}
+          <button type="submit">${t('links.add')}</button>
+        </form>
+        ${this.links?.key ? html`<p><small>${t('links.key')}</small><br><code class="token">${this.links.key}</code></p>` : nothing}
         <h2>${t('settings.templates')}</h2>
         ${me.spaces.length > 1 ? select(me.spaces.map((s) => ({ id: s.id, title: s.name })), this.space, (v) => { this.space = v; this.reload(); }) : nothing}
         <textarea class="editor yaml" rows="16" spellcheck="false" .value=${this.yaml || ''}></textarea>

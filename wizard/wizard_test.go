@@ -696,3 +696,34 @@ func TestClarifySpace(t *testing.T) {
 		t.Errorf("owner set: staying %v (want false), moving %v (want true)", owner(stay), owner(move))
 	}
 }
+
+// TestClarifySend: with a linked server, the first screen offers to send the
+// capture there. It is then trashed here, with a line that says where it went.
+func TestClarifySend(t *testing.T) {
+	w := newWorld(t)
+	env := NewEnv(w.st, "robin", today)
+	if s := StartClarify(w.st.Items["c"]).Step(env); len(s.Options) != 5 {
+		t.Fatalf("without links: %d options", len(s.Options))
+	}
+	env.Links = []string{"work"}
+	s := StartClarify(w.st.Items["c"]).Step(env)
+	if last := s.Options[len(s.Options)-1]; last.Value != "send:work" || last.Label != "clarify.opt.send" || last.Text != "work" {
+		t.Fatalf("options: %+v", s.Options)
+	}
+	cl, ops, done, err := StartClarify(w.st.Items["c"]).Next(env, in("send:work", "title", ""), w.newID)
+	if err != nil || !done || cl.SendTo != "work" || cl.Outcome != "send" {
+		t.Fatalf("send: %+v done %v err %v", cl, done, err)
+	}
+	if len(ops) != 2 || ops[0].Type != core.OpComment || ops[1].Type != core.OpTransition || !strings.Contains(string(ops[1].Changes[0].New), core.StTrashed) {
+		t.Errorf("ops: %+v", ops)
+	}
+	if err := w.apply(ops); err != nil {
+		t.Fatal(err)
+	}
+	if it := w.st.Items["c"]; it.State != core.StTrashed || it.Original != "boat engine reset thing" {
+		t.Errorf("the capture here: %s, original %q", it.State, it.Original)
+	}
+	if _, _, _, err := StartClarify(w.st.Items["c"]).Next(env, in("send:elsewhere", title...), w.newID); !errors.Is(err, core.ErrInvalid) {
+		t.Errorf("a link that does not exist: %v", err)
+	}
+}

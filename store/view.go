@@ -538,6 +538,12 @@ func (s *Store) targetComment(spaceID string, op core.Op) *core.Comment {
 // A capture without text (a photo) gets fallbackTitle, or the name of its
 // first attachment.
 func (v *View) Capture(text, fallbackTitle string, src core.Source, atts []core.Attachment) (*core.Item, error) {
+	return v.CaptureOnce("", text, fallbackTitle, src, atts)
+}
+
+// CaptureOnce is Capture with an op ID chosen by the sender. A capture sent
+// again with the same op ID is not created again: the answer is then nil.
+func (v *View) CaptureOnce(opID, text, fallbackTitle string, src core.Source, atts []core.Attachment) (*core.Item, error) {
 	text = strings.TrimSpace(text)
 	title, _, multi := strings.Cut(text, "\n")
 	if title = strings.TrimSpace(title); title == "" {
@@ -556,8 +562,12 @@ func (v *View) Capture(text, fallbackTitle string, src core.Source, atts []core.
 	if via == "" {
 		via = "web"
 	}
-	if _, err := v.Apply(v.user, core.Op{Via: via, Type: core.OpCreate, Payload: mustJSON(it)}); err != nil {
+	logged, err := v.Apply(v.user, core.Op{ID: opID, Via: via, Type: core.OpCreate, Payload: mustJSON(it)})
+	if err != nil {
 		return nil, err
+	}
+	if len(logged) == 0 {
+		return nil, nil // this op ID was applied before
 	}
 	return v.Item(v.user, it.ID)
 }

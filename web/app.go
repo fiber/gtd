@@ -142,6 +142,12 @@ func (s *Server) initApp() {
 	m.HandleFunc("POST /api/v1/wizard/{kind}/{session}/step", s.user(s.wizardStep))
 	m.HandleFunc("PUT /api/v1/admin/users/{id}/password", s.admin(s.setPassword))
 	m.HandleFunc("PUT /api/v1/me/password", s.user(s.changePassword))
+	m.HandleFunc("GET /api/v1/me/links", s.user(s.links))
+	m.HandleFunc("POST /api/v1/me/links", s.user(s.links))
+	m.HandleFunc("DELETE /api/v1/me/links/{name}", s.user(s.links))
+	m.HandleFunc("GET /api/v1/outbox", s.user(s.outboxFor))
+	m.HandleFunc("GET /api/v1/outbox/{id}/att/{sha}", s.user(s.outboxFor))
+	m.HandleFunc("POST /api/v1/outbox/{id}/ack", s.user(s.outboxFor))
 
 	assets := loadAssets()
 	m.HandleFunc("GET /ui/", s.static(assets))
@@ -1327,6 +1333,9 @@ func (s *Server) wizardEnv(v *store.View, ws *wizardSession) (wizard.Env, error)
 		}
 	}
 	if ws.kind == "clarify" {
+		for _, l := range s.userLinks(ws.user) {
+			env.Links = append(env.Links, l.Name)
+		}
 		// Where a capture may go: it can stay, or move to a shared space of
 		// the user. Each choice says who will see it there.
 		for _, sp := range v.Spaces() {
@@ -1426,6 +1435,14 @@ func (s *Server) wizardStep(w http.ResponseWriter, r *http.Request, a actor) err
 			return err
 		}
 		return reply(w, map[string]any{"step": ws.step(env)})
+	}
+	if ws.kind == "clarify" && ws.clarify.SendTo != "" {
+		// It goes into the outbox for that server, and to the trash here. It
+		// is delivered by the next connection between the two.
+		if err := s.queueCapture(a.user, ws.clarify.SendTo, ws.clarify.Item); err != nil {
+			return err
+		}
+		defer s.KickLinks()
 	}
 	logged := []core.Op{}
 	switch {

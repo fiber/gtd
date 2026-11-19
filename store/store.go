@@ -513,3 +513,16 @@ func (s *Store) DeleteSessions(user, keep string) error {
 	}
 	return b.Commit(pebble.Sync)
 }
+
+// EachUser calls f for every user.
+func (s *Store) EachUser(f func(u *core.User)) {
+	s.mu.RLock()
+	users := make([]*core.User, 0, len(s.users))
+	for _, u := range s.users {
+		users = append(users, u)
+	}
+	s.mu.RUnlock()
+	for _, u := range users {
+		f(u)
+	}
+}

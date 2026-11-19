@@ -12,7 +12,7 @@ If a task seems to need one of these, stop and ask.
 - Op-log compaction, sharding, replication, HA
 
 **Collaboration**
-- Sharing between servers or federation (work ↔ home, Sven's server ↔ someone else's)
+- Sharing between servers or federation (work ↔ home, Sven's server ↔ someone else's). The one exception, since 2026-11-19: a user can send a capture from their inbox on one server to their own inbox on a linked server (README, "Linked servers"). Nothing is shared, synced or passed on.
 - Roles beyond "member" (no read-only, no per-item ACLs)
 - Global chat, channels, direct messages, presence, typing indicators, real-time
   co-editing, CRDTs

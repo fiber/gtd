@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"mime"
 	"net/http"
@@ -36,6 +37,10 @@ type Server struct {
 	// SecureCookies marks the session cookie Secure. The daemon sets it when
 	// server.base_url is https.
 	SecureCookies bool
+	// LinkKey is this server's SSH key for connecting to linked servers.
+	LinkKey ssh.Signer
+	// Kick, if set, asks the daemon to run SyncLinks soon.
+	Kick chan struct{}
 	// Admins are the users who may administer the server (config.yaml,
 	// `admins`): users, spaces, backups. Being listed is not enough: admin
 	// routes also need the SSH-key challenge, not a web session (D-21).
@@ -50,7 +55,8 @@ type Server struct {
 type actor struct {
 	user   string // may be empty for an operator running admin commands
 	admin  bool
-	cookie bool // authenticated by a web session, not by the SSH-key challenge
+	cookie bool   // authenticated by a web session, not by the SSH-key challenge
+	link   string // authenticated by a linked server's token: the link's name
 }
 
 type actorKey struct{}
@@ -61,7 +67,7 @@ var errLog io.Writer = os.Stderr
 var (
 	errDenied    = errors.New("authentication required")
 	errForbidden = errors.New("this needs an admin")
-	errScope     = errors.New("this token may only capture (POST /capture)")
+	errScope     = errors.New("this token may not do that")
 )
 
 func New(st *store.Store) *Server {
@@ -127,14 +133,23 @@ func (s *Server) any(h handler) http.HandlerFunc {
 		if !ok {
 			token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 			user, valid := s.ssh.Session(token)
-			var scopes []string
+			link := ""
 			if bearer && strings.HasPrefix(token, "gtd_") {
 				// An API token (COLLAB §6). It may do what its scopes say and
-				// nothing else: here, capture.
-				if user, scopes, valid = s.st.TokenUser(token); valid &&
-					!(r.Method == "POST" && r.URL.Path == "/api/v1/capture" && slices.Contains(scopes, store.ScopeCapture)) {
-					fail(w, errScope)
-					return
+				// nothing else. Every route is closed to tokens unless it is
+				// named here.
+				var tok store.Token
+				if user, tok, valid = s.st.TokenUser(token); valid {
+					p := r.URL.Path
+					ok := r.Method == "POST" && p == "/api/v1/capture" && slices.Contains(tok.Scopes, store.ScopeCapture) ||
+						slices.Contains(tok.Scopes, store.ScopeOutbox) && tok.Link != "" &&
+							(r.Method == "GET" && (p == "/api/v1/outbox" || strings.HasPrefix(p, "/api/v1/outbox/")) ||
+								r.Method == "POST" && strings.HasPrefix(p, "/api/v1/outbox/") && strings.HasSuffix(p, "/ack"))
+					if !ok {
+						fail(w, errScope)
+						return
+					}
+					link = tok.Link
 				}
 			}
 			if !bearer {
@@ -150,7 +165,7 @@ func (s *Server) any(h handler) http.HandlerFunc {
 				fail(w, errDenied)
 				return
 			}
-			a = actor{user: u.ID, admin: slices.Contains(s.Admins, u.ID), cookie: !bearer}
+			a = actor{user: u.ID, admin: slices.Contains(s.Admins, u.ID), cookie: !bearer, link: link}
 		}
 		if err := h(w, r, a); err != nil {
 			fail(w, err)
@@ -262,6 +277,7 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error 
 		text string
 		src  core.Source
 		atts []core.Attachment
+		opID string // from a sender that may retry: the same op is not captured twice
 	)
 	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if mediaType == "multipart/form-data" {
@@ -299,6 +315,8 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error 
 				src.Via = string(val)
 			case "ref":
 				src.Ref = string(val)
+			case "op":
+				opID = string(val)
 			}
 		}
 	} else {
@@ -323,9 +341,15 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error 
 	if src.Via == "" {
 		src.Via = "web"
 	}
-	it, err := v.Capture(text, fallback, src, atts)
+	if opID != "" && (len(opID) > 80 || strings.ContainsAny(opID, "/ \x00")) {
+		return fmt.Errorf("%w: op id %q", core.ErrInvalid, opID)
+	}
+	it, err := v.CaptureOnce(opID, text, fallback, src, atts)
 	if err != nil {
 		return err
+	}
+	if it == nil {
+		return reply(w, map[string]any{"id": "", "duplicate": true})
 	}
 	return reply(w, map[string]string{"id": it.ID})
 }
@@ -620,7 +644,7 @@ func (s *Server) tokens(w http.ResponseWriter, r *http.Request, a actor) error {
 		if err := body(r, &in); err != nil {
 			return err
 		}
-		plain, t, err := s.st.AddToken(a.user, in.Label, in.Scopes)
+		plain, t, err := s.st.AddToken(a.user, in.Label, "", in.Scopes)
 		if err != nil {
 			return err
 		}
@@ -640,4 +664,14 @@ func (s *Server) tokens(w http.ResponseWriter, r *http.Request, a actor) error {
 		out = append(out, view{t.ID, t.Label, t.Scopes, t.Created, t.LastUsed, ""})
 	}
 	return reply(w, out)
+}
+
+// KickLinks asks for a delivery to linked servers soon, without waiting.
+func (s *Server) KickLinks() {
+	if s.Kick != nil {
+		select {
+		case s.Kick <- struct{}{}:
+		default:
+		}
+	}
 }

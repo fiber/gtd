@@ -78,7 +78,7 @@ func TestCaptureMail(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	token, _, err := st.AddToken("robin", "mail", []string{store.ScopeCapture})
+	token, _, err := st.AddToken("robin", "mail", "", []string{store.ScopeCapture})
 	if err != nil {
 		t.Fatal(err)
 	}

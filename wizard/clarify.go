@@ -54,6 +54,7 @@ type Clarify struct {
 	Outcome     string      `json:"outcome,omitempty"`     // trash | someday | reference | action
 	Multi       bool        `json:"multi,omitempty"`       // more than one step: a project
 	Space       string      `json:"space,omitempty"`       // the shared space the capture moves to; "" = it stays
+	SendTo      string      `json:"send_to,omitempty"`     // the linked server the capture is sent to
 	Project     string      `json:"project,omitempty"`     // existing project
 	NewProject  *NewProject `json:"new_project,omitempty"` // the capture becomes this project
 	Area        string      `json:"area,omitempty"`
@@ -130,6 +131,9 @@ func (c Clarify) Step(env Env) Step {
 		s.Options = []Option{{Value: "action", Label: "clarify.opt.action"}, {Value: "project", Label: "clarify.opt.project"},
 			{Value: "reference", Label: "clarify.opt.reference"}, {Value: "someday", Label: "clarify.opt.someday"},
 			{Value: "trash", Label: "clarify.opt.trash"}}
+		for _, name := range env.Links {
+			s.Options = append(s.Options, Option{Value: "send:" + name, Label: "clarify.opt.send", Text: name})
+		}
 		if len(env.Similar) > 0 {
 			s.Data["similar"] = env.Similar
 			// "Duplicate of…" appends the capture to that item. Only for items
@@ -269,6 +273,12 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 	case StepWhat:
 		if id, ok := strings.CutPrefix(in.Choice, "dup:"); ok {
 			c.Outcome, c.Duplicate = "duplicate", id
+			return finish()
+		}
+		if name, ok := strings.CutPrefix(in.Choice, "send:"); ok {
+			// It belongs on another server: it goes to the inbox there as it
+			// was captured, and is decided there.
+			c.Outcome, c.SendTo = "send", name
 			return finish()
 		}
 		if in.Choice == "trash" { // the title does not matter for what is thrown away
@@ -478,6 +488,14 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 		}
 		return []core.Op{
 			{Via: "web", Type: core.OpComment, Item: c.Duplicate, Payload: mustJSON(core.Comment{Body: text, Attachments: c.Attachments})},
+			{Via: "web", Type: core.OpTransition, Item: c.Item, BaseRev: rev,
+				Changes: []core.FieldChange{{Field: "state", New: quote(core.StTrashed)}}},
+		}
+	case "send":
+		// Sent by the caller before these ops are applied. Here it is trashed,
+		// with a line in its thread that says where it went.
+		return []core.Op{
+			{Via: "web", Type: core.OpComment, Item: c.Item, Payload: mustJSON(core.Comment{Body: "→ " + c.SendTo})},
 			{Via: "web", Type: core.OpTransition, Item: c.Item, BaseRev: rev,
 				Changes: []core.FieldChange{{Field: "state", New: quote(core.StTrashed)}}},
 		}
