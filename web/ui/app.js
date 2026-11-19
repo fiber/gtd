@@ -13,6 +13,7 @@ import './engage.js';
 import './projects.js';
 import './item.js';
 import './board.js';
+import './admin.js';
 import './more.js';
 import { newNote } from './notes.js';
 
@@ -164,6 +165,7 @@ class App extends LitElement {
     if (p === '/areas') return html`<gtd-areas></gtd-areas>`;
     if (p === '/search') return html`<gtd-search></gtd-search>`;
     if (p === '/settings') return html`<gtd-settings></gtd-settings>`;
+    if (p === '/admin') return html`<gtd-admin></gtd-admin>`;
     return html`<p class="empty">${t('app.not_found')}</p>`;
   }
 

@@ -377,6 +377,13 @@ faster than that, you get no suggestions for it.
 
 ## Settings
 
+**Capture tokens** (for a shortcut on your phone or a mail rule) and **Linked servers**
+are set up here too.
+
+If you are an admin of the server, Settings has an **Administration** button: add
+users, set a password for someone, create shared spaces and choose their members. It
+asks for your password and stays open for 15 minutes.
+
 Language, theme (Light, Dark, System), your own contexts (usable in your personal
 space), and templates. A template adds structured fields to notes, projects or
 actions of a space, for example a "stage" on job applications that then shows as a

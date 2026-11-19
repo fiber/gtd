@@ -315,3 +315,10 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 ### Direction for M7 (not started)
 
 - 2026-11-19 — Owner: AI features should work "through ad-hoc AI buttons instead of just calling AI across the board". For M7 this means: no generation runs by itself. Each AI function is a button where it is needed (name this cluster, propose a title, find the commitments in this note, summarize this theme, brief me before the review), it runs only when pressed, and its result is a suggestion to accept. A space whose AI policy (Q-11) does not allow the configured backend does not show the buttons. This replaces the automatic `clarify` preselection of AI_CONTRACT.md as the default; AI_CONTRACT.md is to be revised when M7 starts.
+
+### Administration in the browser
+
+- 2026-11-19 — Owner: "The things I can only create on the command line - can we add those to the frontend?" Built: capture tokens in Settings (a user's own), and an Administration screen for the users listed under `admins`: users (list, add, set a password) and shared spaces (list, create, add and remove members).
+- 2026-11-19 — This amends D-21 ("a web session is not enough for admin routes"). A web session still is not enough by itself: the admin gives their password again, which opens administration for that one session for 15 minutes (kept in the daemon's memory; a restart locks it). Wrong attempts count like failed logins. The SSH-key challenge and direct access work as before.
+- 2026-11-19 — Still command line only: SSH keys of users, snapshots, export and restore, the Obsidian import, reindex, calibrate. They work on files on the server or are the operator's business.
+- 2026-11-19 — Not built: renaming or deleting a user or a space, and a space's "people" list.

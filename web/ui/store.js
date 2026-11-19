@@ -150,6 +150,16 @@ export const store = {
 
   // Wizards: the server holds the step machine, the client renders its steps.
   setSpaceContexts: (space, contexts) => put(`/spaces/${encodeURIComponent(space)}/contexts`, { contexts }),
+  tokens: () => get('/me/tokens'),
+  addToken: (label) => post('/me/tokens', { label, scopes: ['capture'] }),
+  removeToken: (id) => request('DELETE', '/me/tokens/' + encodeURIComponent(id)),
+  adminUnlock: (password) => post('/admin/unlock', { password }),
+  adminUsers: () => get('/admin/users'),
+  adminSpaces: () => get('/admin/spaces'),
+  adminAddUser: (user) => post('/admin/users', user),
+  adminSetPassword: (id, password) => put(`/admin/users/${encodeURIComponent(id)}/password`, { password }),
+  adminAddSpace: (space) => post('/admin/spaces', space),
+  adminSetMember: (space, user, member) => request(member ? 'PUT' : 'DELETE', `/admin/spaces/${encodeURIComponent(space)}/members/${encodeURIComponent(user)}`),
   links: () => get('/me/links'),
   addLink: (link) => post('/me/links', link),
   removeLink: (name) => request('DELETE', '/me/links/' + encodeURIComponent(name)),

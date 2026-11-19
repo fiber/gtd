@@ -64,9 +64,10 @@ embed: { provider: internal, model_dir: /srv/models/embeddinggemma-300m }
 # or: embed: { provider: ollama, url: "http://127.0.0.1:11434", model: embeddinggemma }
 ```
 
-An admin is whoever the config lists. Admin commands also need that user's SSH key
-(`gtd user key-add`), or direct access to the data directory while the daemon is
-stopped: a web login alone never administers anything.
+An admin is whoever the config lists. In the browser an admin manages users and
+shared spaces under Settings › Administration, after giving their password again.
+On the command line, admin commands need that user's SSH key (`gtd user key-add`), or
+direct access to the data directory while the daemon is stopped.
 
 Run it under systemd (`/etc/systemd/system/gtd.service`):
 

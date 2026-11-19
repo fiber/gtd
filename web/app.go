@@ -56,6 +56,7 @@ type app struct {
 	mu       sync.Mutex
 	failures map[string]*failure
 	wizards  map[string]*wizardSession
+	unlocked map[string]time.Time // web session → until when administration is open
 }
 
 type failure struct {
@@ -79,7 +80,7 @@ type wizardSession struct {
 var reImportMap = regexp.MustCompile(`(?s)<script type="importmap">(.*?)</script>`)
 
 func (s *Server) initApp() {
-	a := &app{catalogs: map[string]map[string]string{}, failures: map[string]*failure{}, wizards: map[string]*wizardSession{}}
+	a := &app{catalogs: map[string]map[string]string{}, failures: map[string]*failure{}, wizards: map[string]*wizardSession{}, unlocked: map[string]time.Time{}}
 	for _, lang := range []string{"en", "de"} {
 		data, err := uiFS.ReadFile("ui/i18n/" + lang + ".json")
 		if err != nil {

@@ -8,12 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"mime"
 	"net/http"
 	"os"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -90,6 +92,9 @@ func New(st *store.Store) *Server {
 	s.mux.HandleFunc("GET /api/v1/ai/status", s.user(s.aiStatus))
 	s.mux.HandleFunc("POST /api/v1/admin/reindex", s.admin(s.reindex))
 	s.mux.HandleFunc("POST /api/v1/admin/snapshots", s.admin(s.snapshot))
+	s.mux.HandleFunc("POST /api/v1/admin/unlock", s.user(s.unlock))
+	s.mux.HandleFunc("GET /api/v1/admin/users", s.admin(s.adminUsers))
+	s.mux.HandleFunc("GET /api/v1/admin/spaces", s.admin(s.adminSpaces))
 	s.mux.HandleFunc("POST /api/v1/admin/users", s.admin(s.addUser))
 	s.mux.HandleFunc("POST /api/v1/admin/users/{id}/keys", s.admin(s.setKey))
 	s.mux.HandleFunc("DELETE /api/v1/admin/users/{id}/keys", s.admin(s.setKey))
@@ -183,16 +188,114 @@ func (s *Server) user(h handler) http.HandlerFunc {
 	})
 }
 
-// admin requires the admin flag and the SSH-key challenge (or direct database
-// access): a web session is not enough (D-21). Admin manages users, spaces
-// and backups. It does not open any space's content through a View.
+// admin requires an admin (config.yaml) who came by the SSH-key challenge or
+// direct database access. A web session is not enough by itself (D-21): in
+// the browser the admin unlocks administration with their password, for a
+// quarter of an hour. Admin manages users, spaces and backups. It does not
+// open any space's content through a View.
 func (s *Server) admin(h handler) http.HandlerFunc {
 	return s.any(func(w http.ResponseWriter, r *http.Request, a actor) error {
-		if !a.admin || a.cookie {
+		if !a.admin {
 			return errForbidden
+		}
+		if a.cookie && !s.unlocked(r) {
+			return &keyError{http.StatusForbidden, "admin.locked", "password"}
 		}
 		return h(w, r, a)
 	})
+}
+
+const adminUnlock = 15 * time.Minute
+
+// unlocked says whether the request's web session has administration open.
+func (s *Server) unlocked(r *http.Request) bool {
+	c, err := r.Cookie(cookieName)
+	if err != nil {
+		return false
+	}
+	s.app.mu.Lock()
+	defer s.app.mu.Unlock()
+	return s.st.Now().Before(s.app.unlocked[c.Value])
+}
+
+// unlock opens administration for the admin's web session, against their
+// password. Wrong attempts count like failed logins.
+func (s *Server) unlock(w http.ResponseWriter, r *http.Request, a actor) error {
+	var in struct {
+		Password string `json:"password"`
+	}
+	if err := body(r, &in); err != nil {
+		return err
+	}
+	c, err := r.Cookie(cookieName)
+	if !a.admin || !a.cookie || err != nil {
+		return errForbidden
+	}
+	u := s.st.User(a.user)
+	now := s.st.Now()
+	ap := s.app
+	ap.mu.Lock()
+	f := ap.failures[a.user]
+	locked := f != nil && f.count >= maxFailures && now.Before(f.until)
+	ap.mu.Unlock()
+	if locked {
+		return &keyError{http.StatusTooManyRequests, "login.locked", "password"}
+	}
+	if u == nil || u.PasswordHash == "" || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(in.Password)) != nil {
+		ap.mu.Lock()
+		if f == nil || now.After(f.until) {
+			f = &failure{}
+			ap.failures[a.user] = f
+		}
+		f.count++
+		f.until = now.Add(time.Minute)
+		ap.mu.Unlock()
+		return &keyError{http.StatusBadRequest, "password.wrong", "password"}
+	}
+	ap.mu.Lock()
+	for k, until := range ap.unlocked { // forget what has run out
+		if now.After(until) {
+			delete(ap.unlocked, k)
+		}
+	}
+	ap.unlocked[c.Value] = now.Add(adminUnlock)
+	ap.mu.Unlock()
+	return reply(w, map[string]any{"minutes": int(adminUnlock / time.Minute)})
+}
+
+// adminUsers lists the users: who they are, not what they have.
+func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request, a actor) error {
+	type view struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Admin    bool   `json:"admin"`
+		Service  bool   `json:"service,omitempty"`
+		Password bool   `json:"password"` // has one
+		Keys     int    `json:"keys"`
+	}
+	out := []view{}
+	s.st.EachUser(func(u *core.User) {
+		out = append(out, view{u.ID, u.Name, slices.Contains(s.Admins, u.ID), u.Service, u.PasswordHash != "", len(u.SSHKeys)})
+	})
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return reply(w, out)
+}
+
+// adminSpaces lists the shared spaces and their members. Not their content.
+func (s *Server) adminSpaces(w http.ResponseWriter, r *http.Request, a actor) error {
+	type view struct {
+		ID      string   `json:"id"`
+		Name    string   `json:"name"`
+		Members []string `json:"members"`
+	}
+	out := []view{}
+	s.st.EachSpace(func(sp *core.Space) {
+		if sp.Kind == core.SpaceShared {
+			out = append(out, view{sp.ID, sp.Name, sp.Members})
+		}
+	})
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return reply(w, out)
 }
 
 func fail(w http.ResponseWriter, err error) {
@@ -630,6 +733,7 @@ func (s *Server) tokens(w http.ResponseWriter, r *http.Request, a actor) error {
 	type view struct {
 		ID       string    `json:"id"`
 		Label    string    `json:"label"`
+		Link     string    `json:"link,omitempty"` // made for a linked server
 		Scopes   []string  `json:"scopes"`
 		Created  time.Time `json:"created"`
 		LastUsed time.Time `json:"last_used,omitzero"`
@@ -648,7 +752,7 @@ func (s *Server) tokens(w http.ResponseWriter, r *http.Request, a actor) error {
 		if err != nil {
 			return err
 		}
-		return reply(w, view{t.ID, t.Label, t.Scopes, t.Created, t.LastUsed, plain})
+		return reply(w, view{t.ID, t.Label, t.Link, t.Scopes, t.Created, t.LastUsed, plain})
 	case "DELETE":
 		if err := s.st.DeleteToken(a.user, r.PathValue("id")); err != nil {
 			return err
@@ -661,7 +765,7 @@ func (s *Server) tokens(w http.ResponseWriter, r *http.Request, a actor) error {
 	}
 	out := []view{}
 	for _, t := range list {
-		out = append(out, view{t.ID, t.Label, t.Scopes, t.Created, t.LastUsed, ""})
+		out = append(out, view{t.ID, t.Label, t.Link, t.Scopes, t.Created, t.LastUsed, ""})
 	}
 	return reply(w, out)
 }

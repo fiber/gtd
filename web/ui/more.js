@@ -1,6 +1,6 @@
 // The smaller screens: areas, search, settings.
 import { store } from './store.js';
-import { t, loadLanguage } from './i18n.js';
+import { t, loadLanguage, fmtDay } from './i18n.js';
 import { View, html, nothing, row, select, toast } from './widgets.js';
 
 class Areas extends View {
@@ -77,7 +77,7 @@ class Search extends View {
 customElements.define('gtd-search', Search);
 
 class Settings extends View {
-  static properties = { space: { state: true }, yaml: { state: true }, error: { state: true }, ai: { state: true }, links: { state: true }, linkError: { state: true }, newToken: { state: true } };
+  static properties = { space: { state: true }, yaml: { state: true }, error: { state: true }, ai: { state: true }, links: { state: true }, linkError: { state: true }, newToken: { state: true }, tokens: { state: true }, madeToken: { state: true } };
   constructor() {
     super();
     this.space = store.me.user.id;
@@ -87,6 +87,7 @@ class Settings extends View {
     if (res) this.yaml = res.yaml;
     this.ai = await this.run(() => store.aiStatus());
     this.links = await this.run(() => store.links());
+    this.tokens = await this.run(() => store.tokens());
   }
   async setLang(lang) {
     await this.run(async () => {
@@ -112,6 +113,17 @@ class Settings extends View {
       toast(t('settings.saved'));
     });
     this.requestUpdate();
+  }
+  async addToken(e) {
+    e.preventDefault();
+    const f = e.target;
+    this.madeToken = await this.run(() => store.addToken(f.label.value));
+    f.reset();
+    this.tokens = await this.run(() => store.tokens());
+  }
+  async removeToken(id) {
+    await this.run(() => store.removeToken(id));
+    this.tokens = await this.run(() => store.tokens());
   }
   // A linked server: without an address the other side connects to us and we
   // show the token to enter there; with one, this server connects.
@@ -195,6 +207,19 @@ class Settings extends View {
         ${this.ai ? html`<p class="notice">${t('ai.label')}: ${t('ai.state.' + this.ai.state)}
           ${this.ai.state === 'off' ? '' : ' · ' + t('ai.counts', { vectors: this.ai.vectors, queued: this.ai.queued })}
           ${this.ai.error ? html`<br><small>${this.ai.error}</small>` : nothing}</p>` : nothing}
+        ${me.user.admin ? html`<p><a class="button" href="admin">${t('nav.admin')}</a></p>` : nothing}
+        <h2>${t('tokens.title')}</h2>
+        <p><small>${t('tokens.about')}</small></p>
+        ${(this.tokens || []).filter((k) => !k.link).map((k) => html`
+          <div class="row"><span class="row-main"><span class="title">${k.label || k.id}</span>
+            <span class="meta"><span class="chip">${k.id}</span>
+              <span class="chip">${k.last_used ? t('tokens.used', { date: fmtDay(k.last_used) }) : t('tokens.never_used')}</span></span></span>
+            <span class="row-actions"><button @click=${() => this.removeToken(k.id)}>${t('tokens.revoke')}</button></span></div>`)}
+        ${this.madeToken ? html`<p class="notice">${t('tokens.once')}<br><code class="token">${this.madeToken.token}</code></p>` : nothing}
+        <form class="password" @submit=${(e) => this.addToken(e)}>
+          <div class="field"><label>${t('tokens.label')}</label><input type="text" name="label" required maxlength="40"></div>
+          <button type="submit">${t('tokens.add')}</button>
+        </form>
         <h2>${t('links.title')}</h2>
         <p><small>${t('links.about')}</small></p>
         ${(this.links?.links || []).map((l) => html`

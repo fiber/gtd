@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -1045,5 +1046,83 @@ func TestInstallable(t *testing.T) {
 	_, shell := get("/")
 	if !bytes.Contains(shell, []byte(`<link rel="manifest" href="ui/manifest.webmanifest">`)) {
 		t.Error("the shell does not link the manifest")
+	}
+}
+
+// TestAdminInTheBrowser: an admin's web session administers only after the
+// admin gave their password again, and only for a while. Everyone else never.
+func TestAdminInTheBrowser(t *testing.T) {
+	s := newSite(t)
+	now := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)
+	s.st.Now = func() time.Time { return now }
+	robin, dana := s.login("robin"), s.login("dana") // robin is the admin
+
+	if code, body := robin.do("GET", "/api/v1/admin/users", nil, nil); code != 403 || !strings.Contains(body, "admin.locked") {
+		t.Fatalf("admin route before unlocking: %d %s", code, body)
+	}
+	if code, body := robin.do("POST", "/api/v1/admin/unlock", map[string]string{"password": "wrong"}, nil); code != 400 || !strings.Contains(body, "password.wrong") {
+		t.Errorf("unlock with a wrong password: %d %s", code, body)
+	}
+	if code, _ := dana.do("POST", "/api/v1/admin/unlock", map[string]string{"password": password}, nil); code != 403 {
+		t.Errorf("a non-admin unlocking: %d", code)
+	}
+	robin.ok("POST", "/api/v1/admin/unlock", map[string]string{"password": password}, nil)
+
+	// Users: list, add, first password. The new user can sign in.
+	var users []struct {
+		ID, Name        string
+		Admin, Password bool
+	}
+	robin.ok("GET", "/api/v1/admin/users", nil, &users)
+	if len(users) != 3 || users[2].ID != "robin" || !users[2].Admin || users[0].Admin || !users[0].Password {
+		t.Errorf("users: %+v", users)
+	}
+	robin.ok("POST", "/api/v1/admin/users", map[string]any{"id": "lee", "name": "Lee"}, nil)
+	robin.ok("PUT", "/api/v1/admin/users/lee/password", map[string]string{"password": "lee's first one"}, nil)
+	lee := s.anon()
+	if code, _ := lee.do("POST", "/api/v1/login", map[string]string{"user": "lee", "password": "lee's first one"}, nil); code != 200 {
+		t.Errorf("the new user's login: %d", code)
+	}
+	// Spaces: create, list, add and remove a member. Lee sees it only as a member.
+	robin.ok("POST", "/api/v1/admin/spaces", map[string]any{"id": "team", "name": "Team", "members": []string{"robin", "dana"}}, nil)
+	var spaces []struct {
+		ID, Name string
+		Members  []string
+	}
+	robin.ok("GET", "/api/v1/admin/spaces", nil, &spaces)
+	if len(spaces) != 2 || spaces[1].ID != "team" || !slices.Equal(spaces[1].Members, []string{"dana", "robin"}) {
+		t.Errorf("spaces: %+v", spaces)
+	}
+	mySpaces := func(c *client) string {
+		var me struct{ Spaces []struct{ ID string } }
+		c.ok("GET", "/api/v1/me", nil, &me)
+		var ids []string
+		for _, sp := range me.Spaces {
+			ids = append(ids, sp.ID)
+		}
+		return strings.Join(ids, ",")
+	}
+	if strings.Contains(mySpaces(lee), "team") {
+		t.Error("lee is in the space before being added")
+	}
+	robin.ok("PUT", "/api/v1/admin/spaces/team/members/lee", nil, nil)
+	if !strings.Contains(mySpaces(lee), "team") {
+		t.Error("lee is not in the space after being added")
+	}
+	robin.ok("DELETE", "/api/v1/admin/spaces/team/members/lee", nil, nil)
+	if strings.Contains(mySpaces(lee), "team") {
+		t.Error("lee is still in the space after being removed")
+	}
+
+	// The unlock belongs to that session, and it runs out.
+	if code, _ := s.login("robin").do("GET", "/api/v1/admin/users", nil, nil); code != 403 {
+		t.Errorf("another session of the admin, not unlocked: %d", code)
+	}
+	if code, _ := dana.do("GET", "/api/v1/admin/users", nil, nil); code != 403 {
+		t.Errorf("a non-admin on an admin route: %d", code)
+	}
+	now = now.Add(adminUnlock + time.Second)
+	if code, body := robin.do("GET", "/api/v1/admin/users", nil, nil); code != 403 || !strings.Contains(body, "admin.locked") {
+		t.Errorf("after the unlock ran out: %d %s", code, body)
 	}
 }

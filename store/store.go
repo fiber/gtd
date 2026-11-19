@@ -526,3 +526,16 @@ func (s *Store) EachUser(f func(u *core.User)) {
 		f(u)
 	}
 }
+
+// EachSpace calls f for every space record.
+func (s *Store) EachSpace(f func(sp *core.Space)) {
+	s.mu.RLock()
+	recs := make([]*core.Space, 0, len(s.spaces))
+	for _, sp := range s.spaces {
+		recs = append(recs, sp.rec)
+	}
+	s.mu.RUnlock()
+	for _, r := range recs {
+		f(r)
+	}
+}
