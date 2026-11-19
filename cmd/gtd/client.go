@@ -20,11 +20,13 @@ import (
 	"github.com/fiber/gtd/web"
 )
 
-// config is <data_dir>/config.yaml (STORAGE §10). M0 reads the server name and
-// the snapshot settings. Other sections are ignored until their milestone.
+// config is <data_dir>/config.yaml (STORAGE §10). So far the
+// server and snapshot sections are read. Other sections are ignored until their milestone.
 type config struct {
 	Server struct {
-		Name string `yaml:"name"`
+		Name    string `yaml:"name"`
+		BaseURL string `yaml:"base_url"` // https://… makes the session cookie Secure
+		Listen  string `yaml:"listen"`   // HTTP address, default 127.0.0.1:8640; "off" disables it
 	} `yaml:"server"`
 	Snapshots struct {
 		Schedule string     `yaml:"schedule"` // "", hourly or daily
@@ -34,7 +36,7 @@ type config struct {
 
 func loadConfig(dir string) (config, error) {
 	var c config
-	c.Server.Name = "gtd"
+	c.Server.Name, c.Server.Listen = "gtd", "127.0.0.1:8640"
 	path := filepath.Join(dir, "config.yaml")
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {

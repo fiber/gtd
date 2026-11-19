@@ -57,6 +57,9 @@ func newEnv(t *testing.T, users ...string) *env {
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
 	e := &env{t: t, data: filepath.Join(dir, "d"), agents: map[string]string{}, pubs: map[string]string{}}
+	// Tests run several daemons: none of them serves HTTP on the default port.
+	os.MkdirAll(e.data, 0o700)
+	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("server: {listen: \"off\"}\n"), 0o644)
 	for _, u := range users {
 		_, priv, _ := ed25519.GenerateKey(rand.Reader)
 		keyring := agent.NewKeyring()
@@ -407,7 +410,7 @@ func TestSnapshotCommands(t *testing.T) {
 	if msg := e.fail("sven", "snapshot", "prune"); !strings.Contains(msg, "no retention configured") {
 		t.Errorf("prune without config: %q", msg)
 	}
-	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("server: {name: home}\nsnapshots: {schedule: hourly, keep: {hourly: 1}}\nembed: {provider: norad}\n"), 0o644)
+	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("server: {name: home, listen: \"off\"}\nsnapshots: {schedule: hourly, keep: {hourly: 1}}\nembed: {provider: norad}\n"), 0o644)
 	second := strings.TrimSpace(e.run("sven", "snapshot", "create"))
 	if got := e.run("sven", "snapshot", "prune"); got != "deleted "+name+"\n" {
 		t.Errorf("prune = %q", got)

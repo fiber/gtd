@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,7 +18,8 @@ import (
 )
 
 // serve runs the daemon: it holds the database lock and serves the API on the
-// Unix socket <data_dir>/gtd.sock (mode 0660). HTTP over TCP arrives with M1.
+// Unix socket <data_dir>/gtd.sock (mode 0660) for the CLI, and the API plus
+// the web UI over HTTP on server.listen (behind nginx for TLS).
 func serve(g globals, stdout, stderr io.Writer) error {
 	cfg, err := loadConfig(g.data)
 	if err != nil {
@@ -36,6 +38,9 @@ func serve(g globals, stdout, stderr io.Writer) error {
 	sock := socketPath(g.data)
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
+	}
+	if len(sock) > 100 {
+		return fmt.Errorf("socket path %s is %d bytes long, Unix sockets allow about 100: use a shorter data directory", sock, len(sock))
 	}
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
@@ -67,7 +72,9 @@ func serve(g globals, stdout, stderr io.Writer) error {
 		}()
 	}
 
-	srv := &http.Server{Handler: web.New(st).Handler()}
+	app := web.New(st)
+	app.SecureCookies = strings.HasPrefix(cfg.Server.BaseURL, "https://")
+	srv := &http.Server{Handler: app.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shut, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -75,7 +82,17 @@ func serve(g globals, stdout, stderr io.Writer) error {
 		srv.Shutdown(shut)
 	}()
 	fmt.Fprintf(stdout, "gtd: server %q (%s) listening on %s\n", st.Server().Name, st.Server().ID, sock)
-	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+	errs := make(chan error, 2)
+	go func() { errs <- srv.Serve(ln) }()
+	if cfg.Server.Listen != "off" {
+		tcp, err := net.Listen("tcp", cfg.Server.Listen)
+		if err != nil {
+			return fmt.Errorf("listen on %s: %w", cfg.Server.Listen, err)
+		}
+		fmt.Fprintf(stdout, "gtd: web UI on http://%s\n", tcp.Addr())
+		go func() { errs <- srv.Serve(tcp) }()
+	}
+	if err := <-errs; !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil

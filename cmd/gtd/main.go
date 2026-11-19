@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -18,6 +19,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/fiber/gtd/core"
 	"github.com/fiber/gtd/store"
@@ -35,6 +38,7 @@ const usage = `usage: gtd [-data dir] [-user id] [-key pubkey-file] <command>
   snapshot create [-label l] | list | prune | verify [name]...
   restore <snapshot>                        replace the database with a snapshot (daemon stopped)
   user add [-admin] [-name n] [-ssh-key k] <id> | key-add <id> <key> | key-rm <id> <key>
+  user passwd <id>                          set the web password (prompted, or one line on stdin)
   space create [-name n] <id> [member]... | add-member <space> <user> | rm-member <space> <user>
 
   -data  data directory (default $GTD_DATA)
@@ -126,7 +130,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return cmdUser(g, s, rest, stdout)
+		return cmdUser(g, s, rest, stdin, stdout)
 	case "space":
 		s, rest, err := sub()
 		if err != nil {
@@ -501,8 +505,38 @@ func keyArg(arg string) string {
 	return arg
 }
 
-func cmdUser(g globals, sub string, args []string, stdout io.Writer) error {
+func cmdUser(g globals, sub string, args []string, stdin io.Reader, stdout io.Writer) error {
 	switch sub {
+	case "passwd":
+		if err := want("user passwd", args, 1, "a user id"); err != nil {
+			return err
+		}
+		var password string
+		if f, ok := stdin.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+			fmt.Fprintf(stdout, "New password for %s: ", args[0])
+			pw, err := term.ReadPassword(int(f.Fd()))
+			fmt.Fprintln(stdout)
+			if err != nil {
+				return err
+			}
+			password = string(pw)
+		} else {
+			line, err := bufio.NewReader(stdin).ReadString('\n')
+			if err != nil && line == "" {
+				return fmt.Errorf("gtd user passwd: no password on stdin")
+			}
+			password = strings.TrimRight(line, "\r\n")
+		}
+		c, err := connect(g, false)
+		if err != nil {
+			return err
+		}
+		defer c.close()
+		if err := c.do("PUT", "/api/v1/admin/users/"+url.PathEscape(args[0])+"/password", map[string]string{"password": password}, nil); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "password set for %s\n", args[0])
+		return nil
 	case "add":
 		var admin bool
 		var name, key string
