@@ -438,7 +438,7 @@ func board(st *core.State, today string, now time.Time, area, project, field str
 	for _, key := range []string{core.StInbox, core.StNext, core.StPlanned, core.StWaiting, "deferred", core.StSomeday, core.StDone} {
 		items := cols[key]
 		if key == core.StNext {
-			core.SortEngage(items)
+			core.SortEngage(items, today)
 		} else {
 			sort.Slice(items, func(i, j int) bool {
 				if key == core.StDone {
@@ -458,7 +458,7 @@ const allSpaces = "*"
 // mergeColumns adds the columns of another space's board to cols and keeps
 // each column in the order a single board has: next actions by due date,
 // target and age, done by when, everything else by age.
-func mergeColumns(cols, more []Column) []Column {
+func mergeColumns(cols, more []Column, today string) []Column {
 	if cols == nil {
 		return more
 	}
@@ -467,6 +467,9 @@ func mergeColumns(cols, more []Column) []Column {
 			return "9999-99-99"
 		}
 		return s
+	}
+	forToday := func(b Brief) bool {
+		return b.Due != "" && b.Due <= today || b.Target != "" && b.Target <= today || b.Resurfaced || b.DeferUntil == today
 	}
 	for i := range cols {
 		items := append(cols[i].Items, more[i].Items...)
@@ -477,6 +480,10 @@ func mergeColumns(cols, more []Column) []Column {
 			case core.StDone:
 				return x.Updated.After(y.Updated)
 			case core.StNext:
+				// As in Engage: what the day asks for leads.
+				if tx, ty := forToday(x), forToday(y); tx != ty {
+					return tx
+				}
 				if dx, dy := last(x.Due), last(y.Due); dx != dy {
 					return dx < dy
 				}

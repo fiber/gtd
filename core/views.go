@@ -49,12 +49,10 @@ func Engage(st *State, user, today string, f EngageFilter) []*Item {
 		}
 		out = append(out, it)
 	})
-	SortEngage(out)
+	SortEngage(out, today)
 	return out
 }
 
-// SortEngage orders actions for Engage. It is exported so that lists merged
-// from several spaces can be ordered the same way.
 // Today returns what the day asks of the user: their next actions and
 // waiting-fors that are due or have their target today or earlier, and the
 // actions that came back today (a deferred or repeating action whose day it
@@ -68,16 +66,29 @@ func Today(st *State, user, today string) []*Item {
 		if it.Owner != user && !(it.Owner == "" && st.Space.Kind == SpaceShared) {
 			return
 		}
-		dated := it.Due != "" && it.Due <= today || it.Target != "" && it.Target <= today
-		if dated || it.State == StNext && (it.DeferUntil == today || Resurfaced(it, today)) {
+		if ForToday(it, today) {
 			out = append(out, it)
 		}
 	})
-	SortEngage(out)
+	SortEngage(out, today)
 	return out
 }
 
-func SortEngage(items []*Item) {
+// ForToday says whether an open action is one of the day's: due or with its
+// target today or earlier, or a next action that came back today from a
+// deferral or a repeat.
+func ForToday(it *Item, today string) bool {
+	if today == "" {
+		return false
+	}
+	dated := it.Due != "" && it.Due <= today || it.Target != "" && it.Target <= today
+	return dated || it.State == StNext && (it.DeferUntil == today || Resurfaced(it, today))
+}
+
+// SortEngage orders actions for Engage: first what the day asks for (ForToday),
+// then by due date, target, what the system just brought back, and age. It is
+// exported so that lists merged from several spaces are ordered the same way.
+func SortEngage(items []*Item, today string) {
 	last := func(s string) string { // empty dates sort last
 		if s == "" {
 			return "9999-99-99"
@@ -86,6 +97,10 @@ func SortEngage(items []*Item) {
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		a, b := items[i], items[j]
+		// What the day asks for comes first: the Today tab's items lead the list.
+		if ta, tb := ForToday(a, today), ForToday(b, today); ta != tb {
+			return ta
+		}
 		if da, db := last(a.Due), last(b.Due); da != db {
 			return da < db
 		}

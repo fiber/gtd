@@ -872,7 +872,7 @@ func (s *Server) engage(w http.ResponseWriter, r *http.Request, a actor) error {
 		for i, e := range all {
 			items[i], by[e.it.ID] = e.it, e.st
 		}
-		core.SortEngage(items)
+		core.SortEngage(items, today)
 		for i, it := range items {
 			all[i] = entry{it, by[it.ID]}
 		}
@@ -958,7 +958,7 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request, a actor) error {
 					part[i].Items[j].SpaceName = sp.Name
 				}
 			}
-			cols = mergeColumns(cols, part)
+			cols = mergeColumns(cols, part, s.today())
 		}
 		return reply(w, map[string]any{"space": space, "options": &SpaceOptions{Areas: []Named{}, Projects: []Named{}, Actions: []Named{}}, "columns": cols})
 	}

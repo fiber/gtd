@@ -43,19 +43,19 @@ func TestEngage(t *testing.T) {
 		f    EngageFilter
 		want []string
 	}{
-		{"no filter: due, target, unblocked, age", "robin", EngageFilter{},
-			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls", "office", "anywhere"}},
+		{"no filter: what is for today, then due, target, unblocked, age", "robin", EngageFilter{},
+			[]string{"resurfaced", "duesoon", "due", "target", "unblocked", "old", "unassigned", "calls", "office", "anywhere"}},
 		{"dana sees his and the unassigned", "dana", EngageFilter{}, []string{"unassigned", "erics"}},
 		{"context: only that place, plus 'anywhere'; actions without a context are left out", "robin", EngageFilter{Contexts: []string{"calls"}},
 			[]string{"calls", "anywhere"}},
 		{"two contexts", "robin", EngageFilter{Contexts: []string{"calls", "office"}}, []string{"calls", "office", "anywhere"}},
 		{"a place with nothing but 'anywhere'", "robin", EngageFilter{Contexts: []string{"errands"}}, []string{"anywhere"}},
 		{"15 minutes", "robin", EngageFilter{Time: "15m"},
-			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls"}},
+			[]string{"resurfaced", "duesoon", "due", "target", "unblocked", "old", "unassigned", "calls"}},
 		{"low energy", "robin", EngageFilter{Energy: "low"},
-			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls"}},
+			[]string{"resurfaced", "duesoon", "due", "target", "unblocked", "old", "unassigned", "calls"}},
 		{"medium energy, one hour", "robin", EngageFilter{Energy: "med", Time: "1h"},
-			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls", "anywhere"}},
+			[]string{"resurfaced", "duesoon", "due", "target", "unblocked", "old", "unassigned", "calls", "anywhere"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := ids(Engage(w.st, c.user, today, c.f)); !slices.Equal(got, c.want) {
@@ -258,5 +258,32 @@ func TestToday(t *testing.T) {
 	}
 	if got := ids(Today(w.st, "robin", today)); !slices.Contains(got, "back-today") {
 		t.Errorf("after the tickler ran: %v", got)
+	}
+}
+
+// TestTodayLeadsEngage: what the Today tab shows is at the top of the next
+// actions, ahead of things that are merely dated.
+func TestTodayLeadsEngage(t *testing.T) {
+	w := shared(t)
+	add := func(it Item) {
+		it.Kind, it.Owner = KindAction, "robin"
+		w.must(w.create("robin", it))
+	}
+	const today = "2026-11-19"
+	add(Item{ID: "due-next-month", Due: "2026-12-19"})
+	add(Item{ID: "undated"})
+	add(Item{ID: "target-today", Target: today})
+	add(Item{ID: "overdue", Due: "2026-11-10"})
+	add(Item{ID: "back-today", DeferUntil: today})
+	add(Item{ID: "due-today", Due: today})
+	add(Item{ID: "target-next-week", Target: "2026-11-26"})
+	got := ids(Engage(w.st, "robin", today, EngageFilter{}))
+	want := []string{"overdue", "due-today", "target-today", "back-today", "due-next-month", "target-next-week", "undated"}
+	if !slices.Equal(got, want) {
+		t.Errorf("order:\n got %v\nwant %v", got, want)
+	}
+	// The same day's items are exactly the Today tab's.
+	if today := ids(Today(w.st, "robin", today)); !slices.Equal(today, want[:4]) {
+		t.Errorf("Today tab: %v", today)
 	}
 }
