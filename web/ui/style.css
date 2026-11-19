@@ -176,7 +176,6 @@ button.show-more { width: 100%; justify-content: center; margin-top: 8px; }
 .item input.title { font-size: 1.4rem; font-weight: 600; border-color: transparent; background: transparent; padding: 6px 0; margin-top: 6px; }
 .item input.title:focus { border-color: var(--line); background: var(--surface); padding: 6px 10px; }
 .body { overflow-wrap: anywhere; }
-.body p, .body li { white-space: pre-line; }
 .body p { margin: .6em 0; }
 .body pre { background: var(--chip); padding: 10px 12px; border-radius: 8px; overflow-x: auto; font: .88rem/1.4 var(--mono); }
 .body code { font-family: var(--mono); font-size: .9em; background: var(--chip); padding: 1px 4px; border-radius: 4px; }
@@ -184,7 +183,7 @@ button.show-more { width: 100%; justify-content: center; margin-top: 8px; }
 .body blockquote { margin: .6em 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
 .body table { border-collapse: collapse; display: block; overflow-x: auto; }
 .body th, .body td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; }
-.body li.task { list-style: none; margin-left: -1.2em; }
+.body li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.4em; }
 .body h1 { font-size: 1.25rem; margin: 1em 0 .4em; }
 .body h2 { font-size: 1.1rem; color: var(--text); margin: 1em 0 .4em; }
 .body h3 { font-size: 1rem; color: var(--text); text-transform: none; letter-spacing: 0; }

@@ -22,12 +22,15 @@ Read before writing any code, in this order:
 - **KISS above all.** Few packages, few interfaces, no layers for their own sake. An
   interface exists only where there are two real implementations or a test seam that
   is actually used. No "service", "repository", "manager", "factory" layers, no DI.
-- **Go, stdlib first.** Allowed without asking: stdlib, `golang.org/x/...` (incl.
-  `x/crypto/ssh`, `x/crypto/ssh/agent`, `x/crypto/bcrypt`, `x/image`),
+- **Go, stdlib first; select dependencies are fine, frameworks are not.** Allowed
+  without asking: stdlib, `golang.org/x/...` (incl. `x/crypto/ssh`,
+  `x/crypto/ssh/agent`, `x/crypto/bcrypt`, `x/image`, `x/term`),
   `github.com/cockroachdb/pebble/v2`, `github.com/oklog/ulid/v2`,
-  `gopkg.in/yaml.v3`, and in-house packages under `github.com/fiber/*` (notably
-  `github.com/fiber/ai`). Anything else: propose it with one paragraph of
-  justification and wait.
+  `gopkg.in/yaml.v3`, `github.com/yuin/goldmark` (Markdown), and in-house packages
+  under `github.com/fiber/*` (notably `github.com/fiber/ai`). A focused library that
+  does one job well may be added: propose it with one paragraph of justification and
+  wait. What stays out is a framework that takes over the structure of the code, or
+  a dependency per button in the UI.
 - **No SQL, no ORM.** Pebble is the only database (STORAGE.md).
 - **Buildless Lit frontend.** Lit web components as plain JS modules, loaded through
   an import map from a vendored Lit ES module bundle, plus one CSS file with custom

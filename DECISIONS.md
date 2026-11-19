@@ -20,7 +20,7 @@ Settled with the product owner (Sven). The agent must not change them.
 
 | ID | Decision |
 |----|----------|
-| D-10 | **One server per trust domain**, for example work on company infrastructure, home on shada. Same binary. **Multi-user per server.** There is no sharing between servers in v1. |
+| D-10 | **One server per trust domain**, for example work on company infrastructure (a GTT server, potentially `edlrdev3` or `prg-nis-gerrit1`), home on shada (Sven's and Grit's family things). Same binary. **Multi-user per server.** There is no sharing between servers in v1. |
 | D-11 | **Spaces:** every user has one personal space. Shared spaces have members. **Membership is the only permission** (role: member, read and write). Users have a server-wide `admin` flag for user/space management only, and admin does not grant content access. |
 | D-12 | **Work layout:** one shared space per product, for example `NIS` with areas Nora, Atlas, Collectors, Data curation, Automation. Function blocks are projects. **Home layout:** personal spaces for Sven, Grit, the kids, plus shared spaces like "Sven & Grit", "Family", "Trading" (Sven plus the service user nuro). |
 | D-13 | **Collaboration happens on items, not in a chat.** Every item has a comment thread. `@user` in a comment notifies that user ("From others" section of their inbox). Delegation sets `owner`. Waiting For is a query. Unassigned actions in shared spaces show up for every member with a matching context. |
@@ -40,7 +40,7 @@ Settled with the product owner (Sven). The agent must not change them.
 | D-22 | **Web UI:** Lit web components, buildless (vendored Lit ES module bundle, import map, plain JS modules, one CSS file, hand-written service worker, all embedded via `embed.FS`; no npm, bundler, TypeScript, other framework or state-management library), installed as a PWA. The client is a pure renderer: Markdown is rendered server-side (`body_html`), wizards are Go step machines behind `/api/v1/wizard/…`, there is no GTD logic in JS, and routing is client-side on a server-delivered app shell. *(Changed 2026-11-19; was `html/template` + htmx.)* Android is first-class (share target for text, URLs, files, camera capture). iOS via Safari install plus an Apple Shortcut. No native apps. |
 | D-23 | **Offline: level 2** (OFFLINE.md). A cached snapshot of pinned spaces in IndexedDB, with offline mutations as ops replayed on reconnect. Conflicts go to a merge view. |
 | D-24 | **Embeddings:** `embeddinggemma`. Home uses `github.com/fiber/ai` (see its embeddinggemma example; the agent determines whether that's in-process or HTTP). Work uses the existing **norad** embedding server. One `Embedder` interface. Exact brute-force similarity with in-house SIMD kernels (from `github.com/fiber/ai` or vektor, whichever provides SGEMM/dot). No ANN, no vector DB. |
-| D-25 | **AI generation is configured per server**, optional at runtime, structured JSON output validated against schemas. The work server uses the local Gemma model the workplace provides. The home server may use a local model or a cloud provider (Gemini or Anthropic, as nuro does). A server sends content only to its own configured backend, and a work server never uses a cloud provider. *(Changed 2026-11-19; was "local only, no cloud providers".)* |
+| D-25 | **AI generation is configured per server and per user**, optional at runtime, structured JSON output validated against schemas. A server lists the backends it offers (the work server: only the local Gemma the workplace provides; the home server: a local model and/or a cloud provider, Gemini or Anthropic, as nuro does). Each user has a setting for which of them their requests use, or none. A job runs on the backend of the user who caused it. A server sends content only to its own configured backends, and a work server never offers a cloud provider. *(Changed 2026-11-19, twice; was "local only, no cloud providers".)* |
 | D-26 | **Obsidian is abandoned.** No compatibility requirement. A one-time importer migrates the existing vault (thousands of notes) into an "unsorted" pool, which the sweep then works through. Titles may contain any characters. |
 
 ## Open questions (owner to answer; agent: ask, don't guess)
@@ -50,9 +50,15 @@ Settled with the product owner (Sven). The agent must not change them.
 - **Q-3** Which package provides the SIMD SGEMM/dot kernels: `github.com/fiber/ai`, vektor (import path?), or both. Needed before M4.
 - **Q-4** nuro side of the integration: which events nuro will post (backtest finished, pipeline failure, …). Needed before M8. gtd only provides the generic `append` mechanism.
 - **Q-5** Sven's personal extra contexts and review weekday (config, any time).
-- **Q-6** With a cloud provider on the home server, the content of every space there (including
-  shared ones like "Family") goes to that provider. Should cloud generation be switchable per
-  space, or is per server enough? Needed before M7.
+- **Q-6** (answered 2026-11-19: generation is per server and per user, see D-25.) Still open
+  inside it: in a shared space, a job started by one member sends the other members' text to
+  that member's backend. Accept that, or let a shared space restrict the backends? Before M7.
+- **Q-7** Proposed change to D-23 (offline), raised by Sven 2026-11-19: "focus offline on capture
+  mostly, plan when you're at your desk". Agent proposal: offline means capture (text, photos,
+  files), reading the cached lists, and marking actions done or deferred. Offline note editing,
+  three-way body merge and the conflict resolver are dropped. This also removes the conflict
+  between OFFLINE §3 and "no GTD logic in JS". Not applied yet: confirm before M3, then
+  OFFLINE.md and M3 are rewritten.
 
 ## Owner requests (2026-11-19)
 
@@ -120,7 +126,7 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 
 ### M1
 
-- 2026-11-19 — Markdown is rendered by a hand-written renderer in `web/markdown.go`: headings, paragraphs, bold/italic/strike, code, quotes, nested lists, task lists, tables, links, and the tokens. It is a subset of CommonMark (no nested emphasis, no reference links, no HTML). Every tag in the output is written by the renderer and all source text is escaped — SPEC §3.1 asks for a small safe renderer and stdlib has none. Full CommonMark would need goldmark: ask the owner if the subset turns out too small.
+- 2026-11-19 — Owner: Markdown is rendered by goldmark (full CommonMark plus GFM), in safe mode, with the gtd tokens as an inline extension. External images become links; external links open in a new tab without referrer; line breaks are kept. It replaced a hand-written subset renderer the same day.
 - 2026-11-19 — Clarify step 2 ("which space?") and the "member" answer of step 7 are left out until M6: both need the move op and delegation. Clarify works in the personal space, where captures live.
 - 2026-11-19 — What a capture becomes in Clarify: the note, the someday action, or the action. With a new project it becomes the project, and the next action is a new item with `derived_from` — `original` and the history stay with the thing the capture described.
 - 2026-11-19 — Someday in Clarify makes an action in `someday`. A project done in two minutes loops back to "next action, or is it complete?" — a project needs a next action or an end.
@@ -128,7 +134,7 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — The body editor is a textarea that shows tokens as labels (`[[Title]]`, `![[name.png]]`). The server sends the label form and the label→token map; the client substitutes on save. Two items with the same title get `(2)` — D-07 says users never see IDs, and a textarea cannot show chips.
 - 2026-11-19 — An uploaded file is attached to the item first (`attach` op), then its token is inserted — a blob is readable only through an item of a space the reader is a member of.
 - 2026-11-19 — Attachments are served with `Content-Security-Policy: sandbox`, `nosniff`, and as downloads unless they are images or PDFs. Thumbnails are not generated yet: images are shown at original size, scaled by CSS.
-- 2026-11-19 — Dragging in the plan view: an action dropped on another action waits for it (`blocked_by`); a project dropped on a project becomes its child. HTML5 drag and drop does not work on touch screens, so the item page has the same settings as selects ("waits for", "part of"), and the board's moves are the item page's state buttons.
+- 2026-11-19 — Owner: dragging in the plan view: an action A dropped on action B depends on B (`blocked_by`); a project dropped on a project becomes its child. HTML5 drag and drop does not work on touch screens, so the item page has the same settings as selects ("waits for", "part of"), and the board's moves are the item page's state buttons.
 - 2026-11-19 — The board shows actions and inbox captures. A deferred item appears only in "Deferred". Dropping a card there asks for a date.
 - 2026-11-19 — Engage merges all of the user's spaces into one list in one order. "Not now" hides an action until the page is left. The answers to the three questions are kept in localStorage (per device).
 - 2026-11-19 — Templates are edited by any member of the space (space records are not ops). A template's body skeleton is not applied yet when a template is chosen.

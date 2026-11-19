@@ -72,9 +72,10 @@ Rules:
 ## 3. Body content
 
 ### 3.1 Markdown
-CommonMark plus tables and task lists. Rendered server-side with a small, safe
-renderer. If stdlib isn't enough, propose a dependency (e.g. goldmark) per CLAUDE.md.
-No raw HTML passthrough. The sanitized result is delivered as `body_html` alongside
+CommonMark plus GFM tables, task lists, strikethrough and autolinks. Rendered
+server-side with goldmark in its safe mode: no raw HTML passthrough, dangerous URLs
+are emptied. The tokens of §3.3 are a goldmark inline extension. An image that points
+to another site is rendered as a link. The sanitized result is delivered as `body_html` alongside
 `body` in API and sync payloads. `body_html` is derived: it is never stored in the
 item record and never exported. The client inserts `body_html` as is and never
 renders Markdown itself.

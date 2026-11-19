@@ -477,7 +477,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	}
 	var rendered struct{ HTML string }
 	c.ok("POST", "/api/v1/render", map[string]string{"item": note, "text": "**b** <img src=x onerror=1>"}, &rendered)
-	if rendered.HTML != "<p><strong>b</strong> &lt;img src=x onerror=1&gt;</p>\n" {
+	if !strings.Contains(rendered.HTML, "<strong>b</strong>") || strings.Contains(rendered.HTML, "<img") || strings.Contains(rendered.HTML, "onerror") {
 		t.Errorf("render = %q", rendered.HTML)
 	}
 
