@@ -180,6 +180,37 @@ The **Ideas** tab on the same screen shows what is parked: your themes (someday
 projects) with the number of notes in each, and your someday actions, with Activate
 and Drop next to each.
 
+### If note-taking never clicked for you
+
+Most note systems ask you to be a librarian: invent folders, add tags, link every note
+to its neighbours, and review it all. Few people keep that up, and a vault of
+disconnected notes is the usual result. gtd asks for much less.
+
+**You only ever write three kinds of note:**
+
+1. **A record of something that happened**: a call, a meeting, a test result. Write it
+   while it happens, in the project it belongs to. Mark promises as task lines. Process
+   the tasks afterwards. Then you are done with it.
+2. **An idea that is not an action yet.** One thought per note, a few lines. File it
+   into a theme. Do not polish it.
+3. **A "where this stands" note** for a project or theme: what you believe, what you do
+   not know, what happens next. This is the one note worth rewriting, and there is at
+   most one per project.
+
+**And you follow one rule: a note lives in a project or a theme.** That is all the
+organizing there is. You do not need folders, tags or a habit of linking:
+
+- *Finding it again* is the job of search, which matches by meaning, not only by words.
+- *Seeing what belongs together* is the job of "Related" on each note and "Might
+  belong here" on each project.
+- *Not writing it twice* is the job of "Already there?" on the capture screen.
+
+Keep notes short. A note that has grown past a couple of screens is usually three
+notes, or a project that deserves its own "where this stands".
+
+If you are unsure whether something is worth a note, capture it as one line and decide
+in Clarify. Most of the time the answer is a next action or the trash, and that is fine.
+
 ### Call and meeting notes
 
 1. Before the call, open the project and press **New note**. Type freely during the call.
