@@ -5,6 +5,9 @@ import { store } from './store.js';
 import { t } from './i18n.js';
 import { View, html, nothing, meta, select } from './widgets.js';
 
+const KEY = 'gtd.board'; // the space the board showed last, on this device
+const ALL = '*';
+
 class Board extends View {
   static properties = {
     space: { state: true }, area: { state: true }, project: { state: true }, field: { state: true },
@@ -13,7 +16,10 @@ class Board extends View {
 
   constructor() {
     super();
-    this.space = store.me.user.id;
+    // The board opens on the space it showed last on this device.
+    let last = '';
+    try { last = localStorage.getItem(KEY) || ''; } catch { /* private browsing */ }
+    this.space = last === ALL || store.me.spaces.some((sp) => sp.id === last) ? last : store.me.user.id;
     this.area = this.project = this.field = '';
   }
 
@@ -23,7 +29,10 @@ class Board extends View {
 
   filter(key, value) {
     this[key] = value;
-    if (key === 'space') this.area = this.project = this.field = '';
+    if (key === 'space') {
+      this.area = this.project = this.field = '';
+      try { localStorage.setItem(KEY, value); } catch { /* private browsing */ }
+    }
     this.reload();
   }
 
@@ -63,14 +72,16 @@ class Board extends View {
   render() {
     const d = this.data;
     if (!d) return nothing;
-    const spaces = store.me.spaces.map((s) => ({ id: s.id, title: s.name }));
+    const all = this.space === ALL;
+    const spaces = [{ id: ALL, title: t('board.all_spaces') }].concat(
+      store.me.spaces.map((s) => ({ id: s.id, title: s.id === store.me.user.id ? t('clarify.opt.personal') : s.name })));
     return html`
       <header class="bar">
         <h1>${t('nav.board')}</h1>
         <div class="filters">
-          ${spaces.length > 1 ? select(spaces, this.space, (v) => this.filter('space', v)) : nothing}
-          ${select(d.options.areas, this.area, (v) => this.filter('area', v), t('board.all_areas'))}
-          ${select(d.options.projects, this.project, (v) => this.filter('project', v), t('board.all_projects'))}
+          ${spaces.length > 2 ? select(spaces, this.space, (v) => this.filter('space', v)) : nothing}
+          ${all ? nothing : select(d.options.areas, this.area, (v) => this.filter('area', v), t('board.all_areas'))}
+          ${all ? nothing : select(d.options.projects, this.project, (v) => this.filter('project', v), t('board.all_projects'))}
           ${this.field ? html`<button class="chip badge on" @click=${() => this.filter('field', '')}>${this.field.replace(':', ' = ')} ×</button>` : nothing}
         </div>
       </header>
@@ -84,7 +95,7 @@ class Board extends View {
             ${c.items.map((b) => html`
               <div class="card row" tabindex="0" draggable="true" @dragstart=${(e) => e.dataTransfer.setData('text/plain', b.id)}>
                 <a class="title" href=${'i/' + b.id}>${b.title}</a>
-                <span class="meta">${meta({ ...b, badges: [] })}
+                <span class="meta">${all ? html`<span class="chip">${b.space === store.me.user.id ? t('clarify.opt.personal') : b.space_name}</span>` : nothing}${meta({ ...b, badges: [] })}
                   ${(b.badges || []).map((x) => html`
                     <button class="chip badge" title=${t('board.filter_badge')} @click=${() => this.filter('field', x)}>${x.split(':').slice(1).join(':')}</button>`)}</span>
               </div>`)}

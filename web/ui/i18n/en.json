@@ -62,6 +62,7 @@
  "areas.projects": "{n} active projects",
  "board.all_areas": "All areas",
  "board.all_projects": "All projects",
+ "board.all_spaces": "All spaces",
  "board.defer_until": "Defer until",
  "board.deferred": "Deferred",
  "board.done": "Done (14 days)",

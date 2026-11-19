@@ -943,6 +943,25 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request, a actor) error {
 	if space == "" {
 		space = a.user
 	}
+	if space == allSpaces {
+		// One board over every space of the user. Areas and projects belong
+		// to one space each, so those two filters do not apply here.
+		var cols []Column
+		for _, sp := range v.Spaces() {
+			st, err := v.State(sp.ID)
+			if err != nil {
+				return err
+			}
+			part := board(st, s.today(), s.st.Now(), "", "", q.Get("field"))
+			for i := range part {
+				for j := range part[i].Items {
+					part[i].Items[j].SpaceName = sp.Name
+				}
+			}
+			cols = mergeColumns(cols, part)
+		}
+		return reply(w, map[string]any{"space": space, "options": &SpaceOptions{Areas: []Named{}, Projects: []Named{}, Actions: []Named{}}, "columns": cols})
+	}
 	st, err := v.State(space)
 	if err != nil {
 		return err

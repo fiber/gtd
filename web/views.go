@@ -452,6 +452,48 @@ func board(st *core.State, today string, now time.Time, area, project, field str
 	return out
 }
 
+// allSpaces is the board's "every space of mine". It is not a valid space ID.
+const allSpaces = "*"
+
+// mergeColumns adds the columns of another space's board to cols and keeps
+// each column in the order a single board has: next actions by due date,
+// target and age, done by when, everything else by age.
+func mergeColumns(cols, more []Column) []Column {
+	if cols == nil {
+		return more
+	}
+	last := func(s string) string { // no date sorts after any date
+		if s == "" {
+			return "9999-99-99"
+		}
+		return s
+	}
+	for i := range cols {
+		items := append(cols[i].Items, more[i].Items...)
+		key := cols[i].Key
+		sort.SliceStable(items, func(a, b int) bool {
+			x, y := items[a], items[b]
+			switch key {
+			case core.StDone:
+				return x.Updated.After(y.Updated)
+			case core.StNext:
+				if dx, dy := last(x.Due), last(y.Due); dx != dy {
+					return dx < dy
+				}
+				if tx, ty := last(x.Target), last(y.Target); tx != ty {
+					return tx < ty
+				}
+			}
+			if !x.Created.Equal(y.Created) {
+				return x.Created.Before(y.Created)
+			}
+			return x.ID < y.ID
+		})
+		cols[i].Items = items
+	}
+	return cols
+}
+
 // Plan is the plan view of one project: its subtree with roll-ups, the
 // actions and notes in it, and the date warnings that concern it (SPEC §6.4).
 type Plan struct {

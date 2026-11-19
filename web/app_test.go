@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1191,5 +1192,56 @@ func TestMoveItemOverHTTP(t *testing.T) {
 				t.Errorf("%s (confirm %v): %d, want %d", name, confirm, code, c.want)
 			}
 		}
+	}
+}
+
+// TestBoardAllSpaces: the board over every space of the user, and of nobody else.
+func TestBoardAllSpaces(t *testing.T) {
+	s := newSite(t)
+	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
+	robin.create("robin", map[string]any{"kind": "action", "title": "Private, due late", "due": "2026-12-20"})
+	robin.create("net", map[string]any{"kind": "action", "title": "Shared, due soon", "due": "2026-12-01", "owner": "robin"})
+	robin.create("robin", map[string]any{"kind": "action", "title": "Private, no date"})
+	dana.create("dana", map[string]any{"kind": "action", "title": "Dana's own"})
+	jo.create("jo", map[string]any{"kind": "action", "title": "Jo's own"})
+
+	type board struct {
+		Space   string
+		Columns []struct {
+			Key   string
+			Items []Brief
+		}
+		Options struct{ Areas, Projects []Named }
+	}
+	next := func(c *client, space string) []string {
+		t.Helper()
+		var b board
+		c.ok("GET", "/api/v1/board?space="+url.QueryEscape(space), nil, &b)
+		var out []string
+		for _, col := range b.Columns {
+			if col.Key == core.StNext {
+				for _, it := range col.Items {
+					out = append(out, it.Title+" @"+it.SpaceName)
+				}
+			}
+		}
+		if len(b.Columns) != 7 {
+			t.Errorf("%d columns for space %q", len(b.Columns), space)
+		}
+		return out
+	}
+	// One order across the spaces: by due date, then the undated by age.
+	if got, want := next(robin, "*"), []string{"Shared, due soon @NET", "Private, due late @Robin", "Private, no date @Robin"}; !slices.Equal(got, want) {
+		t.Errorf("robin's board over all spaces:\n got %q\nwant %q", got, want)
+	}
+	if got := next(dana, "*"); !slices.Equal(got, []string{"Shared, due soon @NET", "Dana's own @Dana"}) {
+		t.Errorf("dana's board over all spaces: %q", got)
+	}
+	if got := next(jo, "*"); !slices.Equal(got, []string{"Jo's own @Jo"}) {
+		t.Errorf("jo's board over all spaces: %q", got)
+	}
+	// A single space is as before, without space names on the cards.
+	if got := next(robin, "net"); !slices.Equal(got, []string{"Shared, due soon @"}) {
+		t.Errorf("robin's board of net: %q", got)
 	}
 }
