@@ -117,6 +117,9 @@ class Settings extends View {
           <button @click=${() => store.logout()}>${t('settings.logout')}</button></p>
         <div class="field"><label>${t('settings.language')}</label>
           ${select([{ id: 'en', title: 'English' }, { id: 'de', title: 'Deutsch' }], me.lang, (v) => this.setLang(v))}</div>
+        <div class="field"><label>${t('nav.theme')}</label>
+          ${select([{ id: 'light', title: t('theme.light') }, { id: 'dark', title: t('theme.dark') }, { id: 'system', title: t('theme.system') }],
+            window.gtdTheme(), (v) => { window.gtdTheme(v); document.querySelector('gtd-app').theme = v; })}</div>
         <div class="field"><label>${t('settings.contexts')}</label>
           <input type="text" .value=${me.user.personal_contexts.join(', ')} @change=${(e) => this.setContexts(e)}>
           <small>${t('settings.contexts_hint')}</small></div>

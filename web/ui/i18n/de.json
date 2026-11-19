@@ -155,11 +155,13 @@
  "nav.board": "Board",
  "nav.capture": "Erfassen",
  "nav.engage": "Erledigen",
+ "nav.fullscreen": "Vollbild",
  "nav.inbox": "Eingang",
  "nav.more": "Mehr",
  "nav.projects": "Projekte",
  "nav.search": "Suche",
  "nav.settings": "Einstellungen",
+ "nav.theme": "Darstellung",
  "note.attach": "Anhängen",
  "note.editor_hint": "Markdown. [[ tippen, um einen Eintrag zu verlinken. Zeilen mit „- [ ]“ werden Kandidaten für Schritte.",
  "note.fork": "Neue Notiz hieraus",
@@ -219,6 +221,9 @@
  "state.trashed": "Papierkorb",
  "state.unsorted": "Unsortiert",
  "state.waiting": "Warten",
+ "theme.dark": "Dunkel",
+ "theme.light": "Hell",
+ "theme.system": "System",
  "thread.action_created": "Schritt angelegt.",
  "thread.add": "Zum Verlauf hinzufügen…",
  "thread.deleted": "gelöscht",
@@ -248,5 +253,7 @@
  "warning.short.target_before_blocker": "Das Ziel liegt vor dem eines Schritts, auf den dieser wartet.",
  "warning.slipping": "„{item}“ hat sein Ziel überschritten.",
  "warning.target_before_blocker": "„{item}“ hat ein früheres Ziel als „{other}“, auf das es wartet.",
- "wizard.progress": "{index} von {total}"
+ "wizard.progress": "{index} von {total}",
+ "wizard.title.clarify": "Klären",
+ "wizard.title.note": "Notiz verarbeiten"
 }

@@ -13,11 +13,22 @@ class Wizard extends View {
 
   connectedCallback() {
     super.connectedCallback();
+    // Number keys answer a choice step: 1 for the first option, and so on.
+    this._keys = (e) => {
+      const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
+      const o = this.step?.type === 'choice' && !typing && !e.metaKey && !e.ctrlKey && this.step.options[Number(e.key) - 1];
+      if (o) {
+        e.preventDefault();
+        this.answer(o.value);
+      }
+    };
+    document.addEventListener('keydown', this._keys);
     this.start();
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     clearInterval(this._timer);
+    document.removeEventListener('keydown', this._keys);
   }
 
   async start() {
@@ -104,7 +115,6 @@ class Wizard extends View {
     if (!d) return nothing;
     const clock = `${Math.floor(this.left / 60)}:${String(this.left % 60).padStart(2, '0')}`;
     return html`
-      ${d.total ? html`<p class="progress">${t('wizard.progress', { index: d.index, total: d.total })}</p>` : nothing}
       ${d.original ? html`<pre class="original">${d.original}</pre>` : nothing}
       ${(d.attachments || []).map((a) => (a.mime || '').startsWith('image/')
         ? html`<img class="att" src=${'/api/v1/att/' + a.sha256} alt=${a.name}>`
@@ -120,6 +130,8 @@ class Wizard extends View {
     if (!s) return nothing;
     return html`
       <form class="wizard step-${s.type}" data-step=${s.key} @submit=${(e) => { e.preventDefault(); this.answer(s.options[0].value); }}>
+        <div class="frame-head"><span>${t('wizard.title.' + this.kind)}</span><span>${s.data?.total ? t('wizard.progress', { index: s.data.index, total: s.data.total }) : ''}</span></div>
+        <div class="frame-body">
         <h1>${t(s.question)}</h1>
         ${s.subject ? html`<p class="subject">${s.subject}</p>` : nothing}
         ${this.data(s.data)}
@@ -130,6 +142,7 @@ class Wizard extends View {
             <button type=${s.type === 'form' && i === 0 ? 'submit' : 'button'} ?disabled=${this.busy} data-value=${o.value}
               class=${(s.preselect ? o.value === s.preselect : i === 0) ? 'primary' : ''}
               @click=${s.type === 'form' && i === 0 ? null : () => this.answer(o.value)}>${label(o)}</button>`)}
+        </div>
         </div>
       </form>`;
   }

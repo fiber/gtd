@@ -36,7 +36,9 @@ func Engage(st *State, user, today string, f EngageFilter) []*Item {
 		if it.Owner != user && !(it.Owner == "" && st.Space.Kind == SpaceShared) {
 			return
 		}
-		if len(f.Contexts) > 0 && it.Context != "" && it.Context != "anywhere" && !slices.Contains(f.Contexts, it.Context) {
+		// With places selected, only actions for those places show, plus the ones
+		// that can be done anywhere. An action without a context is not one of them.
+		if len(f.Contexts) > 0 && it.Context != "anywhere" && !slices.Contains(f.Contexts, it.Context) {
 			return
 		}
 		if f.Time != "" && timeRank[it.Time] > timeRank[f.Time] {

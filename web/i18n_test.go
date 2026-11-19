@@ -72,6 +72,8 @@ func TestCatalogs(t *testing.T) {
 		"warning.":       {"child_after_parent", "target_before_blocker", "slipping"},
 		"warning.short.": {"child_after_parent", "target_before_blocker", "slipping"},
 		"field.":         {"project", "parent", "area", "context", "owner", "waiting_on", "defer_until", "target", "energy", "time", "template"},
+		"theme.":         {"light", "dark", "system"},
+		"wizard.title.":  {"clarify", "note"},
 		"clarify.":       {"what", "actionable", "someday", "reference", "multi", "project", "action", "two_minutes", "do_now", "who", "person", "when", "after"},
 	}
 	for _, file := range js {

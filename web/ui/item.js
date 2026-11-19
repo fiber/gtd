@@ -290,6 +290,8 @@ class Note extends View {
         </header>
         ${it.warnings.length ? html`<ul class="warnings">${it.warnings.map((w) => html`<li>${t('warning.short.' + w.Type)}</li>`)}</ul>` : nothing}
 
+        <div class="item-cols">
+        <div class="item-main">
         ${this.body()}
 
         ${(it.attachments || []).length ? html`<div class="related"><label>${t('item.attachments')}</label>
@@ -298,15 +300,6 @@ class Note extends View {
         ${this.related('item.derived', it.derived)}
         ${this.related('item.dependents', it.dependents)}
         ${this.related('item.backlinks', it.backlinks)}
-
-        ${editable ? html`
-          <details class="fields" ?open=${this.more ?? it.kind !== 'note'} @toggle=${(e) => { this.more = e.target.open; }}>
-            <summary>${t('item.details')}</summary>
-            ${this.fields()}
-          </details>` : nothing}
-
-        ${it.original ? html`
-          <details class="fields"><summary>${t('item.original')}</summary><pre class="original">${it.original}</pre></details>` : nothing}
 
         <section class="thread">
           <h2>${t('thread.title')}</h2>
@@ -322,6 +315,17 @@ class Note extends View {
             <button>${t('action.add')}</button>
           </form>
         </section>
+        </div>
+        <aside class="item-side">
+        ${editable ? html`
+          <details class="fields" ?open=${this.more ?? (it.kind !== 'note' || window.innerWidth >= 1000)} @toggle=${(e) => { this.more = e.target.open; }}>
+            <summary>${t('item.details')}</summary>
+            ${this.fields()}
+          </details>` : nothing}
+        ${it.original ? html`
+          <details class="fields"><summary>${t('item.original')}</summary><pre class="original">${it.original}</pre></details>` : nothing}
+        </aside>
+        </div>
         <footer><small>${t('item.updated', { time: fmtTime(it.updated), user: it.updated_by })} · rev ${it.rev}</small></footer>
       </article>`;
   }

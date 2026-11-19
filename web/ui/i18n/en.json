@@ -155,11 +155,13 @@
  "nav.board": "Board",
  "nav.capture": "Capture",
  "nav.engage": "Engage",
+ "nav.fullscreen": "Full screen",
  "nav.inbox": "Inbox",
  "nav.more": "More",
  "nav.projects": "Projects",
  "nav.search": "Search",
  "nav.settings": "Settings",
+ "nav.theme": "Theme",
  "note.attach": "Attach",
  "note.editor_hint": "Markdown. Type [[ to link an item. Lines starting with “- [ ]” become action candidates.",
  "note.fork": "New note from this",
@@ -219,6 +221,9 @@
  "state.trashed": "Trashed",
  "state.unsorted": "Unsorted",
  "state.waiting": "Waiting",
+ "theme.dark": "Dark",
+ "theme.light": "Light",
+ "theme.system": "System",
  "thread.action_created": "Action created.",
  "thread.add": "Add to the thread…",
  "thread.deleted": "deleted",
@@ -248,5 +253,7 @@
  "warning.short.target_before_blocker": "The target is earlier than that of an action this waits for.",
  "warning.slipping": "“{item}” has passed its target.",
  "warning.target_before_blocker": "“{item}” has an earlier target than “{other}”, which it waits for.",
- "wizard.progress": "{index} of {total}"
+ "wizard.progress": "{index} of {total}",
+ "wizard.title.clarify": "Clarify",
+ "wizard.title.note": "Process note"
 }

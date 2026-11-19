@@ -19,6 +19,9 @@ export const icon = {
   areas: s1`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r=".6"/>`,
   settings: s1`<path d="M5 8h8M18.5 8h.5M5 16h.5M11 16h8"/><circle cx="15.8" cy="8" r="2.4"/><circle cx="8.2" cy="16" r="2.4"/>`,
   more: s1`<circle cx="6" cy="12" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="18" cy="12" r="1.1"/>`,
+  sun: s1`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>`,
+  moon: s1`<path d="M20 14.4A8 8 0 0 1 9.6 4 8 8 0 1 0 20 14.4z"/>`,
+  expand: s1`<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>`,
   camera: s1`<rect x="3" y="7" width="18" height="13" rx="3"/><circle cx="12" cy="13.5" r="3.4"/><path d="M8.6 7l1.5-2.5h3.8L15.4 7"/>`,
   clip: s1`<path d="M20 11.6l-7.7 7.7a4.6 4.6 0 0 1-6.5-6.5l8-8a3.1 3.1 0 0 1 4.4 4.4l-7.9 7.9a1.55 1.55 0 0 1-2.2-2.2l7.2-7.2"/>`,
 };
