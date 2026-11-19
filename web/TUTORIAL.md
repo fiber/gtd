@@ -120,6 +120,10 @@ plus those marked "Anywhere".
 - When you complete a project's last open action, gtd asks for the next one. A
   project without a next action is stuck, and stuck projects are flagged everywhere.
 
+**Today** is the short list to look at first in the morning: what is due or has its
+target today (or is overdue), and what came back today because you deferred it or
+because it repeats. It ignores the three questions above.
+
 The tabs **Waiting for** and **Due and targets** are for a quick look, not for working.
 
 Keys: `c` capture, `e` Engage, `n` new note, `/` search, `j`/`k` move, `x` done,

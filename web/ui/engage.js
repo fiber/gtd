@@ -75,7 +75,7 @@ class Engage extends View {
       return html`<gtd-focus .brief=${this.focus} @exit=${() => { this.focus = null; this.reload(); }}></gtd-focus>`;
     }
     const d = this.data;
-    const tabs = [['', 'engage.tab.next'], ['waiting', 'engage.tab.waiting'], ['dates', 'engage.tab.dates']];
+    const tabs = [['', 'engage.tab.next'], ['today', 'engage.tab.today'], ['waiting', 'engage.tab.waiting'], ['dates', 'engage.tab.dates']];
     const items = (d?.items || []).filter((b) => !this.hidden.includes(b.id));
     const shown = this.all || this.tab ? items : items.slice(0, 7);
     return html`
@@ -88,8 +88,8 @@ class Engage extends View {
           <div><label>${t('engage.time')}</label>${chips(TIMES, this.answers.time, (v) => this.answer('time', v))}</div>
           <div><label>${t('engage.energy')}</label>${chips(ENERGIES, this.answers.energy, (v) => this.answer('energy', v))}</div>
         </div>`}
-      ${!d ? nothing : shown.length ? shown.map((b) => row(b, { state: !!this.tab, actions: this.tab ? null : this.actions(b) }))
-        : html`<p class="empty">${t(this.tab ? 'engage.empty_tab' : 'engage.empty')}</p>`}
+      ${!d ? nothing : shown.length ? shown.map((b) => row(b, { state: !!this.tab, actions: this.tab && this.tab !== 'today' ? null : this.actions(b) }))
+        : html`<p class="empty">${t(this.tab === 'today' ? 'engage.empty_today' : this.tab ? 'engage.empty_tab' : 'engage.empty')}</p>`}
       ${shown.length < items.length ? html`
         <button class="show-more" @click=${() => { this.all = true; }}>${t('engage.more', { n: items.length - shown.length })}</button>` : nothing}`;
   }

@@ -754,6 +754,8 @@ func (s *Server) engage(w http.ResponseWriter, r *http.Request, a actor) error {
 		}
 		var list []*core.Item
 		switch q.Get("tab") {
+		case "today":
+			list = core.Today(st, a.user, today)
 		case "waiting":
 			list = core.WaitingFor(st, a.user)
 		case "dates":
@@ -771,7 +773,7 @@ func (s *Server) engage(w http.ResponseWriter, r *http.Request, a actor) error {
 			}
 		}
 	}
-	if q.Get("tab") == "" {
+	if tab := q.Get("tab"); tab == "" || tab == "today" {
 		// One order across spaces.
 		items := make([]*core.Item, len(all))
 		by := map[string]*core.State{}

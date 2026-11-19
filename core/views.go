@@ -55,6 +55,28 @@ func Engage(st *State, user, today string, f EngageFilter) []*Item {
 
 // SortEngage orders actions for Engage. It is exported so that lists merged
 // from several spaces can be ordered the same way.
+// Today returns what the day asks of the user: their next actions and
+// waiting-fors that are due or have their target today or earlier, and the
+// actions that came back today (a deferred or repeating action whose day it
+// is). No filters apply: it is a short list to look at first.
+func Today(st *State, user, today string) []*Item {
+	var out []*Item
+	st.Each(func(it *Item) {
+		if it.Kind != KindAction || (it.State != StNext && it.State != StWaiting) || Deferred(it, today) {
+			return
+		}
+		if it.Owner != user && !(it.Owner == "" && st.Space.Kind == SpaceShared) {
+			return
+		}
+		dated := it.Due != "" && it.Due <= today || it.Target != "" && it.Target <= today
+		if dated || it.State == StNext && (it.DeferUntil == today || Resurfaced(it, today)) {
+			out = append(out, it)
+		}
+	})
+	SortEngage(out)
+	return out
+}
+
 func SortEngage(items []*Item) {
 	last := func(s string) string { // empty dates sort last
 		if s == "" {

@@ -169,6 +169,6 @@ embed:  { provider: internal | gtt-nora | ollama, model_dir: "/home/sven/models/
 gen:    { provider: "<Q-1>", url: "…", model: "…", timeout: 120s }   # optional
 snapshots: { schedule: hourly, keep: { hourly: 24, daily: 14, weekly: 8 } }
 limits: { attachment_mb: 25 }
-similarity: { dup_threshold: 0.92, suggest_threshold: 0.55, search_threshold: 0.30 }
+similarity: { dup_threshold: 0.92, suggest_threshold: 0.60, search_threshold: 0.30 }
 ```
 Users, spaces, tokens and templates live in Pebble, managed via CLI or the admin UI.

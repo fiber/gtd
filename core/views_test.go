@@ -213,3 +213,50 @@ func TestContextsAndTransitions(t *testing.T) {
 		t.Errorf("transitions = %v", got)
 	}
 }
+
+func TestToday(t *testing.T) {
+	w := shared(t)
+	add := func(it Item) {
+		it.Kind = KindAction
+		w.must(w.create("robin", it))
+	}
+	const today = "2026-11-19"
+	add(Item{ID: "due-today", Owner: "robin", Due: today})
+	add(Item{ID: "overdue", Owner: "robin", Due: "2026-11-10"})
+	add(Item{ID: "target-today", Owner: "robin", Target: today})
+	add(Item{ID: "target-past", Owner: "robin", Target: "2026-11-18"})
+	add(Item{ID: "due-tomorrow", Owner: "robin", Due: "2026-11-20"})
+	add(Item{ID: "undated", Owner: "robin"})
+	add(Item{ID: "back-today", Owner: "robin", DeferUntil: today})
+	add(Item{ID: "back-tomorrow", Owner: "robin", DeferUntil: "2026-11-20", Due: today})
+	add(Item{ID: "waiting-due", Owner: "robin", State: StWaiting, WaitingOn: "Lee", Target: today})
+	add(Item{ID: "waiting-undated", Owner: "robin", State: StWaiting, WaitingOn: "Lee"})
+	add(Item{ID: "someday-due", Owner: "robin", State: StSomeday, Due: today})
+	add(Item{ID: "danas", Owner: "dana", Due: today})
+	add(Item{ID: "unassigned", Due: today})
+	add(Item{ID: "done-due", Owner: "robin", Due: today})
+	w.must(w.move("robin", "done-due", StDone))
+	w.must(w.create("robin", Item{ID: "project-due", Kind: KindProject, Due: today}))
+
+	// Overdue first, then due today, then targets; the one that is back last.
+	if got, want := ids(Today(w.st, "robin", today)), []string{"overdue", "due-today", "unassigned", "target-past", "target-today", "waiting-due", "back-today"}; !slices.Equal(got, want) {
+		t.Errorf("robin's today:\n got %v\nwant %v", got, want)
+	}
+	if got, want := ids(Today(w.st, "dana", today)), []string{"danas", "unassigned"}; !slices.Equal(got, want) {
+		t.Errorf("dana's today: %v, want %v", got, want)
+	}
+	if got := Today(w.st, "robin", "2026-11-01"); len(got) != 0 {
+		t.Errorf("an earlier day: %v", ids(got))
+	}
+	// The tickler clears defer_until on the day; the action stays on the list.
+	res := Tickle(w.st, today)
+	for _, op := range res {
+		op.Actor = System
+		if _, err := w.apply(op); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := ids(Today(w.st, "robin", today)); !slices.Contains(got, "back-today") {
+		t.Errorf("after the tickler ran: %v", got)
+	}
+}

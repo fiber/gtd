@@ -75,7 +75,7 @@ type connector interface {
 
 // New returns a service. Start runs it.
 func New(st *store.Store, emb Embedder) *Service {
-	return &Service{st: st, emb: emb, DupThreshold: 0.92, SuggestThreshold: 0.55, SearchThreshold: 0.30, Backoff: time.Second,
+	return &Service{st: st, emb: emb, DupThreshold: 0.92, SuggestThreshold: 0.60, SearchThreshold: 0.30, Backoff: time.Second,
 		spaces: map[string]*index{}, hashes: map[key][32]byte{}, building: map[string]bool{},
 		state: StateOffline, queued: map[key]bool{}, wake: make(chan struct{}, 1)}
 }

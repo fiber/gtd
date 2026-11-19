@@ -204,7 +204,10 @@ user confirms with one tap or overrides.
     complete?"
 - **Focus mode:** one action fullscreen, notes and attachments visible, a timer, a
   single capture key (captures go to the inbox silently). Done or Exit.
-- **Tabs:** **Waiting for** (COLLAB.md §3) and **Due and targets** (next 14 days).
+- **Tabs:** **Today** (the user's next actions and waiting-fors due or targeted today
+  or earlier, and next actions that came back today from a deferral or a repeat; not
+  filtered by the three questions), **Waiting for** (COLLAB.md §3) and **Due and
+  targets** (next 14 days).
 
 ### 5.4 Weekly Review (guided, resumable on any device)
 Progress is stored per user. Steps:
