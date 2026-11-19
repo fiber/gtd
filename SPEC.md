@@ -108,7 +108,12 @@ Unresolvable link (no access, trashed) renders as "unavailable item". An unknown
 ## 4. Capture
 
 - **Screen:** one text field, 📷 camera, 📎 file. Enter submits. Returns at once to an
-  empty field with a brief "captured" confirmation and nothing else (D-02).
+  empty field with a brief "captured" confirmation (D-02).
+- **Already there?** After a pause in typing (8 characters or more, one line), the
+  search runs on the text and up to four existing items are listed under the field:
+  exact matches and, with embeddings on, items that say the same in other words.
+  "Add to this instead" posts the typed text to that item's thread and clears the
+  field. The list never blocks: Enter captures whatever is shown.
 - **Paste of multiple lines** asks once: "1 item or N items?".
 - **Sources:** web/PWA, Android share target (text/URL/files), bookmarklet (captures
   selection plus page URL plus title, `source.ref` = URL), `POST /api/v1/capture`

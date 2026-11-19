@@ -424,3 +424,7 @@ details.fields summary::-webkit-details-marker { display: none; }
 .similar, .suggest { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 6px 0; }
 .similar > label, .suggest > span { font-size: .74rem; font-weight: 700; color: var(--accent-strong); margin: 0 3px 0 0; }
 .suggest .chip { background: var(--accent-soft); color: var(--accent-strong); }
+
+/* What is already there, shown quietly under the capture field. */
+.capture-similar { max-width: 680px; margin: 14px auto 0; animation: enter .18s var(--ease); }
+.capture-similar > label { display: block; font-size: .74rem; font-weight: 700; color: var(--muted); margin: 0 4px 4px; }

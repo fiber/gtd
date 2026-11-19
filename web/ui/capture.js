@@ -2,10 +2,10 @@
 // again, with a brief confirmation and nothing else (D-02).
 import { store } from './store.js';
 import { t } from './i18n.js';
-import { View, html, nothing, icon } from './widgets.js';
+import { View, html, nothing, icon, stateChip, toast } from './widgets.js';
 
 class Capture extends View {
-  static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true } };
+  static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true }, similar: { state: true } };
 
   constructor() {
     super();
@@ -34,6 +34,39 @@ class Capture extends View {
     }
   }
 
+  // While typing, look for what is already there: the same thought from last
+  // week is better continued than captured twice. It never gets in the way:
+  // Enter captures, whatever is shown.
+  lookup() {
+    clearTimeout(this._lookup);
+    const text = this.field.value.trim();
+    if (text.length < 8 || text.includes('\n')) {
+      this.similar = null;
+      return;
+    }
+    this._lookup = setTimeout(async () => {
+      try {
+        const res = await store.search(text);
+        if (this.field.value.trim() !== text) return; // typed on meanwhile
+        this.similar = res.hits.filter((h) => h.state !== 'trashed').slice(0, 4);
+      } catch { /* suggestions are optional */ }
+    }, 350);
+  }
+
+  // Add what was typed to an existing item's thread instead of capturing it.
+  async addTo(hit) {
+    const text = this.field.value.trim();
+    if (!text) return;
+    await this.run(async () => {
+      await store.comment(hit, text);
+      this.field.value = '';
+      this.similar = null;
+      this.grow();
+      toast(t('capture.added', { title: hit.title }));
+    });
+    this.field.focus();
+  }
+
   grow() {
     const f = this.field;
     f.style.height = 'auto';
@@ -59,6 +92,8 @@ class Capture extends View {
       this.field.value = '';
       this.files = [];
       this.split = null;
+      this.similar = null;
+      clearTimeout(this._lookup);
       this.grow();
       this.done = true;
       clearTimeout(this._done);
@@ -72,7 +107,7 @@ class Capture extends View {
     return html`
       <section class="capture">
         <textarea rows="1" placeholder=${t('capture.placeholder')} aria-label=${t('nav.capture')}
-          @keydown=${(e) => this.onKey(e)} @paste=${(e) => this.onPaste(e)} @input=${() => { this.grow(); if (this.split) this.split = null; }}></textarea>
+          @keydown=${(e) => this.onKey(e)} @paste=${(e) => this.onPaste(e)} @input=${() => { this.grow(); this.lookup(); if (this.split) this.split = null; }}></textarea>
         ${this.split ? html`
           <div class="buttons">
             <span>${t('capture.split_question')}</span>
@@ -92,7 +127,18 @@ class Capture extends View {
           <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? t('capture.done') : ''}</span>
           <button class="primary" ?disabled=${this.busy} @click=${() => this.submit()}>${t('capture.submit')}</button>
         </div>
-      </section>`;
+      </section>
+      ${this.similar?.length ? html`
+        <section class="capture-similar">
+          <label>${t('capture.similar')}</label>
+          ${this.similar.map((h) => html`
+            <div class="row">
+              <span class="mark" data-kind=${h.kind} data-state=${h.state}></span>
+              <a class="row-main" href=${'/i/' + h.id}><span class="title">${h.title}</span>
+                <span class="meta">${stateChip(h.state)}</span></a>
+              <span class="row-actions"><button @click=${() => this.addTo(h)}>${t('capture.add_to')}</button></span>
+            </div>`)}
+        </section>` : nothing}`;
   }
 }
 customElements.define('gtd-capture', Capture);

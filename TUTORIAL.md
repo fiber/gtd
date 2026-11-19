@@ -29,6 +29,12 @@ is deliberate: no counts, no suggestions, nothing to pull you in.
 - `c` jumps to Capture from anywhere on a keyboard.
 - From the terminal: `gtd add "text"`.
 
+**Already there?** While you type, gtd quietly lists up to four existing items that say
+the same thing, also in other words if similarity is on. If you see last week's
+version of this thought, press **Add to this instead**: your text goes into that
+item's thread and nothing new is created. If you ignore the list, Enter captures as
+always.
+
 Do not sort, title or judge while capturing. A bad capture that exists beats a good
 one you were going to write later.
 
