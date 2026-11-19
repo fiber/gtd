@@ -5,36 +5,7 @@ package core
 // is deferred, or is `planned` behind an open blocker owned by someone other
 // than the action's owner. A project that is not alive is stuck.
 func Alive(st *State, project string) bool {
-	children := map[string][]string{}
-	actions := map[string][]*Item{}
-	st.Each(func(it *Item) {
-		switch {
-		case it.Kind == KindProject && it.Parent != "":
-			children[it.Parent] = append(children[it.Parent], it.ID)
-		case it.Kind == KindAction && it.Project != "":
-			actions[it.Project] = append(actions[it.Project], it)
-		}
-	})
-	seen := map[string]bool{}
-	var walk func(id string) bool
-	walk = func(id string) bool {
-		if seen[id] {
-			return false
-		}
-		seen[id] = true
-		for _, a := range actions[id] {
-			if actionKeepsAlive(st, a) {
-				return true
-			}
-		}
-		for _, c := range children[id] {
-			if p := st.Item(c); p != nil && !resolved(p.State) && walk(c) {
-				return true
-			}
-		}
-		return false
-	}
-	return walk(project)
+	return Rollups(st, "")[project].Alive
 }
 
 func actionKeepsAlive(st *State, a *Item) bool {

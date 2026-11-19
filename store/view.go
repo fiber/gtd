@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 
@@ -69,6 +70,67 @@ func (v *View) Item(spaceID, id string) (*core.Item, error) {
 		return nil, fmt.Errorf("%w: item %s in space %q", core.ErrNotFound, id, spaceID)
 	}
 	return it, nil
+}
+
+// Find returns an item by ID from whichever of the user's spaces holds it.
+func (v *View) Find(id string) (*core.Item, error) {
+	v.s.mu.RLock()
+	defer v.s.mu.RUnlock()
+	for _, sp := range v.s.spaces {
+		if it := sp.items[id]; it != nil && sp.rec.HasMember(v.user) {
+			return it, nil
+		}
+	}
+	return nil, fmt.Errorf("%w: item %s", core.ErrNotFound, id)
+}
+
+// HasBlob reports whether an item in one of the user's spaces carries the
+// attachment. Comment attachments are checked by the caller's thread read.
+func (v *View) HasBlob(sha string) bool {
+	v.s.mu.RLock()
+	defer v.s.mu.RUnlock()
+	for _, sp := range v.s.spaces {
+		if !sp.rec.HasMember(v.user) {
+			continue
+		}
+		for _, it := range sp.items {
+			for _, a := range it.Attachments {
+				if a.SHA256 == sha {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// State returns a snapshot of a space for the pure functions in core and
+// wizard (roll-ups, liveness, warnings, step machines). It must not be modified.
+func (v *View) State(spaceID string) (*core.State, error) {
+	v.s.mu.RLock()
+	defer v.s.mu.RUnlock()
+	sp, err := v.space(spaceID)
+	if err != nil {
+		return nil, err
+	}
+	st := &core.State{Space: sp.rec, Items: maps.Clone(sp.items)}
+	if sp.rec.Kind == core.SpacePersonal {
+		if u := v.s.users[sp.rec.Members[0]]; u != nil {
+			st.PersonalContexts = u.PersonalContexts
+		}
+	}
+	return st, nil
+}
+
+// Dismiss marks one of the user's notifications as dismissed. Notifications
+// are per-user state, not ops.
+func (v *View) Dismiss(seq uint64) error {
+	var n core.Notification
+	if err := getJSON(v.s.db, notifKey(v.user, seq), &n); err != nil {
+		return fmt.Errorf("%w: notification %d", core.ErrNotFound, seq)
+	}
+	n.Dismissed = true
+	return v.s.db.Set(notifKey(v.user, seq), mustJSON(n), pebble.Sync)
 }
 
 // Items returns the items of a space that match, sorted by ID. A nil match

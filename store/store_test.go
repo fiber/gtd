@@ -399,6 +399,7 @@ func TestIsolation(t *testing.T) {
 		"Items":        func(v *View, sp string) error { _, err := v.Items(sp, nil); return err },
 		"Comments":     func(v *View, sp string) error { _, err := v.Comments(sp, item.ID); return err },
 		"CommentCount": func(v *View, sp string) error { _, err := v.CommentCount(sp, item.ID); return err },
+		"State":        func(v *View, sp string) error { _, err := v.State(sp); return err },
 		"Ops":          func(v *View, sp string) error { _, err := v.Ops(sp, 10); return err },
 		"Apply": func(v *View, sp string) error {
 			_, err := v.Apply(sp, createOp(core.Item{ID: v.s.NewID(), Kind: core.KindNote, Title: "intruder"}))
@@ -406,7 +407,7 @@ func TestIsolation(t *testing.T) {
 		},
 	}
 	// Methods that take no space: they must only ever return the user's own data.
-	unscoped := []string{"User", "Spaces", "Grep", "Notifications", "Capture"}
+	unscoped := []string{"User", "Spaces", "Grep", "Notifications", "Capture", "Find", "HasBlob", "Dismiss"}
 	typ := reflect.TypeOf(&View{})
 	for i := 0; i < typ.NumMethod(); i++ {
 		name := typ.Method(i).Name
@@ -441,6 +442,19 @@ func TestIsolation(t *testing.T) {
 	}
 	if hits := eric.Grep("reset"); len(hits) == 0 {
 		t.Error("eric's grep found nothing in nis")
+	}
+	if _, err := grit.Find(item.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("grit finds an item of nis by id: %v", err)
+	}
+	if _, err := eric.Find(item.ID); err != nil {
+		t.Errorf("eric cannot find an item of nis: %v", err)
+	}
+	blob := "a02a057e737c31e8442a34db35f889a5013733b5e1adf7769bbc878ff36e0c3a" // the PDF on the nis note
+	if grit.HasBlob(blob) || !eric.HasBlob(blob) {
+		t.Errorf("HasBlob: grit %v, eric %v", grit.HasBlob(blob), eric.HasBlob(blob))
+	}
+	if err := grit.Dismiss(1); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("grit dismisses a notification she does not have: %v", err)
 	}
 	if n := must(grit.Notifications()); len(n) != 0 {
 		t.Errorf("grit has %d notifications", len(n))

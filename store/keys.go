@@ -19,6 +19,7 @@ import (
 //	sp/<space>/op/<seq:be64>        core.Op
 //	sp/<space>/seq                  last op seq, be64
 //	opid/<opid>                     opRef
+//	sess/<id>                       Session (M1)
 //
 // User and space IDs match core.ValidID, so they never contain "/".
 
@@ -44,6 +45,7 @@ func opPrefix(space string) string            { return "sp/" + space + "/op/" }
 func opKey(space string, seq uint64) []byte   { return []byte(opPrefix(space) + be64(seq)) }
 func seqKey(space string) []byte              { return []byte("sp/" + space + "/seq") }
 func opidKey(opid string) []byte              { return []byte("opid/" + opid) }
+func sessionKey(id string) []byte             { return []byte("sess/" + id) }
 func commentKey(space, item, id string) []byte {
 	return []byte(commentPrefix(space) + item + "/" + id)
 }

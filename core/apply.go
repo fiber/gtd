@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -110,6 +111,19 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 	after, err := replayItem(before, op)
 	if err != nil {
 		return nil, err
+	}
+	// A template date field marked as tickler sets defer_until (SPEC §7). The
+	// change is added to the op, so the log still explains the whole state.
+	if d := ticklerDate(ws.Space, after); op.Type == OpPatch && d != "" && d != after.DeferUntil &&
+		slices.ContainsFunc(op.Changes, func(c FieldChange) bool { return c.Field == "fields" || c.Field == "template" }) &&
+		!slices.ContainsFunc(op.Changes, func(c FieldChange) bool { return c.Field == "defer_until" }) {
+		op.Changes = append(op.Changes, FieldChange{Field: "defer_until", Old: mustJSON(before.DeferUntil), New: mustJSON(d)})
+		if before.DeferUntil == "" {
+			op.Changes[len(op.Changes)-1].Old = nil
+		}
+		if after, err = replayItem(before, op); err != nil {
+			return nil, err
+		}
 	}
 	ws.Pending[after.ID] = after
 	if err := validate(ws, after); err != nil {
@@ -229,6 +243,9 @@ func prepareCreate(ws *State, op *Op) error {
 	}
 	if o := defaultOwner(ws.Space, it.Kind, it.Owner); o != "" {
 		it.Owner = o
+	}
+	if d := ticklerDate(ws.Space, &it); d != "" {
+		it.DeferUntil = d
 	}
 	op.Item = it.ID
 	op.BaseRev = 0
@@ -608,7 +625,7 @@ func validate(ws *State, it *Item) error {
 			return bad("attachment sha256 %q", a.SHA256)
 		}
 	}
-	return nil
+	return validateTemplate(ws, it)
 }
 
 // reaches reports whether target can be reached from the start IDs by following next.
@@ -720,4 +737,115 @@ func mustJSON(v any) json.RawMessage {
 		panic(err)
 	}
 	return b
+}
+
+// Contexts returns the context keys allowed in the space, in display order:
+// the canonical keys, the owner's personal keys (personal space only), and one
+// agenda key per other member and per person (D-06).
+func Contexts(st *State, user string) []string {
+	out := slices.Clone(canonicalContexts)
+	if st.Space.Kind == SpacePersonal {
+		out = append(out, st.PersonalContexts...)
+	}
+	for _, m := range st.Space.Members {
+		if m != user {
+			out = append(out, "agenda:"+m)
+		}
+	}
+	for _, p := range st.Space.People {
+		out = append(out, "agenda:"+p)
+	}
+	return out
+}
+
+// Transitions returns the states a user may move the item to.
+func Transitions(it *Item) []string {
+	return slices.Clone(transitions[it.Kind][it.State])
+}
+
+// template returns the space's template with the key and kind, or nil.
+func template(sp *Space, key, kind string) *Template {
+	for i := range sp.Templates {
+		if sp.Templates[i].Key == key && sp.Templates[i].Kind == kind {
+			return &sp.Templates[i]
+		}
+	}
+	return nil
+}
+
+// validateTemplate checks the item's template and the values of its fields.
+// Keys the template does not define are preserved and not checked (SPEC §2).
+func validateTemplate(ws *State, it *Item) error {
+	if it.Template == "" {
+		return nil
+	}
+	tpl := template(ws.Space, it.Template, it.Kind)
+	if tpl == nil {
+		return fmt.Errorf("%w: item %s: space %q has no %s template %q", ErrInvalid, it.ID, it.Space, it.Kind, it.Template)
+	}
+	for _, f := range tpl.Fields {
+		v := it.Fields[f.Key]
+		if v == "" {
+			continue
+		}
+		ok := true
+		switch f.Type {
+		case "number":
+			_, err := strconv.ParseFloat(v, 64)
+			ok = err == nil
+		case "date":
+			_, err := time.Parse(time.DateOnly, v)
+			ok = err == nil
+		case "enum":
+			ok = slices.Contains(f.Options, v)
+		}
+		if !ok {
+			return fmt.Errorf("%w: item %s: field %q: %q is not a valid %s", ErrInvalid, it.ID, f.Key, v, f.Type)
+		}
+	}
+	return nil
+}
+
+// ticklerDate returns the value of the item's first template date field marked
+// `tickler: true`, or "".
+func ticklerDate(sp *Space, it *Item) string {
+	if tpl := template(sp, it.Template, it.Kind); tpl != nil {
+		for _, f := range tpl.Fields {
+			if f.Type == "date" && f.Tickler && it.Fields[f.Key] != "" {
+				return it.Fields[f.Key]
+			}
+		}
+	}
+	return ""
+}
+
+// ValidateTemplates checks the templates of a space record before it is stored.
+func ValidateTemplates(tpls []Template) error {
+	seen := map[string]bool{}
+	for _, t := range tpls {
+		if t.Key == "" || seen[t.Kind+"/"+t.Key] {
+			return fmt.Errorf("%w: template key %q is empty or used twice for kind %q", ErrInvalid, t.Key, t.Kind)
+		}
+		seen[t.Kind+"/"+t.Key] = true
+		if !slices.Contains([]string{KindProject, KindNote, KindAction}, t.Kind) {
+			return fmt.Errorf("%w: template %q: kind %q (want project, note or action)", ErrInvalid, t.Key, t.Kind)
+		}
+		keys := map[string]bool{}
+		for _, f := range t.Fields {
+			if f.Key == "" || keys[f.Key] {
+				return fmt.Errorf("%w: template %q: field key %q is empty or used twice", ErrInvalid, t.Key, f.Key)
+			}
+			keys[f.Key] = true
+			if !slices.Contains([]string{"text", "number", "date", "enum"}, f.Type) {
+				return fmt.Errorf("%w: template %q: field %q has type %q (want text, number, date or enum)", ErrInvalid, t.Key, f.Key, f.Type)
+			}
+			if f.Type == "enum" && len(f.Options) == 0 {
+				return fmt.Errorf("%w: template %q: enum field %q has no options", ErrInvalid, t.Key, f.Key)
+			}
+			if f.Tickler && f.Type != "date" {
+				return fmt.Errorf("%w: template %q: field %q: tickler needs type date", ErrInvalid, t.Key, f.Key)
+			}
+		}
+	}
+	return nil
 }

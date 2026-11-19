@@ -397,30 +397,44 @@ func (s *Store) CreateSpace(id, name string, members []string) error {
 
 // SetMember adds or removes a member of a shared space.
 func (s *Store) SetMember(spaceID, user string, member bool) error {
+	s.mu.RLock()
+	userExists := s.users[user] != nil
+	s.mu.RUnlock()
+	return s.UpdateSpace(spaceID, func(rec *core.Space) error {
+		if !userExists {
+			return fmt.Errorf("%w: user %q", core.ErrNotFound, user)
+		}
+		if rec.Kind != core.SpaceShared {
+			return fmt.Errorf("%w: space %q is personal, its only member is its user", core.ErrInvalid, spaceID)
+		}
+		rec.Members = slices.DeleteFunc(slices.Clone(rec.Members), func(m string) bool { return m == user })
+		if member {
+			rec.Members = append(rec.Members, user)
+			slices.Sort(rec.Members)
+		}
+		return nil
+	})
+}
+
+// UpdateSpace applies f to a copy of the space record (members, people,
+// templates) and stores the result. Space records are not ops.
+func (s *Store) UpdateSpace(spaceID string, f func(*core.Space) error) error {
 	s.admin.Lock()
 	defer s.admin.Unlock()
 	s.mu.RLock()
 	sp := s.spaces[spaceID]
-	userExists := s.users[user] != nil
 	s.mu.RUnlock()
 	if sp == nil {
 		return fmt.Errorf("%w: space %q", core.ErrNotFound, spaceID)
 	}
-	if !userExists {
-		return fmt.Errorf("%w: user %q", core.ErrNotFound, user)
-	}
-	// The space's write lock keeps the membership stable while an Apply runs.
+	// The space's write lock keeps the record stable while an Apply runs.
 	sp.wmu.Lock()
 	defer sp.wmu.Unlock()
-	if sp.rec.Kind != core.SpaceShared {
-		return fmt.Errorf("%w: space %q is personal, its only member is its user", core.ErrInvalid, spaceID)
-	}
 	rec := *sp.rec
-	rec.Members = slices.DeleteFunc(slices.Clone(rec.Members), func(m string) bool { return m == user })
-	if member {
-		rec.Members = append(rec.Members, user)
-		slices.Sort(rec.Members)
+	if err := f(&rec); err != nil {
+		return err
 	}
+	rec.V, rec.ID, rec.Kind, rec.Created = sp.rec.V, sp.rec.ID, sp.rec.Kind, sp.rec.Created
 	if err := s.db.Set(spaceKey(spaceID), mustJSON(rec), pebble.Sync); err != nil {
 		return err
 	}
@@ -428,4 +442,33 @@ func (s *Store) SetMember(spaceID, user string, member bool) error {
 	sp.rec = &rec
 	s.mu.Unlock()
 	return nil
+}
+
+// Session is a web login (STORAGE §7). Sessions are not exported.
+type Session struct {
+	V       int       `json:"v"`
+	User    string    `json:"user"`
+	Created time.Time `json:"created"`
+	Expires time.Time `json:"expires"`
+	Device  string    `json:"device,omitempty"`
+}
+
+// PutSession stores or replaces a session.
+func (s *Store) PutSession(id string, sess Session) error {
+	sess.V = core.Version
+	return s.db.Set(sessionKey(id), mustJSON(sess), pebble.Sync)
+}
+
+// GetSession returns a session, or nil if there is none.
+func (s *Store) GetSession(id string) *Session {
+	var sess Session
+	if id == "" || getJSON(s.db, sessionKey(id), &sess) != nil {
+		return nil
+	}
+	return &sess
+}
+
+// DeleteSession removes a session.
+func (s *Store) DeleteSession(id string) error {
+	return s.db.Delete(sessionKey(id), pebble.Sync)
 }
