@@ -1,7 +1,7 @@
 // Shared pieces of the UI: the base class, navigation, item rows, chips, the
 // date field and the toast. Presentation only.
 import { LitElement, html, svg, nothing } from 'lit';
-import { t, label, fmtDate } from './i18n.js';
+import { t, label, fmtDate, fmtTime, fmtAgo, fmtDay } from './i18n.js';
 import { store, BASE } from './store.js';
 
 export { html, nothing };
@@ -106,6 +106,15 @@ export function meta(b, opts = {}) {
       ${b.rollup.slipping ? html`<span class="chip slipping">${t('project.slipping')}</span>` : nothing}` : nothing}`;
 }
 
+// ages says when an item last changed, as an age, and when it was first
+// created. The exact times are in the tooltip.
+export function ages(b) {
+  const untouched = Math.abs(new Date(b.updated) - new Date(b.created)) < 60000;
+  return html`<span class="when" title=${t('item.ages_exact', { updated: fmtTime(b.updated), created: fmtTime(b.created) })}>
+    ${untouched ? t('item.created_ago', { ago: fmtAgo(b.created) })
+      : t('item.changed_created', { ago: fmtAgo(b.updated), date: fmtDay(b.created) })}</span>`;
+}
+
 // row is an item in a list. It links to the item's page.
 export function row(b, opts = {}) {
   return html`
@@ -113,7 +122,7 @@ export function row(b, opts = {}) {
       <span class="mark" data-kind=${b.kind} data-state=${b.state}></span>
       <a class="row-main" href=${rel(opts.href || '/i/' + b.id)}>
         <span class="title">${b.title}</span>
-        <span class="meta">${meta(b, opts)}</span>
+        <span class="meta">${meta(b, opts)}${opts.ages ? ages(b) : nothing}</span>
       </a>
       ${opts.actions ? html`<span class="row-actions">${opts.actions}</span>` : nothing}
     </div>`;

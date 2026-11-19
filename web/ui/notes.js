@@ -3,7 +3,7 @@
 // page, which shows the tutorial.
 import { store } from './store.js';
 import { t, fmtTime } from './i18n.js';
-import { View, html, nothing, row, select, go } from './widgets.js';
+import { View, html, nothing, row, select, go, ages } from './widgets.js';
 
 // newNote creates a note and opens it in the editor. Inside a project it is
 // filed there; otherwise it starts unsorted in the personal space.
@@ -76,7 +76,7 @@ class Notes extends View {
             ${store.me.spaces.length > 1 ? html`<span class="chip">${n.space_name}</span>` : nothing}
             ${n.attachments ? html`<span class="chip">${t('item.files', { n: n.attachments })}</span>` : nothing}
             ${n.score ? html`<span class="chip link">${Math.round(n.score * 100)}%</span>` : nothing}
-            <span class="when">${fmtTime(n.updated)}</span>
+            ${ages(n)}
             <button class="similar" title=${t('notes.similar')} @click=${(e) => { e.preventDefault(); this.set('similar', n.id); window.scrollTo(0, 0); }}>≈ ${t('notes.similar')}</button>
           </span>
         </a>`)}
@@ -89,13 +89,13 @@ class Notes extends View {
     const move = (b, state) => this.run(() => store.transition(b, state));
     return html`
       <h2>${t('ideas.themes')}</h2>
-      ${d.themes.map((p) => row(p, { href: '/p/' + p.id, area: true, actions: html`
+      ${d.themes.map((p) => row(p, { href: '/p/' + p.id, area: true, ages: true, actions: html`
         <span class="chip">${t('ideas.notes', { n: p.notes || 0 })}</span>
         <button @click=${() => move(p, 'active')}>${t('transition.active')}</button>
         <button @click=${() => move(p, 'dropped')}>${t('transition.dropped')}</button>` }))}
       ${d.themes.length ? nothing : html`<p class="empty">${t('ideas.no_themes')}</p>`}
       <h2>${t('ideas.actions')}</h2>
-      ${d.actions.map((a) => row(a, { actions: html`
+      ${d.actions.map((a) => row(a, { ages: true, actions: html`
         <button @click=${() => move(a, 'next')}>${t('transition.next')}</button>
         <button @click=${() => move(a, 'dropped')}>${t('transition.dropped')}</button>` }))}
       ${d.actions.length ? nothing : html`<p class="empty">${t('ideas.no_actions')}</p>`}`;

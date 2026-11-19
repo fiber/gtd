@@ -490,7 +490,7 @@ class Note extends View {
           <details class="fields"><summary>${t('item.original')}</summary><pre class="original">${it.original}</pre></details>` : nothing}
         </aside>
         </div>
-        <footer><small>${t('item.updated', { time: fmtTime(it.updated), user: it.updated_by })} · rev ${it.rev}</small></footer>
+        <footer><small>${t('item.updated', { time: fmtTime(it.updated), user: it.updated_by })} · ${t('item.created_on', { time: fmtTime(it.created) })} · rev ${it.rev}</small></footer>
       </article>`;
   }
 }
