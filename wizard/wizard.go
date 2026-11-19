@@ -118,10 +118,6 @@ func (e Env) project(id string) (Ref, bool) {
 	return e.Projects[i], true
 }
 
-func (e Env) hasArea(id string) bool {
-	return slices.ContainsFunc(e.Areas, func(r Ref) bool { return r.ID == id })
-}
-
 // refOptions turns refs into select options, with an empty first entry.
 func refOptions(none string, refs []Ref) []Option {
 	out := []Option{{Value: "", Label: none}}
@@ -131,9 +127,12 @@ func refOptions(none string, refs []Ref) []Option {
 	return out
 }
 
-func contextOptions(e Env) []Option {
+// ContextOptions turns context keys into chips: canonical keys get an i18n
+// label, agenda keys the label "context.agenda" plus the name, personal keys
+// their own text.
+func ContextOptions(contexts []string) []Option {
 	var out []Option
-	for _, c := range e.Contexts {
+	for _, c := range contexts {
 		if who, ok := strings.CutPrefix(c, "agenda:"); ok {
 			out = append(out, Option{Value: c, Label: "context.agenda", Text: who})
 		} else if slices.Contains([]string{"errands", "calls", "computer", "home", "office", "anywhere"}, c) {
@@ -153,8 +152,8 @@ func labels(prefix string, values ...string) []Option {
 	return out
 }
 
-// datePresets are the "not before" and target shortcuts (SPEC §5.2 step 8).
-func datePresets(today string) []Option {
+// DatePresets are the "not before" and target shortcuts (SPEC §5.2 step 8).
+func DatePresets(today string) []Option {
 	t, err := time.Parse(time.DateOnly, today)
 	if err != nil {
 		return nil

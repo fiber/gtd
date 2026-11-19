@@ -342,7 +342,7 @@ func TestClarifySteps(t *testing.T) {
 		t.Errorf("date presets = %v", presets)
 	}
 	// On a Monday, "next week" is the following Monday.
-	if got := datePresets("2026-11-23")[1].Value; got != "2026-11-30" {
+	if got := DatePresets("2026-11-23")[1].Value; got != "2026-11-30" {
 		t.Errorf("next week from a Monday = %s", got)
 	}
 }
@@ -393,7 +393,7 @@ func TestProcessNote(t *testing.T) {
 		if done {
 			t.Fatal("done too early")
 		}
-		n, ops, done, err := n.Next(env, in("create", "action", "Write up the call notes", "project", "p1", "defer_until", "2026-11-20"), w.newID)
+		_, ops, done, err := n.Next(env, in("create", "action", "Write up the call notes", "project", "p1", "defer_until", "2026-11-20"), w.newID)
 		if err != nil || !done {
 			t.Fatalf("done = %v, err = %v", done, err)
 		}

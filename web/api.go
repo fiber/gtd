@@ -28,12 +28,18 @@ type Server struct {
 	st  *store.Store
 	ssh *auth.SSH
 	mux *http.ServeMux
+	app *app
+
+	// SecureCookies marks the session cookie Secure. The daemon sets it when
+	// server.base_url is https.
+	SecureCookies bool
 }
 
 // actor is who a request acts as.
 type actor struct {
-	user  string // may be empty for an operator running admin commands
-	admin bool
+	user   string // may be empty for an operator running admin commands
+	admin  bool
+	cookie bool // authenticated by a web session, not by the SSH-key challenge
 }
 
 type actorKey struct{}
@@ -67,11 +73,12 @@ func New(st *store.Store) *Server {
 	s.mux.HandleFunc("POST /api/v1/admin/spaces", s.admin(s.createSpace))
 	s.mux.HandleFunc("PUT /api/v1/admin/spaces/{id}/members/{user}", s.admin(s.setMember))
 	s.mux.HandleFunc("DELETE /api/v1/admin/spaces/{id}/members/{user}", s.admin(s.setMember))
+	s.initApp()
 	return s
 }
 
-// Handler serves the API to authenticated clients (session tokens from the
-// SSH-key challenge).
+// Handler serves the API and the web UI to authenticated clients: CLI session
+// tokens from the SSH-key challenge, and web session cookies.
 func (s *Server) Handler() http.Handler { return s.mux }
 
 // ---- authentication and authorization ----
@@ -84,14 +91,22 @@ func (s *Server) any(h handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		a, ok := r.Context().Value(actorKey{}).(actor)
 		if !ok {
-			token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 			user, valid := s.ssh.Session(token)
+			if !bearer {
+				user, valid = s.sessionUser(r)
+				// A browser says where a request comes from. Cookies only count for
+				// requests from our own pages.
+				if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
+					valid = false
+				}
+			}
 			u := s.st.User(user)
 			if !valid || u == nil {
 				fail(w, errDenied)
 				return
 			}
-			a = actor{user: u.ID, admin: u.Admin}
+			a = actor{user: u.ID, admin: u.Admin, cookie: !bearer}
 		}
 		if err := h(w, r, a); err != nil {
 			fail(w, err)
@@ -109,11 +124,12 @@ func (s *Server) user(h handler) http.HandlerFunc {
 	})
 }
 
-// admin requires the admin flag. Admin manages users, spaces and backups. It
-// does not open any space's content through a View.
+// admin requires the admin flag and the SSH-key challenge (or direct database
+// access): a web session is not enough (D-21). Admin manages users, spaces
+// and backups. It does not open any space's content through a View.
 func (s *Server) admin(h handler) http.HandlerFunc {
 	return s.any(func(w http.ResponseWriter, r *http.Request, a actor) error {
-		if !a.admin {
+		if !a.admin || a.cookie {
 			return errForbidden
 		}
 		return h(w, r, a)
@@ -247,7 +263,16 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error 
 	if strings.TrimSpace(text) == "" && len(atts) == 0 {
 		return fmt.Errorf("%w: nothing to capture", core.ErrInvalid)
 	}
-	it, err := v.Capture(text, src, atts)
+	fallback := ""
+	if strings.TrimSpace(text) == "" && strings.HasPrefix(atts[0].MIME, "image/") {
+		// SPEC §3.2: a photo-only capture is titled "Photo <localized timestamp>".
+		lang := s.lang(r, a.user)
+		fallback = s.t(lang, "capture.photo") + " " + s.st.Now().Format(s.t(lang, "format.datetime"))
+	}
+	if src.Via == "" {
+		src.Via = "web"
+	}
+	it, err := v.Capture(text, fallback, src, atts)
 	if err != nil {
 		return err
 	}

@@ -84,9 +84,10 @@ func (v *View) Find(id string) (*core.Item, error) {
 	return nil, fmt.Errorf("%w: item %s", core.ErrNotFound, id)
 }
 
-// HasBlob reports whether an item in one of the user's spaces carries the
-// attachment. Comment attachments are checked by the caller's thread read.
-func (v *View) HasBlob(sha string) bool {
+// Blob returns the attachment entry for a blob that an item in one of the
+// user's spaces carries. A blob nobody attached, or one attached only in
+// spaces the user is not a member of, is not found.
+func (v *View) Blob(sha string) (core.Attachment, bool) {
 	v.s.mu.RLock()
 	defer v.s.mu.RUnlock()
 	for _, sp := range v.s.spaces {
@@ -96,12 +97,12 @@ func (v *View) HasBlob(sha string) bool {
 		for _, it := range sp.items {
 			for _, a := range it.Attachments {
 				if a.SHA256 == sha {
-					return true
+					return a, true
 				}
 			}
 		}
 	}
-	return false
+	return core.Attachment{}, false
 }
 
 // State returns a snapshot of a space for the pure functions in core and
@@ -389,10 +390,15 @@ func (s *Store) targetComment(spaceID string, op core.Op) *core.Comment {
 // Capture creates a capture in the user's personal inbox (SPEC §4). The first
 // line becomes the title. The full text is kept in `original`, and in `body`
 // when there is more than one line.
-func (v *View) Capture(text string, src core.Source, atts []core.Attachment) (*core.Item, error) {
+//
+// A capture without text (a photo) gets fallbackTitle, or the name of its
+// first attachment.
+func (v *View) Capture(text, fallbackTitle string, src core.Source, atts []core.Attachment) (*core.Item, error) {
 	text = strings.TrimSpace(text)
 	title, _, multi := strings.Cut(text, "\n")
-	title = strings.TrimSpace(title)
+	if title = strings.TrimSpace(title); title == "" {
+		title = fallbackTitle
+	}
 	if title == "" && len(atts) > 0 {
 		title = atts[0].Name
 	}

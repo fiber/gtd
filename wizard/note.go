@@ -74,9 +74,9 @@ func (n Note) Step(env Env) Step {
 		Fields: []Field{
 			{Key: "action", Type: "text", Label: "field.action", Value: line.Text, Required: true, Hint: "hint.action"},
 			{Key: "project", Type: "select", Label: "field.project", Value: n.Project, Options: refOptions("option.no_project", env.Projects)},
-			{Key: "context", Type: "chips", Label: "field.context", Options: contextOptions(env)},
-			{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: datePresets(env.Today)},
-			{Key: "target", Type: "date", Label: "field.target", Options: datePresets(env.Today)},
+			{Key: "context", Type: "chips", Label: "field.context", Options: ContextOptions(env.Contexts)},
+			{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)},
+			{Key: "target", Type: "date", Label: "field.target", Options: DatePresets(env.Today)},
 		},
 		Options: []Option{{Value: "create", Label: "note.opt.create"}, {Value: "skip", Label: "note.opt.skip"}, {Value: "stop", Label: "note.opt.stop"}},
 		Data:    map[string]any{"index": n.At + 1, "total": len(n.Lines), "made": len(n.Made)},

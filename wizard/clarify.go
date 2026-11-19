@@ -112,7 +112,7 @@ func (c Clarify) Step(env Env) Step {
 		s.Options = []Option{{Value: "yes", Label: "answer.yes"}, {Value: "reference", Label: "clarify.opt.reference"},
 			{Value: "someday", Label: "clarify.opt.someday"}, {Value: "trash", Label: "clarify.opt.trash"}}
 	case StepSomeday:
-		s.Fields = []Field{{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: datePresets(env.Today)}}
+		s.Fields = []Field{{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)}}
 	case StepReference:
 		s.Fields = []Field{
 			{Key: "project", Type: "select", Label: "field.project", Options: refOptions("option.unsorted", env.Projects)},
@@ -130,7 +130,7 @@ func (c Clarify) Step(env Env) Step {
 			{Key: "title", Type: "text", Label: "field.outcome", Value: c.Title, Hint: "hint.outcome"},
 			{Key: "parent", Type: "select", Label: "field.parent", Options: refOptions("option.none", env.Projects)},
 			{Key: "area", Type: "select", Label: "field.area", Options: refOptions("option.none", env.Areas)},
-			{Key: "target", Type: "date", Label: "field.target", Options: datePresets(env.Today)},
+			{Key: "target", Type: "date", Label: "field.target", Options: DatePresets(env.Today)},
 		}
 	case StepAction:
 		value := c.Action
@@ -166,9 +166,9 @@ func (c Clarify) Step(env Env) Step {
 	case StepWhen:
 		s.Subject = c.Action
 		s.Fields = []Field{
-			{Key: "context", Type: "chips", Label: "field.context", Options: contextOptions(env)},
-			{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: datePresets(env.Today)},
-			{Key: "target", Type: "date", Label: "field.target", Options: datePresets(env.Today)},
+			{Key: "context", Type: "chips", Label: "field.context", Options: ContextOptions(env.Contexts)},
+			{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)},
+			{Key: "target", Type: "date", Label: "field.target", Options: DatePresets(env.Today)},
 			{Key: "due", Type: "date", Label: "field.due", Hint: "hint.due"},
 			{Key: "energy", Type: "chips", Label: "field.energy", Options: energies},
 			{Key: "time", Type: "chips", Label: "field.time", Options: durations},
@@ -177,7 +177,7 @@ func (c Clarify) Step(env Env) Step {
 		s.Subject = c.projectTitle(env)
 		s.Fields = []Field{
 			{Key: "title", Type: "text", Label: "field.followup"},
-			{Key: "target", Type: "date", Label: "field.target", Options: datePresets(env.Today)},
+			{Key: "target", Type: "date", Label: "field.target", Options: DatePresets(env.Today)},
 		}
 		s.Options = []Option{{Value: "add", Label: "clarify.opt.add"}, {Value: "finish", Label: "clarify.opt.finish"}}
 		after := []string{c.Action}

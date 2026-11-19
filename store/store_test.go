@@ -109,8 +109,8 @@ func fixture(t testing.TB, dir string) *Store {
 	pdf := must2(s.PutBlob(strings.NewReader("%PDF-1.7 fake report")))
 
 	// Personal space: captures, one trashed, one clarified into an action.
-	c1 := must(sven.Capture("bgp collector reset thing ask eric", core.Source{Via: "cli"}, nil))
-	c2 := must(sven.Capture(nastyOrig+"multi-line capture", core.Source{Via: "share", Ref: "https://example.org/a?b=c"},
+	c1 := must(sven.Capture("bgp collector reset thing ask eric", "", core.Source{Via: "cli"}, nil))
+	c2 := must(sven.Capture(nastyOrig+"multi-line capture", "", core.Source{Via: "share", Ref: "https://example.org/a?b=c"},
 		[]core.Attachment{{SHA256: png.sha, Name: "whiteboard.png", MIME: "image/png", Size: png.size}}))
 	must(sven.Apply("sven", moveOp(c2, core.StTrashed)))
 	must(sven.Apply("sven",
@@ -407,7 +407,7 @@ func TestIsolation(t *testing.T) {
 		},
 	}
 	// Methods that take no space: they must only ever return the user's own data.
-	unscoped := []string{"User", "Spaces", "Grep", "Notifications", "Capture", "Find", "HasBlob", "Dismiss"}
+	unscoped := []string{"User", "Spaces", "Grep", "Notifications", "Capture", "Find", "Blob", "Dismiss"}
 	typ := reflect.TypeOf(&View{})
 	for i := 0; i < typ.NumMethod(); i++ {
 		name := typ.Method(i).Name
@@ -450,8 +450,11 @@ func TestIsolation(t *testing.T) {
 		t.Errorf("eric cannot find an item of nis: %v", err)
 	}
 	blob := "a02a057e737c31e8442a34db35f889a5013733b5e1adf7769bbc878ff36e0c3a" // the PDF on the nis note
-	if grit.HasBlob(blob) || !eric.HasBlob(blob) {
-		t.Errorf("HasBlob: grit %v, eric %v", grit.HasBlob(blob), eric.HasBlob(blob))
+	if _, ok := grit.Blob(blob); ok {
+		t.Error("grit reads a blob attached only in nis")
+	}
+	if a, ok := eric.Blob(blob); !ok || a.Name != "report (final).pdf" {
+		t.Errorf("eric's blob lookup: %+v %v", a, ok)
 	}
 	if err := grit.Dismiss(1); !errors.Is(err, core.ErrNotFound) {
 		t.Errorf("grit dismisses a notification she does not have: %v", err)
@@ -694,7 +697,7 @@ func TestSnapshots(t *testing.T) {
 		t.Fatalf("bad label: %v", err)
 	}
 	// The live database moves on. The snapshot does not.
-	must(sven.Capture("after the snapshot", core.Source{Via: "cli"}, nil))
+	must(sven.Capture("after the snapshot", "", core.Source{Via: "cli"}, nil))
 	second := must(s.Snapshot(""))
 
 	list := must(ListSnapshots(dir))
