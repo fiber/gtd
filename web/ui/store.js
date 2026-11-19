@@ -77,6 +77,9 @@ export const store = {
   plan: (id) => get('/plan/' + encodeURIComponent(id)),
   board: (params) => get('/board' + query(params)),
   areas: () => get('/areas'),
+  notes: (params) => get('/notes' + query(params)),
+  ideas: () => get('/ideas'),
+  help: () => get('/help'),
   search: (q) => get('/search' + query({ q })),
   pick: (q) => get('/pick' + query({ q })),
   options: (space) => get(`/spaces/${encodeURIComponent(space)}/options`),
@@ -93,7 +96,10 @@ export const store = {
   patch(item, changes) {
     return this.ops(item.space, [{
       type: 'patch', item: item.id, base_rev: item.rev,
-      changes: Object.entries(changes).map(([field, value]) => ({ field, new: value })),
+      // The old value goes along: if the item moved on meanwhile (another op
+      // raised its rev), the server still accepts a change to a field that
+      // nobody else touched.
+      changes: Object.entries(changes).map(([field, value]) => ({ field, old: item[field], new: value })),
     }]);
   },
   transition(item, state) {

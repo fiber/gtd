@@ -37,6 +37,9 @@ import (
 //go:embed ui
 var uiFS embed.FS
 
+//go:embed TUTORIAL.md
+var tutorial string
+
 const (
 	cookieName  = "gtd_session"
 	sessionTTL  = 90 * 24 * time.Hour
@@ -120,6 +123,9 @@ func (s *Server) initApp() {
 	m.HandleFunc("GET /api/v1/plan/{id}", s.user(s.plan))
 	m.HandleFunc("GET /api/v1/board", s.user(s.board))
 	m.HandleFunc("GET /api/v1/areas", s.user(s.areas))
+	m.HandleFunc("GET /api/v1/notes", s.user(s.notes))
+	m.HandleFunc("GET /api/v1/ideas", s.user(s.ideas))
+	m.HandleFunc("GET /api/v1/help", s.user(s.help))
 	m.HandleFunc("GET /api/v1/spaces/{id}/options", s.user(s.options))
 	m.HandleFunc("GET /api/v1/spaces/{id}/templates", s.user(s.getTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/templates", s.user(s.putTemplates))
@@ -884,6 +890,109 @@ func (s *Server) options(w http.ResponseWriter, r *http.Request, a actor) error 
 		return err
 	}
 	return reply(w, spaceOptions(st, a.user))
+}
+
+// notes lists the notes of all the user's spaces, most recently changed
+// first: the home of note-taking. Filters: state, project, area and q (every
+// word must occur in title or body).
+func (s *Server) notes(w http.ResponseWriter, r *http.Request, a actor) error {
+	v, err := s.st.View(a.user)
+	if err != nil {
+		return err
+	}
+	q := r.URL.Query()
+	words := strings.Fields(strings.ToLower(q.Get("q")))
+	today := s.today()
+	out := []Brief{}
+	counts := map[string]int{}
+	projects := []Named{}
+	for _, sp := range v.Spaces() {
+		st, err := v.State(sp.ID)
+		if err != nil {
+			return err
+		}
+		st.Each(func(it *core.Item) {
+			if it.Kind == core.KindProject && !finished(it.State) {
+				projects = append(projects, Named{ID: it.ID, Title: it.Title, State: it.State})
+			}
+			if it.Kind != core.KindNote || it.State == core.StTrashed {
+				return
+			}
+			if p := q.Get("project"); p != "" && it.Project != p {
+				return
+			}
+			if ar := q.Get("area"); ar != "" && it.Area != ar {
+				return
+			}
+			text := strings.ToLower(it.Title + "\n" + it.Body)
+			for _, word := range words {
+				if !strings.Contains(text, word) {
+					return
+				}
+			}
+			counts[it.State]++ // per state, within the other filters
+			if state := q.Get("state"); state != "" && it.State != state {
+				return
+			}
+			b := brief(st, it, today, nil)
+			b.Excerpt, b.SpaceName = excerpt(it.Body, 180), sp.Name
+			out = append(out, b)
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Updated.Equal(out[j].Updated) {
+			return out[i].Updated.After(out[j].Updated)
+		}
+		return out[i].ID < out[j].ID
+	})
+	sort.Slice(projects, func(i, j int) bool {
+		return strings.ToLower(projects[i].Title)+projects[i].ID < strings.ToLower(projects[j].Title)+projects[j].ID
+	})
+	return reply(w, map[string]any{"notes": out, "counts": counts, "projects": projects})
+}
+
+// ideas lists what is parked: someday projects (themes that collect ideas)
+// with the number of notes in each, and someday actions.
+func (s *Server) ideas(w http.ResponseWriter, r *http.Request, a actor) error {
+	v, err := s.st.View(a.user)
+	if err != nil {
+		return err
+	}
+	today := s.today()
+	themes, actions := []Brief{}, []Brief{}
+	for _, sp := range v.Spaces() {
+		st, err := v.State(sp.ID)
+		if err != nil {
+			return err
+		}
+		notes := map[string]int{}
+		var list []*core.Item
+		st.Each(func(it *core.Item) {
+			if it.Kind == core.KindNote && it.Project != "" && it.State != core.StTrashed {
+				notes[it.Project]++
+			}
+			if it.State == core.StSomeday && (it.Kind == core.KindProject || it.Kind == core.KindAction) {
+				list = append(list, it)
+			}
+		})
+		sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
+		for _, it := range list {
+			b := brief(st, it, today, nil)
+			b.SpaceName = sp.Name
+			if it.Kind == core.KindProject {
+				b.Notes = notes[it.ID]
+				themes = append(themes, b)
+			} else {
+				actions = append(actions, b)
+			}
+		}
+	}
+	return reply(w, map[string]any{"themes": themes, "actions": actions})
+}
+
+// help returns the tutorial as HTML.
+func (s *Server) help(w http.ResponseWriter, r *http.Request, a actor) error {
+	return reply(w, map[string]string{"html": renderMarkdown(tutorial, tokens{})})
 }
 
 // ---- templates (SPEC §7): a YAML textarea with validation ----

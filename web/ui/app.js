@@ -13,10 +13,12 @@ import './projects.js';
 import './item.js';
 import './board.js';
 import './more.js';
+import { newNote } from './notes.js';
 
 const NAV = [
   ['/', 'nav.capture', 'capture'], ['/inbox', 'nav.inbox', 'inbox'], ['/engage', 'nav.engage', 'engage'], ['/projects', 'nav.projects', 'projects'],
-  ['/board', 'nav.board', 'board'], ['/search', 'nav.search', 'search'], ['/areas', 'nav.areas', 'areas'], ['/settings', 'nav.settings', 'settings'],
+  ['/notes', 'nav.notes', 'notes'], ['/board', 'nav.board', 'board'], ['/search', 'nav.search', 'search'], ['/areas', 'nav.areas', 'areas'],
+  ['/settings', 'nav.settings', 'settings'],
 ];
 
 class App extends LitElement {
@@ -76,6 +78,7 @@ class App extends LitElement {
       case 'c': go('/'); break;
       case '/': go('/search'); break;
       case 'e': go('/engage'); break;
+      case 'n': newNote().catch((err) => toast(t(err.message), true)); break;
       case 'f': this.toggleZen(); break;
       case 'j': rows[Math.min(at + 1, rows.length - 1)]?.focus(); break;
       case 'k': rows[Math.max(at - 1, 0)]?.focus(); break;
@@ -148,6 +151,8 @@ class App extends LitElement {
     if (p === '/projects') return html`<gtd-projects></gtd-projects>`;
     if ((m = p.match(/^\/p\/([^/]+)$/))) return html`<gtd-plan .project=${m[1]}></gtd-plan>`;
     if ((m = p.match(/^\/i\/([^/]+)$/))) return html`<gtd-note .itemId=${m[1]}></gtd-note>`;
+    if (p === '/notes') return html`<gtd-notes></gtd-notes>`;
+    if (p === '/help') return html`<gtd-help></gtd-help>`;
     if (p === '/board') return html`<gtd-board></gtd-board>`;
     if (p === '/areas') return html`<gtd-areas></gtd-areas>`;
     if (p === '/search') return html`<gtd-search></gtd-search>`;
@@ -186,6 +191,7 @@ class App extends LitElement {
         <div class="nav-more ${this.menu ? 'open' : ''}">
           ${NAV.slice(4).map(item)}
           <span class="nav-gap"></span>
+          <a class="nav-item tool ${active('/help') ? 'on' : ''}" href="/help" title=${t('nav.help')}>${icon.help}<span class="text">${t('nav.help')}</span></a>
           <button class="nav-item tool" title=${t('nav.theme')} @click=${() => this.cycleTheme()}>
             ${this.theme === 'dark' ? icon.moon : icon.sun}<span class="text">${t('nav.theme')}: ${t('theme.' + this.theme)}</span></button>
           <button class="nav-item tool ${this.zen ? 'on' : ''}" title=${t('nav.fullscreen')} @click=${() => this.toggleZen()}>

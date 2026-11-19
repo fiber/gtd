@@ -47,6 +47,14 @@ though collaboration features arrive in M6. Goal: Sven can use the tool daily
   - The UI loads with no build step: only embedded files, and no request leaves the
     server's origin.
 
+## Notes (between M1 and M2; built after M4 on the owner's priority, 2026-11-19)
+- Notes screen with tabs, filters and excerpts; Ideas tab; new note from anywhere;
+  editor with live preview, autosave, image paste and drop; template skeletons; the
+  tutorial as in-app help (SPEC §5.5).
+- **Accept:** a note typed and left without saving is stored; a pasted image appears
+  in the note; the notes and ideas lists show nothing from a space the user is not a
+  member of.
+
 ## M2 — Weekly Review and tickler
 - The review wizard (SPEC §5.4), resumable across devices. Tickler resurfacing.
   Weekday banner.

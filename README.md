@@ -11,7 +11,7 @@ The agent brief for a self-hosted, multi-user GTD tool:
 - PWA with offline operation queue
 - Pebble v2 storage with lossless export and snapshots
 
-To use the tool, read `TUTORIAL.md`. To build it, start with `CLAUDE.md`. Answer the open questions in `DECISIONS.md` (Q-1 to Q-5)
+To use the tool, read `web/TUTORIAL.md` (the app shows it under Help). To build it, start with `CLAUDE.md`. Answer the open questions in `DECISIONS.md` (Q-1 to Q-5)
 when the milestone that needs them comes up. The agent is instructed to ask.
 
 | File | Purpose |

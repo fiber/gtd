@@ -14,6 +14,7 @@ class Note extends View {
   static properties = {
     itemId: {}, item: { state: true }, comments: { state: true }, editing: { state: true },
     preview: { state: true }, picks: { state: true }, showOriginal: { state: true }, more: { state: true },
+    showPreview: { state: true }, saveState: { state: true },
   };
 
   willUpdate(changed) {
@@ -41,14 +42,26 @@ class Note extends View {
   }
 
   // ---- body editor ----
+  //
+  // A textarea with a live preview beside it on wide screens (a toggle on
+  // narrow ones). It saves by itself shortly after typing stops, and when the
+  // page is left. Images can be pasted or dropped in.
 
   get area() { return this.querySelector('.editor'); }
+  get wide() { return window.matchMedia('(min-width: 1000px)').matches; }
 
   startEdit() {
     this.refs = new Map(this.item.refs.map((r) => [r.label, r.token]));
     this.editText = this.item.body_edit;
     this.editing = true;
-    this.preview = null;
+    this.showPreview = false;
+    this.preview = this.item.body_html;
+    this.saveState = 'saved';
+  }
+
+  disconnectedCallback() {
+    if (this.editing) this.saveNow(); // leaving the page: do not lose the text
+    super.disconnectedCallback();
   }
 
   // toTokens replaces the labels the editor shows by the stored tokens.
@@ -73,25 +86,71 @@ class Note extends View {
     const start = replaceFrom ?? a.selectionStart;
     a.setRangeText(text, start, a.selectionEnd, 'end');
     a.focus();
+    this.changed();
   }
 
-  async save() {
-    const ok = await this.set('body', this.toTokens(this.area.value));
-    if (ok) this.editing = false;
+  // changed runs on every edit: preview soon, save a little later.
+  changed() {
+    this.saveState = 'unsaved';
+    clearTimeout(this._previewTimer);
+    clearTimeout(this._saveTimer);
+    this._previewTimer = setTimeout(() => this.refreshPreview(), 400);
+    this._saveTimer = setTimeout(() => this.saveNow(), 1500);
   }
 
-  async togglePreview() {
-    if (this.preview !== null) {
-      this.preview = null;
-      return;
+  async refreshPreview() {
+    if (!this.editing || !this.area) return;
+    try {
+      const res = await store.render(this.item.id, this.toTokens(this.area.value));
+      this.preview = res.html;
+    } catch { /* the preview is a convenience */ }
+  }
+
+  // saveNow stores the text if it changed. One save runs at a time; a change
+  // made meanwhile is saved right after.
+  async saveNow() {
+    clearTimeout(this._saveTimer);
+    const area = this.area;
+    if (!area || !this.item) return true;
+    if (this._saving) {
+      this._again = true;
+      return true;
     }
-    const res = await this.run(() => store.render(this.item.id, this.toTokens(this.area.value)));
-    if (res) this.preview = res.html;
+    const body = this.toTokens(area.value);
+    if (body === (this.item.body || '')) {
+      this.saveState = 'saved';
+      return true;
+    }
+    this._saving = true;
+    this.saveState = 'saving';
+    let ok = true;
+    try {
+      const item = this.item;
+      await store.patch(item, { body });
+      // Keep typing without waiting for the reload: this is the new state.
+      if (this.item === item) this.item = { ...item, body, rev: item.rev + 1 };
+      this.saveState = 'saved';
+    } catch (e) {
+      ok = false;
+      this.saveState = 'unsaved';
+      toast(t(e.message), true);
+    }
+    this._saving = false;
+    if (this._again) {
+      this._again = false;
+      return this.saveNow();
+    }
+    return ok;
   }
 
-  async attach(e) {
-    const files = [...e.target.files];
-    e.target.value = '';
+  async done() {
+    if (await this.saveNow()) {
+      this.editing = false;
+      this.reload();
+    }
+  }
+
+  async attachFiles(files) {
     for (const f of files) {
       const att = await this.run(() => store.attach(this.item, f));
       if (!att) return;
@@ -103,8 +162,15 @@ class Note extends View {
     }
   }
 
+  attach(e) {
+    const files = [...e.target.files];
+    e.target.value = '';
+    return this.attachFiles(files);
+  }
+
   // Typing "[[" opens the link picker: a title search (SPEC §3.3).
   async onInput() {
+    this.changed();
     const a = this.area;
     const before = a.value.slice(0, a.selectionStart);
     const m = before.match(/\[\[([^[\]\n]{0,60})$/);
@@ -124,14 +190,47 @@ class Note extends View {
     this.picks = null;
   }
 
-  // Pasting an item's URL inserts a link to it.
+  // Pasting an image attaches it. Pasting an item's URL inserts a link to it.
   async onPaste(e) {
+    const files = [...(e.clipboardData?.files || [])];
+    if (files.length) {
+      e.preventDefault();
+      // A screenshot from the clipboard has no useful name.
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+      await this.attachFiles(files.map((f) => (/^image\.\w+$/.test(f.name) ? new File([f], `pasted-${stamp}.${f.name.split('.').pop()}`, { type: f.type }) : f)));
+      return;
+    }
     const text = (e.clipboardData?.getData('text') || '').trim();
     const m = text.match(/^https?:\/\/[^/\s]+\/i\/([0-9A-Za-z_-]+)$/);
     if (!m || !text.startsWith(location.origin + '/')) return;
     e.preventDefault();
     const x = await this.run(() => store.item(m[1]));
     this.insert(x ? this.addRef(`[[${x.title}]]`, `[[${x.id}]]`) : text);
+  }
+
+  onDrop(e) {
+    const files = [...(e.dataTransfer?.files || [])];
+    if (!files.length) return;
+    e.preventDefault();
+    this.attachFiles(files);
+  }
+
+  onEditorKey(e) {
+    if (e.key === 'Escape' && this.picks) {
+      this.picks = null;
+      e.stopPropagation();
+    } else if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      this.saveNow();
+    }
+  }
+
+  // Choosing a template on an empty item fills in the template's skeleton.
+  setTemplate(key) {
+    const tpl = this.item.templates.find((x) => x.key === key);
+    const changes = { template: key };
+    if (tpl?.body && !(this.item.body || '').trim()) changes.body = tpl.body;
+    return this.run(() => store.patch(this.item, changes));
   }
 
   // ---- actions ----
@@ -237,7 +336,7 @@ class Note extends View {
     }
     if (it.templates.length) {
       out.push(f('template', select(it.templates.map((x) => ({ id: x.key, title: x.label?.[store.me.lang] || x.key })), it.template,
-        (v) => this.set('template', v), t('option.none'))));
+        (v) => this.setTemplate(v), t('option.none'))));
     }
     for (const tf of it.template_def?.fields || []) {
       const v = it.fields?.[tf.key] || '';
@@ -262,24 +361,28 @@ class Note extends View {
           <label class="button">${icon.clip} ${t('note.attach')}<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
         </div>`;
     }
+    const split = this.wide;
+    const showArea = split || !this.showPreview;
+    const showPreview = split || this.showPreview;
     return html`
-      <div class="editor-wrap">
-        <textarea class="editor" rows="14" .value=${this.editText} ?hidden=${this.preview !== null}
-          @input=${() => this.onInput()} @paste=${(e) => this.onPaste(e)}
-          @keydown=${(e) => { if (e.key === 'Escape' && this.picks) { this.picks = null; e.stopPropagation(); } }}></textarea>
+      <div class="editor-wrap ${split ? 'split' : ''}">
+        <textarea class="editor" rows="18" .value=${this.editText} ?hidden=${!showArea} spellcheck="true"
+          @input=${() => this.onInput()} @paste=${(e) => this.onPaste(e)} @drop=${(e) => this.onDrop(e)}
+          @dragover=${(e) => e.preventDefault()} @keydown=${(e) => this.onEditorKey(e)}></textarea>
         ${this.picks ? html`<div class="picker">
           ${this.picks.list.length ? this.picks.list.map((x) => html`
             <button type="button" @click=${() => this.pick(x)}>${x.title} <small>${t('kind.' + x.kind)}</small></button>`)
             : html`<span class="empty">${t('picker.empty')}</span>`}</div>` : nothing}
-        ${this.preview !== null ? html`<div class="body preview" .innerHTML=${this.preview}></div>` : nothing}
+        ${showPreview ? html`<div class="body preview" .innerHTML=${this.preview || ''}></div>` : nothing}
       </div>
       <small>${t('note.editor_hint')}</small>
       <div class="buttons">
-        <button class="primary" @click=${() => this.save()}>${t('action.save')}</button>
-        <button @click=${() => this.togglePreview()}>${t(this.preview !== null ? 'action.edit' : 'note.preview')}</button>
+        <button class="primary" @click=${() => this.done()}>${t('note.done')}</button>
+        ${split ? nothing : html`<button @click=${() => { this.showPreview = !this.showPreview; if (this.showPreview) this.refreshPreview(); }}>
+          ${t(this.showPreview ? 'action.edit' : 'note.preview')}</button>`}
         <label class="button" title=${t('capture.camera')}>${icon.camera}<input type="file" accept="image/*" capture hidden @change=${(e) => this.attach(e)}></label>
         <label class="button" title=${t('capture.file')}>${icon.clip}<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
-        <button class="link" @click=${() => { this.editing = false; }}>${t('action.cancel')}</button>
+        <span class="save-state s-${this.saveState}">${t('note.' + this.saveState)}</span>
       </div>`;
   }
 
@@ -294,7 +397,7 @@ class Note extends View {
     if (!it) return nothing;
     const editable = it.kind !== 'capture';
     return html`
-      <article class="item kind-${it.kind}">
+      <article class="item kind-${it.kind} ${this.editing ? 'editing' : ''}">
         <header>
           <span class="meta">
             <span class="chip">${t('kind.' + it.kind)}</span>${stateChip(it.state)}

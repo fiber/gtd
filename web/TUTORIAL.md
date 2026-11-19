@@ -1,6 +1,7 @@
 # Using gtd
 
-This describes the tool as it is after milestone M1. Where something is planned but
+This describes the tool as it is today (milestones M1 and M4, plus the notes screens).
+In the app it is under the question mark in the top bar. Where something is planned but
 not built yet, it says so. Screen and button names are the English ones; German is in
 Settings.
 
@@ -15,6 +16,52 @@ two moments:
 After that a thought is one of four things: an **action** you can do, a **project**
 (an outcome that needs more than one action), a **note** (something worth keeping),
 or gone. You never look at a raw thought twice.
+
+## The words
+
+gtd uses a small vocabulary. Each word means one thing.
+
+| Word | What it is | Example |
+|---|---|---|
+| **Capture** | A raw thought you got out of your head. It sits in the inbox until you decide what it is. | "bgp collector reset thing ask eric" |
+| **Action** | One physical thing you can do in one go. It starts with a verb. | "Call Brent about the Equinix API keys" |
+| **Project** | An outcome that needs more than one action. It is phrased as the finished result, and it is done when that result is true. Projects can contain sub-projects. | "Collector survives BGP session resets" |
+| **Area** | A part of your life or work that you look after for as long as you have it. An area is never finished; it is where projects and actions belong. | "Collectors", "Home", "Trading" |
+| **Note** | Something worth keeping: an idea, call notes, a design, a reference. Written in Markdown, with images and files. | "Call with Brent, 19 Nov" |
+| **Space** | Who can see it. You have one personal space; a shared space has members (for example a team or you and Grit). | "NIS", "Sven & Grit" |
+
+The difference between a project and an area: "Kitchen renovated" is a project, because
+one day it is done. "Home" is an area, because it never is.
+
+**States of an action**
+
+| State | Meaning |
+|---|---|
+| **Next** | You could do it now. This is what Engage shows. |
+| **Planned** | It waits for another action to be done first. gtd makes it "next" by itself when that happens. |
+| **Waiting** | Someone else has to do something first. You are waiting for them. |
+| **Someday** | Maybe, one day. Not a commitment. |
+| **Done**, **Dropped**, **Trashed** | Finished; decided against; a mistake. Nothing is ever deleted for good. |
+
+A project is **Active**, **Someday** or finished. An active project with no next action
+is **stuck**, and gtd flags it. A note is **Unsorted** until you file it into a project
+or area, then **Filed**, later perhaps **Archived**.
+
+**The details of an action**
+
+- **Context**: where or with what you can do it: Calls, Computer, Errands, Home, Office,
+  Anywhere, or "Agenda" for things to raise with one person. Engage filters by it.
+- **Not before**: hide it until a date. It comes back by itself.
+- **Target**: when you would like it done. The normal kind of date.
+- **Due**: a hard deadline with consequences. Use it rarely, so that it means something.
+- **Energy** and **Time needed**: so Engage can offer what fits your state and your slot.
+- **Waits for**: the actions that must be done first.
+
+**Other words**
+
+- **Thread**: the running commentary on any item, like the back of an index card.
+- **Theme**: a project set to Someday that you use to collect ideas on one subject.
+- **Inbox**: your captures, plus "From others" (for example an action of yours that just became unblocked).
 
 ## The daily loop
 
@@ -77,7 +124,8 @@ plus those marked "Anywhere".
 
 The tabs **Waiting for** and **Due and targets** are for a quick look, not for working.
 
-Keys: `e` Engage, `j`/`k` move, `x` done, `/` search, `f` full screen.
+Keys: `c` capture, `e` Engage, `n` new note, `/` search, `j`/`k` move, `x` done,
+`f` full screen, and number keys to answer a wizard question.
 
 ## Projects
 
@@ -107,14 +155,30 @@ with no active project is flagged.
 
 A note is a Markdown document: headings, lists, tables, code, links, images, files.
 
-- **Create one** from a project's plan with **New note**, or by answering "keep as
+**Notes** in the top bar is their home. It lists every note you can see, most recently
+changed first, with the first lines of each. The tabs narrow it to Unsorted, Filed or
+Archived; the filter box takes words; the project list narrows to one project.
+
+- **Create one** with **New note** on that screen, with the `n` key from anywhere, from
+  a project's plan (then it is filed in that project), or by answering "keep as
   reference" in Clarify.
+- **The editor** shows what you write on the left and how it will look on the right
+  (on a phone, a Preview button switches). It saves by itself a moment after you stop
+  typing, and when you leave the page; Cmd+S saves at once. "Saved" next to the buttons
+  tells you where you stand. **Done** closes the editor.
 - **Link** another item by typing `[[` and picking it by title. Pasting an item's
   address from the browser does the same. The linked item shows "Linked from".
-- **Attach** images and files with the paperclip. Images appear inline.
+- **Images and files**: paste a screenshot straight from the clipboard, drop a file
+  onto the text, or use the paperclip. Images appear inline.
 - **New note from this** starts a note that links back to the one you are reading,
   for an idea that grows out of another.
 - **Task lines**: any line written as `- [ ] call Brent` is a candidate action.
+- **Templates**: if the space has templates for notes, choosing one in Details on an
+  empty note fills in its skeleton (for example "Thesis / Invalidation").
+
+The **Ideas** tab on the same screen shows what is parked: your themes (someday
+projects) with the number of notes in each, and your someday actions, with Activate
+and Drop next to each.
 
 ### Call and meeting notes
 
@@ -169,14 +233,14 @@ you never see it again.
    write those as task lines, press **Process open tasks**, and set the project to
    Active. From then on it lives in Engage like everything else.
 
-7. **Look at the Someday column once a week.** Board → Someday shows your possible
-   actions; Projects with "Show finished" off shows your someday themes. Activate,
-   keep or drop. Ideas that survive three looks without growing can go.
+7. **Look at Notes → Ideas once a week.** It shows your themes with their notes and your
+   someday actions in one place. Activate, keep or drop. Ideas that survive three
+   looks without growing can go. Then open the Unsorted tab and file what is there.
 
 **What is missing today, plainly:**
 
-- A note filed as "Unsorted" has no list anywhere. You find it only through Search.
-  Until that is fixed, always file a reference note into a project or an area.
+- Unsorted notes are listed under Notes → Unsorted, but nothing groups them for you
+  yet. Filing each one into a project or area is by hand until M5.
 - With embeddings switched on (M4, see "Similarity" below) the tool notices that a new
   idea resembles older ones. It does not yet group loose notes (M5) or draft the
   summary (M7).

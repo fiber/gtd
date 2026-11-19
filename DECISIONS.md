@@ -100,7 +100,8 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
   all (unsorted notes are reachable only through search), no way to start a note outside a
   project, no view of Someday items or ideas as such, a bare textarea as editor (no side-by-side
   preview, no autosave, no image paste), and nothing that relates a new idea to older ones before
-  M4. Agent proposal: a notes milestone before M2 (see the session of 2026-11-19). Not decided.
+  M4. Built on 2026-11-19 after M4, on Sven's word that notes and the tutorial matter most now
+  (MILESTONES "Notes", SPEC §5.5).
 
 ## Agent decisions
 
@@ -188,3 +189,13 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — PDF text: `pdftotext -l 50` if installed, at most 200 kB, cached by blob hash under `x/pdf/` (also when empty, so a broken PDF is tried once). It feeds both the text search and the item's vector.
 - 2026-11-19 — Vectors are stored as 32 bytes of text hash plus little-endian float32s, written without fsync: they are derived data.
 - 2026-11-19 — Search by meaning covers every kind, inbox captures included (the first version left captures out, so "Geschenk für Grit" did not find the capture "need to find a present for Grit"). Clarify's similar list and an item's related list still leave captures out: a capture should be compared with what is already organized.
+
+### Notes
+
+- 2026-11-19 — Owner: the order of work is the agent's; notes and the tutorial first. Order chosen: notes, then M2, then M5 (starting with per-passage embeddings, if the owner agrees), then M3.
+- 2026-11-19 — A new note made outside a project starts `unsorted` in the personal space, titled "Notes <date and time>"; the title is the first thing to change.
+- 2026-11-19 — Autosave writes a patch op 1.5 s after the last keystroke, so a long writing session leaves many small ops in the log. Accepted: the op log is the history, and it stays small (STORAGE §3). One save runs at a time; the editor keeps its own rev so that typing does not wait for a reload.
+- 2026-11-19 — Every patch from the UI now carries the old value of each field, so a change still applies when another op (for example an attachment) raised the item's rev in between.
+- 2026-11-19 — An image pasted from the clipboard is named `pasted-<time>.<ext>`: clipboards call every screenshot "image.png".
+- 2026-11-19 — The counts on the Notes tabs follow the word and project filters, not the selected tab, so they say what each tab would show.
+- 2026-11-19 — The tutorial moved to `web/TUTORIAL.md` so that the binary can embed it; the app renders it under Help. It is English only for now.

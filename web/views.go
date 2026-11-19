@@ -53,7 +53,10 @@ type Brief struct {
 	WaitsFor     []Named      `json:"waits_for,omitempty"`
 	Badges       []string     `json:"badges,omitempty"` // values of the template's enum fields
 	Attachments  int          `json:"attachments,omitempty"`
-	Rollup       *core.Rollup `json:"rollup,omitempty"` // projects
+	Rollup       *core.Rollup `json:"rollup,omitempty"`     // projects
+	Excerpt      string       `json:"excerpt,omitempty"`    // notes: the start of the body as plain text
+	SpaceName    string       `json:"space_name,omitempty"` // in lists that span spaces
+	Notes        int          `json:"notes,omitempty"`      // projects in the ideas list: notes filed in them
 	Created      time.Time    `json:"created"`
 	Updated      time.Time    `json:"updated"`
 }
@@ -110,6 +113,23 @@ func briefs(st *core.State, items []*core.Item, today string, roll map[string]co
 		out = append(out, brief(st, it, today, roll))
 	}
 	return out
+}
+
+var (
+	reExcerptToken = regexp.MustCompile(`!?\[\[[^\]\n]*\]\]|@\[user:[a-z0-9-]+\]`)
+	reExcerptMark  = regexp.MustCompile("(?m)^[ \\t]*(#{1,6}|>|[-*+]|\\d+[.)])[ \\t]+|[*_~`]+|\\[[ xX]\\][ \\t]")
+	reSpaces       = regexp.MustCompile(`\s+`)
+)
+
+// excerpt is the start of a Markdown body as one line of plain text.
+func excerpt(body string, max int) string {
+	text := reExcerptToken.ReplaceAllString(body, "")
+	text = reExcerptMark.ReplaceAllString(text, "")
+	text = strings.TrimSpace(reSpaces.ReplaceAllString(text, " "))
+	if r := []rune(text); len(r) > max {
+		return strings.TrimSpace(string(r[:max])) + "…"
+	}
+	return text
 }
 
 // Ref maps what the editor shows for a token to the token itself.

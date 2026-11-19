@@ -223,8 +223,19 @@ Progress is stored per user. Steps:
 A progress bar, then a summary. A banner on the configured weekday.
 
 ### 5.5 Collate and organize notes
-- **Note view:** Markdown editor (textarea plus preview toggle, images inline), related
-  sidebar (top 5 similar in the user's spaces, space shown), backlinks, thread.
+- **Notes screen** (`/notes`): every note of the user's spaces, most recently changed
+  first, with an excerpt. Tabs All / Unsorted / Filed / Archived with counts, a word
+  filter and a project filter. **New note** here, or the `n` key anywhere, creates an
+  unsorted note in the personal space and opens it in the editor.
+- **Ideas tab** on the same screen: someday projects (themes) with the number of notes
+  in each, and someday actions, each with Activate and Drop.
+- **Note view:** Markdown editor (textarea with a live preview beside it on wide
+  screens, a preview toggle on narrow ones; images inline), related items (top 5
+  similar in the user's spaces), backlinks, thread. The editor saves by itself 1.5 s
+  after the last keystroke and when the page is left; Cmd/Ctrl+S saves at once. Images
+  and files can be pasted from the clipboard or dropped onto the text. Choosing a
+  template on an item with an empty body fills in the template's skeleton.
+- **Help** (`/help`): the tutorial (`web/TUTORIAL.md`), rendered.
 - **New note:** from a project's plan view. It is filed into that project and opens in
   the editor. This is the place for call and meeting notes.
 - **Process note** (wizard `note`): walks the note's open task lines (`- [ ] …`), one
@@ -364,6 +375,7 @@ templates:
   are served as static files.
 - `POST /login` `{user, password}` · `POST /logout` · `GET /me` · `PUT /me` (language,
   personal contexts)
+- `GET /notes?state=&project=&area=&q=` · `GET /ideas` · `GET /help`
 - `GET /inbox` · `GET /projects` · `GET /plan/{project}` · `GET /board?space=&area=&project=&field=`
   · `GET /areas` · `GET /pick?q=` (link picker) · `POST /render` (Markdown preview)
 - `GET|PUT /spaces/{id}/templates` (YAML) · `GET /spaces/{id}/options`
