@@ -129,15 +129,19 @@ silently picked.
   ```
   <dir>/manifest.json           server id, schema version, export time, spaces, counts
   <dir>/users.json              users without secrets (no hashes, no tokens)
+  <dir>/users/<user>/notifications.jsonl      the "From others" inbox
   <dir>/spaces/<space>/space.yaml
   <dir>/spaces/<space>/items/<id>.md          frontmatter + body (SPEC §2)
   <dir>/spaces/<space>/comments/<itemid>.jsonl
   <dir>/spaces/<space>/ops.jsonl
   <dir>/blobs/<aa>/<sha256>                   referenced blobs only
   ```
+  The export time is the timestamp of the newest exported op, not the wall clock.
   It's deterministic (sorted, fixed field order), so a nightly export into a git repo
   gives a clean human-readable history. It works via the daemon (consistent: export
-  reads from a Pebble snapshot), directly, or from a checkpoint.
+  reads from a Pebble snapshot), directly, or from a checkpoint. A full export,
+  like snapshot and restore, requires admin. `--space` works for members of those
+  spaces and yields a partial export that `import --restore` refuses.
 - `gtd import --restore <dir>` into an empty DB reproduces everything (invariant 5).
   A round-trip golden test is mandatory. Derived data (`x/`) is rebuilt afterwards.
 

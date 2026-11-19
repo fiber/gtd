@@ -4,7 +4,7 @@
 
 | Kind | Meaning | States |
 |------|---------|--------|
-| `capture` | Raw inbox item, always in the capturing user's personal space | `inbox` |
+| `capture` | Raw inbox item, always in the capturing user's personal space | `inbox`, `trashed` |
 | `action` | One physical next action | `next`, `planned`, `waiting`, `someday`, `done`, `dropped`, `trashed` |
 | `project` | An outcome needing more than one action. May have a `parent` project (unlimited depth). | `active`, `someday`, `done`, `dropped`, `trashed` |
 | `note` | Reference or project support material, with images and attachments | `unsorted`, `filed`, `archived`, `trashed` |
@@ -12,6 +12,8 @@
 
 - `planned` = action has open blockers (`blocked_by`). It's set and cleared only by
   the dependency rule (§6.2), plus explicitly when the user adds follow-up steps.
+- A capture becomes an action, project or note through a `transition` op that also
+  changes `kind`. That is the only kind change that exists.
 - **Deferral (tickler):** `defer_until` (date) on actions, projects and notes. Items
   are hidden from working views until that date (§5.6).
 - **Ownership:** actions have `owner` (user ID). In a personal space it's always the
@@ -254,6 +256,8 @@ A table per kind of allowed `state` transitions. Invalid → error (409 at the A
 - `blocked_by` only references actions in the same space. Adding an edge that
   creates a cycle → error.
 - An action with any blocker not in {`done`, `dropped`, `trashed`} must be `planned`.
+  This includes `waiting` and `someday` actions: once unblocked they come back as
+  `next`, and the notification prompts a fresh look.
   When the last open blocker completes, the dependent action becomes `next` in the
   same batch, and an `unblocked` notification goes to its owner (or to all members if
   unassigned). Dropping a blocker counts as completing it, plus a warning
