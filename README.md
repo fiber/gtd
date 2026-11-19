@@ -5,7 +5,7 @@ The agent brief for a self-hosted, multi-user GTD tool:
 - cross-area projects with subproject trees, dependencies and target dates
 - notes with images and PDFs
 - similarity and clustering via embeddinggemma (fiber/ai at home, norad at work)
-- local AI suggestions and `@ai` in item threads
+- AI suggestions (local or, at home, a cloud model) and `@ai` in item threads
 - shared spaces with mentions and delegation
 - service users (nuro) and MCP
 - PWA with offline operation queue

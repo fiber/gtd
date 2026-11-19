@@ -2,7 +2,7 @@
 
 You are building `gtd`, a self-hosted, multi-user tool that guides people through
 Getting Things Done (Capture → Clarify → Organize → Reflect → Engage), organizes
-their notes (with similarity search and local AI assistance), and lets a small team
+their notes (with similarity search and AI assistance), and lets a small team
 or family collaborate on shared spaces. One server process per trust domain (for
 example one at work, one at home), with a PWA client for desktop and phone.
 

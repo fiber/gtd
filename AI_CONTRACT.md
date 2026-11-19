@@ -76,7 +76,8 @@ Cohesion = mean cosine to the centroid. Clusters with cohesion under 0.45 or few
 Deterministic. Recomputed per sweep session.
 
 ## 3. Generation
-Provider per server (DECISIONS Q-1), local only. Chat-style request with
+Provider per server (D-25, Q-1): local at work, local or cloud (Gemini, Anthropic) at
+home. Chat-style request with
 JSON-schema-constrained output if the backend supports it, else instruction plus
 strict parse. Temperature 0.
 

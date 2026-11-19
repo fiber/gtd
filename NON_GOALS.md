@@ -7,8 +7,8 @@ If a task seems to need one of these, stop and ask.
 - Search engines (Bleve etc.), ANN or vector indexes, vector databases
 - Git as storage or a sync protocol. Git appears only as `git merge-file` and as an
   optional destination for nightly exports.
-- Cloud AI providers or any outbound call except the configured embedding and
-  generation backends
+- Any outbound call except the configured embedding and generation backends. A cloud
+  generation provider is allowed only where the server's config names one (D-25).
 - Op-log compaction, sharding, replication, HA
 
 **Collaboration**

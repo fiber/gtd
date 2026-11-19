@@ -40,20 +40,19 @@ Settled with the product owner (Sven). The agent must not change them.
 | D-22 | **Web UI:** Lit web components, buildless (vendored Lit ES module bundle, import map, plain JS modules, one CSS file, hand-written service worker, all embedded via `embed.FS`; no npm, bundler, TypeScript, other framework or state-management library), installed as a PWA. The client is a pure renderer: Markdown is rendered server-side (`body_html`), wizards are Go step machines behind `/api/v1/wizard/…`, there is no GTD logic in JS, and routing is client-side on a server-delivered app shell. *(Changed 2026-11-19; was `html/template` + htmx.)* Android is first-class (share target for text, URLs, files, camera capture). iOS via Safari install plus an Apple Shortcut. No native apps. |
 | D-23 | **Offline: level 2** (OFFLINE.md). A cached snapshot of pinned spaces in IndexedDB, with offline mutations as ops replayed on reconnect. Conflicts go to a merge view. |
 | D-24 | **Embeddings:** `embeddinggemma`. Home uses `github.com/fiber/ai` (see its embeddinggemma example; the agent determines whether that's in-process or HTTP). Work uses the existing **norad** embedding server. One `Embedder` interface. Exact brute-force similarity with in-house SIMD kernels (from `github.com/fiber/ai` or vektor, whichever provides SGEMM/dot). No ANN, no vector DB. |
-| D-25 | **AI generation is local only**, configured per server, optional at runtime, structured JSON output validated against schemas. No cloud providers. |
+| D-25 | **AI generation is configured per server**, optional at runtime, structured JSON output validated against schemas. The work server uses the local Gemma model the workplace provides. The home server may use a local model or a cloud provider (Gemini or Anthropic, as nuro does). A server sends content only to its own configured backend, and a work server never uses a cloud provider. *(Changed 2026-11-19; was "local only, no cloud providers".)* |
 | D-26 | **Obsidian is abandoned.** No compatibility requirement. A one-time importer migrates the existing vault (thousands of notes) into an "unsorted" pool, which the sweep then works through. Titles may contain any characters. |
 
 ## Open questions (owner to answer; agent: ask, don't guess)
 
-- **Q-1** What serves Gemma *generation* on each server (fiber/ai? norad? something else), and its API? Needed before M7.
+- **Q-1** The generation backend on each server and its API: at work, what serves the local Gemma (fiber/ai? norad? something else); at home, which provider and model (D-25). Needed before M7.
 - **Q-2** The norad embedding server's API (endpoint, request/response, batch limit, max input, model and dim). Needed before M4 for the work server. Check whether it matches fiber/ai's protocol.
 - **Q-3** Which package provides the SIMD SGEMM/dot kernels: `github.com/fiber/ai`, vektor (import path?), or both. Needed before M4.
 - **Q-4** nuro side of the integration: which events nuro will post (backtest finished, pipeline failure, …). Needed before M8. gtd only provides the generic `append` mechanism.
 - **Q-5** Sven's personal extra contexts and review weekday (config, any time).
-- **Q-6** (raised by Sven, 2026-11-19) Generation backends per server: work may have to use a local
-  Gemma (32B); home could use a full Gemini or Anthropic model, as nuro does. This contradicts D-25
-  and NON_GOALS ("no cloud AI providers"). Not changed yet: confirm before M7 whether D-25 becomes
-  "local by default, cloud provider allowed per server config".
+- **Q-6** With a cloud provider on the home server, the content of every space there (including
+  shared ones like "Family") goes to that provider. Should cloud generation be switchable per
+  space, or is per server enough? Needed before M7.
 
 ## Owner requests not yet in the spec (2026-11-19)
 
