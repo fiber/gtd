@@ -1,0 +1,29 @@
+[
+  {
+    "v": 1,
+    "id": "eric",
+    "name": "Eric",
+    "personal_space": "eric"
+  },
+  {
+    "v": 1,
+    "id": "grit",
+    "name": "Grit",
+    "personal_space": "grit"
+  },
+  {
+    "v": 1,
+    "id": "sven",
+    "name": "Sven",
+    "lang": "de",
+    "admin": true,
+    "ssh_keys": [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKeyFixtureKeyFixtureKeyFixtureKeyAAAA"
+    ],
+    "personal_contexts": [
+      "boat"
+    ],
+    "review_weekday": 5,
+    "personal_space": "sven"
+  }
+]

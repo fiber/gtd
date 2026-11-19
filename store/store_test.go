@@ -1,0 +1,831 @@
+package store
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"sort"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/cockroachdb/pebble/v2"
+
+	"github.com/fiber/gtd/core"
+)
+
+var update = flag.Bool("update", false, "rewrite the golden export in testdata/export")
+
+// deterministic installs a clock that advances one second per call, in a +01:00
+// zone, and sequential ULID-shaped IDs.
+func deterministic(s *Store) {
+	zone := time.FixedZone("", 3600)
+	tick, n := 0, 0
+	var mu sync.Mutex
+	s.Now = func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		tick++
+		return time.Date(2026, 11, 19, 8, 0, tick, 123000000, zone)
+	}
+	s.NewID = func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		n++
+		return fmt.Sprintf("01JD8X4Q9V3T6M2K7P5R%06d", n)
+	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func check0(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func raw(v any) json.RawMessage { return mustJSON(v) }
+
+func createOp(it core.Item) core.Op {
+	return core.Op{Via: "cli", Type: core.OpCreate, Payload: raw(it)}
+}
+
+func moveOp(it *core.Item, state string) core.Op {
+	return core.Op{Via: "cli", Type: core.OpTransition, Item: it.ID, BaseRev: it.Rev,
+		Changes: []core.FieldChange{{Field: "state", New: raw(state)}}}
+}
+
+func patchOp(it *core.Item, field string, value any) core.Op {
+	return core.Op{Via: "cli", Type: core.OpPatch, Item: it.ID, BaseRev: it.Rev,
+		Changes: []core.FieldChange{{Field: field, New: raw(value)}}}
+}
+
+// nasty strings that a Markdown-with-frontmatter export must carry unchanged.
+const (
+	nastyTitle = `NIS/BGP: Collector — "session reset"? #1 [[x]] @eric: {a: b} | > ' ` + "`" + ` é 日本 🚀`
+	nastyBody  = "# Heading\r\nCRLF line\r\n\ttab  trailing spaces   \n---\nkey: value\n\n\n- [ ] todo\n```\ncode\n```\nno newline at end"
+	nastyOrig  = "  leading spaces\nline two: with colon\n---\n\ttab\n\n"
+)
+
+// fixture builds a database that uses every record type: two users, a personal
+// and a shared space, every kind, dependencies with derived ops, notifications,
+// comments with a tombstone, attachments on items and comments.
+func fixture(t testing.TB, dir string) *Store {
+	t.Helper()
+	s := must(create(dir, "test", deterministic))
+	check0(s.AddUser(core.User{ID: "sven", Name: "Sven", Lang: "de", Admin: true,
+		SSHKeys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKeyFixtureKeyFixtureKeyFixtureKeyAAAA"}, PersonalContexts: []string{"boat"}, ReviewWeekday: 5}))
+	check0(s.AddUser(core.User{ID: "eric", Name: "Eric"}))
+	check0(s.AddUser(core.User{ID: "grit", Name: "Grit"}))
+	check0(s.CreateSpace("nis", "NIS", []string{"sven", "eric"}))
+	// People and templates have no admin command in M0. Set them on the record.
+	sp := s.spaces["nis"]
+	rec := *sp.rec
+	rec.People = []string{"Kim"}
+	rec.Templates = []core.Template{{Key: "edge_hypothesis", Kind: "project",
+		Label: map[string]string{"en": "Edge hypothesis", "de": "Edge-Hypothese"},
+		Fields: []core.TemplateField{
+			{Key: "stage", Type: "enum", Options: []string{"idea", "testing"}, Label: map[string]string{"en": "Stage"}},
+			{Key: "expires", Type: "date", Tickler: true}},
+		Body: "## Hypothesis\n\n## Result\n"}}
+	check0(s.db.Set(spaceKey("nis"), mustJSON(rec), pebble.Sync))
+	sp.rec = &rec
+
+	sven, eric := must(s.View("sven")), must(s.View("eric"))
+	png := must2(s.PutBlob(strings.NewReader("\x89PNG fake image bytes")))
+	pdf := must2(s.PutBlob(strings.NewReader("%PDF-1.7 fake report")))
+
+	// Personal space: captures, one trashed, one clarified into an action.
+	c1 := must(sven.Capture("bgp collector reset thing ask eric", core.Source{Via: "cli"}, nil))
+	c2 := must(sven.Capture(nastyOrig+"multi-line capture", core.Source{Via: "share", Ref: "https://example.org/a?b=c"},
+		[]core.Attachment{{SHA256: png.sha, Name: "whiteboard.png", MIME: "image/png", Size: png.size}}))
+	must(sven.Apply("sven", moveOp(c2, core.StTrashed)))
+	must(sven.Apply("sven",
+		core.Op{Via: "web", Type: core.OpTransition, Item: c1.ID, BaseRev: c1.Rev, Changes: []core.FieldChange{
+			{Field: "kind", New: raw(core.KindAction)}, {Field: "state", New: raw(core.StNext)}}},
+		core.Op{Via: "web", Type: core.OpPatch, Item: c1.ID, BaseRev: c1.Rev + 1, Changes: []core.FieldChange{
+			{Field: "title", New: raw("Ask Eric about BGP collector session resets")},
+			{Field: "context", New: raw("boat")}, {Field: "energy", New: raw("low")}, {Field: "time", New: raw("15m")}}}))
+
+	// Shared space: area, project tree, actions with dependencies, a note.
+	id := func(n int) string { return fmt.Sprintf("01JD8X4Q9V3T6M2K7P5RZZ%04d", n) }
+	area, proj, sub, a, b, c, d, note := id(1), id(2), id(3), id(4), id(5), id(6), id(7), id(8)
+	must(sven.Apply("nis",
+		createOp(core.Item{ID: area, Kind: core.KindArea, Title: "Collectors"}),
+		createOp(core.Item{ID: proj, Kind: core.KindProject, Title: nastyTitle, Area: area, Target: "2027-01-15",
+			Template: "edge_hypothesis", Fields: map[string]string{"stage": "testing", "odd": "- yes: null ~ 1e3", "empty": ""}}),
+		createOp(core.Item{ID: sub, Kind: core.KindProject, Title: "Sub-outcome", Parent: proj, State: core.StSomeday}),
+		createOp(core.Item{ID: a, Kind: core.KindAction, Title: "Clarify reset semantics", Project: proj, Area: area,
+			Owner: "sven", Context: "agenda:eric", Due: "2026-12-01"}),
+		createOp(core.Item{ID: b, Kind: core.KindAction, Title: "Implement reset handling", Project: proj,
+			Owner: "eric", DelegatedBy: "sven", BlockedBy: []string{a}, State: core.StPlanned, DeferUntil: "2026-12-03"}),
+		createOp(core.Item{ID: c, Kind: core.KindAction, Title: "Write the test", Project: sub, BlockedBy: []string{a, b}}),
+		createOp(core.Item{ID: d, Kind: core.KindAction, Title: "Wait for Kim", State: core.StWaiting, WaitingOn: "Kim"}),
+	))
+	must(eric.Apply("nis", createOp(core.Item{ID: note, Kind: core.KindNote, Title: "Design notes", Project: proj,
+		Original: nastyOrig, Body: nastyBody, Source: core.Source{Via: "import", Ref: "obsidian:NIS/Design notes.md"},
+		DerivedFrom: []string{a}, Generated: true, AIGenerated: true,
+		Imported: map[string]any{"folder": "NIS/BGP", "tags": []any{"bgp", "todo"}, "nested": map[string]any{"n": 1.5, "ok": true}},
+		Conflict: raw(map[string]any{"by": "eric", "base_rev": 1, "ours": "a\n", "theirs": "b\n"}),
+	})))
+	must(eric.Apply("nis", core.Op{Via: "service", Type: core.OpAttach, Item: note,
+		Payload: raw(core.Attachment{SHA256: pdf.sha, Name: "report (final).pdf", MIME: "application/pdf", Size: pdf.size})}))
+	must(sven.Apply("nis", moveOp(must(sven.Item("nis", note)), core.StFiled)))
+
+	// Thread: a mention, an attachment, a deleted comment.
+	cm := must(eric.Apply("nis", core.Op{Via: "web", Type: core.OpComment, Item: a,
+		Payload: raw(core.Comment{Body: "see @[user:sven]\n\nsecond paragraph", Mentions: []string{"sven"},
+			Attachments: []core.Attachment{{SHA256: png.sha, Name: "curve.png", MIME: "image/png", Size: png.size}}})}))
+	del := must(sven.Apply("nis", core.Op{Via: "web", Type: core.OpComment, Item: a, Payload: raw(core.Comment{Body: "oops"})}))
+	var delC core.Comment
+	check0(json.Unmarshal(del[0].Payload, &delC))
+	must(sven.Apply("nis", core.Op{Via: "web", Type: core.OpDeleteComment, Item: a, Payload: raw(map[string]string{"comment": delC.ID})}))
+	_ = cm
+
+	// Dependencies: a done unblocks b (c still waits for b), then b dropped
+	// unblocks c with a warning, then a reopened.
+	must(sven.Apply("nis", moveOp(must(sven.Item("nis", a)), core.StDone)))
+	must(eric.Apply("nis", moveOp(must(eric.Item("nis", b)), core.StDropped)))
+	must(sven.Apply("nis", moveOp(must(sven.Item("nis", a)), core.StNext)))
+	must(sven.Apply("nis", patchOp(must(sven.Item("nis", d)), "target", "2026-12-24")))
+	return s
+}
+
+type blobInfo struct {
+	sha  string
+	size int64
+}
+
+func must2(sha string, size int64, err error) blobInfo {
+	check0(err)
+	return blobInfo{sha, size}
+}
+
+// dump returns every key and value of the database.
+func dump(t testing.TB, s *Store) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	it := must(s.db.NewIter(nil))
+	defer it.Close()
+	for it.First(); it.Valid(); it.Next() {
+		out[string(it.Key())] = string(it.Value())
+	}
+	return out
+}
+
+// tree returns every file below dir, by slash-separated relative path.
+func tree(t testing.TB, dir string) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, _ := filepath.Rel(dir, path)
+		out[filepath.ToSlash(rel)] = string(must(os.ReadFile(path)))
+		return nil
+	})
+	check0(err)
+	return out
+}
+
+func diffMaps(t testing.TB, what string, got, want map[string]string) {
+	t.Helper()
+	keys := map[string]bool{}
+	for k := range got {
+		keys[k] = true
+	}
+	for k := range want {
+		keys[k] = true
+	}
+	n := 0
+	for _, k := range slices.Sorted(func(yield func(string) bool) {
+		for k := range keys {
+			if !yield(k) {
+				return
+			}
+		}
+	}) {
+		g, gok := got[k]
+		w, wok := want[k]
+		switch {
+		case !gok:
+			t.Errorf("%s: %q is missing", what, k)
+		case !wok:
+			t.Errorf("%s: %q is unexpected", what, k)
+		case g != w:
+			t.Errorf("%s: %q differs\n got: %q\nwant: %q", what, k, g, w)
+		default:
+			continue
+		}
+		if n++; n >= 10 {
+			t.Fatalf("%s: more differences not shown", what)
+		}
+	}
+}
+
+func exportTo(t testing.TB, s *Store, dir string, only ...string) {
+	t.Helper()
+	var buf bytes.Buffer
+	check0(s.Export(&buf, only))
+	check0(Untar(&buf, dir))
+}
+
+// TestRoundTrip is the invariant 5 test: export → restore into an empty data
+// directory → export again gives identical files, identical Pebble content and
+// the checked-in golden tree.
+func TestRoundTrip(t *testing.T) {
+	dir1, dir2, exp1, exp2 := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	s1 := fixture(t, dir1)
+	defer s1.Close()
+	for _, p := range check(s1) {
+		t.Errorf("fixture: %s", p)
+	}
+	before := dump(t, s1)
+
+	// A password hash must never reach the export.
+	check0(s1.UpdateUser("sven", func(u *core.User) error { u.PasswordHash = "$2a$10$SECRETHASH"; return nil }))
+	exportTo(t, s1, exp1)
+	files := tree(t, exp1)
+	for name, data := range files {
+		if strings.Contains(data, "SECRETHASH") || strings.Contains(data, "password_hash") {
+			t.Errorf("%s contains the password hash", name)
+		}
+	}
+
+	man, err := Restore(dir2, exp1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2 := must(Open(dir2))
+	defer s2.Close()
+	diffMaps(t, "pebble content after restore", dump(t, s2), before)
+	for _, p := range check(s2) {
+		t.Errorf("restored: %s", p)
+	}
+	exportTo(t, s2, exp2)
+	diffMaps(t, "second export", tree(t, exp2), files)
+	diffMaps(t, "restored blobs", tree(t, filepath.Join(dir2, "blobs")), tree(t, filepath.Join(dir1, "blobs")))
+
+	if len(man.Spaces) != 4 || man.Users != 3 || man.Blobs != 2 {
+		t.Errorf("manifest: %d spaces, %d users, %d blobs", len(man.Spaces), man.Users, man.Blobs)
+	}
+	for _, want := range []string{"users/eric/notifications.jsonl", "users/sven/notifications.jsonl",
+		"spaces/nis/space.yaml", "spaces/nis/ops.jsonl", "spaces/sven/ops.jsonl", "spaces/grit/space.yaml"} {
+		if _, ok := files[want]; !ok {
+			t.Errorf("export has no %s", want)
+		}
+	}
+
+	golden := filepath.Join("testdata", "export")
+	if *update {
+		check0(os.RemoveAll(golden))
+		check0(os.CopyFS(golden, os.DirFS(exp1)))
+	}
+	diffMaps(t, "golden export (run go test ./store -update after an intended format change)", files, tree(t, golden))
+
+	// The golden tree alone restores to the same database.
+	dir3 := t.TempDir()
+	if _, err := Restore(dir3, golden); err != nil {
+		t.Fatal(err)
+	}
+	s3 := must(Open(dir3))
+	defer s3.Close()
+	diffMaps(t, "pebble content restored from golden", dump(t, s3), before)
+
+	// Restore refuses a data directory that already has a database.
+	if _, err := Restore(dir2, exp1); err == nil || !strings.Contains(err.Error(), "already holds a database") {
+		t.Errorf("restore into a used directory: %v", err)
+	}
+}
+
+func TestExportIsDeterministic(t *testing.T) {
+	s := fixture(t, t.TempDir())
+	defer s.Close()
+	var a, b bytes.Buffer
+	check0(s.Export(&a, nil))
+	time.Sleep(10 * time.Millisecond)
+	check0(s.Export(&b, nil))
+	if !bytes.Equal(a.Bytes(), b.Bytes()) {
+		t.Fatal("two exports of the same data differ")
+	}
+	// Untar replaces a previous export and leaves other files alone.
+	dir := t.TempDir()
+	check0(os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	check0(os.WriteFile(filepath.Join(dir, ".git", "HEAD"), []byte("ref"), 0o644))
+	check0(os.MkdirAll(filepath.Join(dir, "spaces", "gone", "items"), 0o755))
+	check0(os.WriteFile(filepath.Join(dir, "spaces", "gone", "items", "stale.md"), []byte("x"), 0o644))
+	check0(Untar(&a, dir))
+	files := tree(t, dir)
+	if _, ok := files[".git/HEAD"]; !ok {
+		t.Error(".git was removed")
+	}
+	if _, ok := files["spaces/gone/items/stale.md"]; ok {
+		t.Error("stale file of a previous export survived")
+	}
+}
+
+func TestPartialExport(t *testing.T) {
+	s := fixture(t, t.TempDir())
+	defer s.Close()
+	dir := t.TempDir()
+	exportTo(t, s, dir, "nis")
+	files := tree(t, dir)
+	for name := range files {
+		if strings.HasPrefix(name, "spaces/") && !strings.HasPrefix(name, "spaces/nis/") || strings.HasPrefix(name, "users/") {
+			t.Errorf("partial export contains %s", name)
+		}
+	}
+	if strings.Contains(files["users.json"], `"grit"`) || !strings.Contains(files["users.json"], `"eric"`) {
+		t.Errorf("users.json should list exactly the members: %s", files["users.json"])
+	}
+	if _, err := Restore(t.TempDir(), dir); err == nil || !strings.Contains(err.Error(), "partial") {
+		t.Errorf("restore of a partial export: %v", err)
+	}
+}
+
+func TestItemMarkdownRoundTrip(t *testing.T) {
+	stamp := time.Date(2026, 11, 19, 8, 12, 3, 0, time.FixedZone("", 3600))
+	base := core.Item{V: 1, ID: "01JD8X4Q9V3T6M2K7P5R1W0Y8Z", Space: "nis", Kind: core.KindNote, Title: "t", State: core.StFiled,
+		Rev: 7, Created: stamp, Updated: stamp.Add(time.Hour + 5*time.Nanosecond).UTC(), UpdatedBy: "sven"}
+	for i, str := range []string{
+		"plain", nastyTitle, nastyBody, nastyOrig, "", " ", "\n", "\n\n\n", "---", "---\n", "\n---\n", "a\n---\nb\n---\n",
+		"trailing space \n", "\ttab", "x\r", "\r\n", "null", "~", "true", "123", "1e3", "0x1F", "2026-11-19", "- item", "? q",
+		"key: value", "# not a comment", "'single'", `"double"`, `back\slash`, "|", ">", "%", "@", "`", "!tag", "&anchor", "*alias",
+		"[a, b]", "{a: b}", "ünïcödé 日本語 🚀", "\u0085next line", "\u2028line sep", "\x00nul", "\x07bell", string(rune(0xFEFF)) + "bom", strings.Repeat("long ", 500),
+	} {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			it := base
+			it.Title = str + "x" // a title is never empty
+			it.Original, it.Body, it.WaitingOn = str, str, str
+			it.Fields = map[string]string{"f": str, "g": "x"}
+			it.Imported = map[string]any{"s": str, "list": []any{str, 1.0, true, nil}}
+			md := must(itemToMD(&it))
+			back, err := mdToItem(md)
+			if err != nil {
+				t.Fatalf("%v\n%s", err, md)
+			}
+			if got, want := string(mustJSON(back)), string(mustJSON(&it)); got != want {
+				t.Fatalf("round trip changed the item\n got %s\nwant %s\nfile:\n%s", got, want, md)
+			}
+		})
+	}
+}
+
+// TestIsolation: a user who is not a member of a space gets "not found" from
+// every View method, exactly as for a space that does not exist.
+func TestIsolation(t *testing.T) {
+	s := fixture(t, t.TempDir())
+	defer s.Close()
+	eric, grit := must(s.View("eric")), must(s.View("grit"))
+	items := must(eric.Items("nis", nil))
+	item := items[0]
+
+	calls := map[string]func(v *View, space string) error{
+		"Item":         func(v *View, sp string) error { _, err := v.Item(sp, item.ID); return err },
+		"Items":        func(v *View, sp string) error { _, err := v.Items(sp, nil); return err },
+		"Comments":     func(v *View, sp string) error { _, err := v.Comments(sp, item.ID); return err },
+		"CommentCount": func(v *View, sp string) error { _, err := v.CommentCount(sp, item.ID); return err },
+		"Ops":          func(v *View, sp string) error { _, err := v.Ops(sp, 10); return err },
+		"Apply": func(v *View, sp string) error {
+			_, err := v.Apply(sp, createOp(core.Item{ID: v.s.NewID(), Kind: core.KindNote, Title: "intruder"}))
+			return err
+		},
+	}
+	// Methods that take no space: they must only ever return the user's own data.
+	unscoped := []string{"User", "Spaces", "Grep", "Notifications", "Capture"}
+	typ := reflect.TypeOf(&View{})
+	for i := 0; i < typ.NumMethod(); i++ {
+		name := typ.Method(i).Name
+		if calls[name] == nil && !slices.Contains(unscoped, name) {
+			t.Errorf("View.%s has no isolation test", name)
+		}
+	}
+	seq := s.spaces["nis"].seq
+	for name, call := range calls {
+		if err := call(eric, "nis"); err != nil {
+			t.Errorf("%s as a member: %v", name, err)
+		}
+		errNonMember := call(grit, "nis")
+		errNoSpace := call(grit, "no-such-space")
+		if !errors.Is(errNonMember, core.ErrNotFound) {
+			t.Errorf("%s as a non-member: %v, want not found", name, errNonMember)
+		}
+		if errNonMember == nil || errNoSpace == nil || strings.ReplaceAll(errNonMember.Error(), `"nis"`, `"no-such-space"`) != errNoSpace.Error() {
+			t.Errorf("%s leaks existence: non-member %q, missing space %q", name, errNonMember, errNoSpace)
+		}
+	}
+	if got := s.spaces["nis"].seq; got != seq+1 {
+		t.Errorf("space seq moved from %d to %d, want exactly eric's one op", seq, got)
+	}
+	for _, sp := range grit.Spaces() {
+		if sp.ID != "grit" {
+			t.Errorf("grit sees space %q", sp.ID)
+		}
+	}
+	if hits := grit.Grep("reset"); len(hits) != 0 {
+		t.Errorf("grit's grep found %d items of other spaces", len(hits))
+	}
+	if hits := eric.Grep("reset"); len(hits) == 0 {
+		t.Error("eric's grep found nothing in nis")
+	}
+	if n := must(grit.Notifications()); len(n) != 0 {
+		t.Errorf("grit has %d notifications", len(n))
+	}
+	// Sven's personal space is closed to Eric, a co-member of nis.
+	if _, err := eric.Items("sven", nil); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("eric reads sven's personal space: %v", err)
+	}
+	// Membership is checked on every call: removing Eric takes effect at once.
+	check0(s.SetMember("nis", "eric", false))
+	if _, err := eric.Item("nis", item.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("removed member still reads: %v", err)
+	}
+	check0(s.SetMember("nis", "grit", true))
+	if _, err := grit.Item("nis", item.ID); err != nil {
+		t.Errorf("new member cannot read: %v", err)
+	}
+	if err := s.SetMember("sven", "grit", true); !errors.Is(err, core.ErrInvalid) {
+		t.Errorf("adding a member to a personal space: %v", err)
+	}
+	if _, err := s.View("nobody"); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("view of an unknown user: %v", err)
+	}
+}
+
+func TestApplyBatch(t *testing.T) {
+	s := fixture(t, t.TempDir())
+	defer s.Close()
+	sven := must(s.View("sven"))
+	before := dump(t, s)
+
+	// One invalid op: nothing of the batch is stored.
+	_, err := sven.Apply("nis",
+		createOp(core.Item{ID: "01JD8X4Q9V3T6M2K7P5RYY0001", Kind: core.KindNote, Title: "fine"}),
+		createOp(core.Item{ID: "01JD8X4Q9V3T6M2K7P5RYY0002", Kind: core.KindNote, Title: "bad", Project: "nope"}))
+	if !errors.Is(err, core.ErrInvalid) {
+		t.Fatalf("err = %v", err)
+	}
+	diffMaps(t, "after a failed batch", dump(t, s), before)
+	if _, err := sven.Item("nis", "01JD8X4Q9V3T6M2K7P5RYY0001"); !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("item of a failed batch is in the index: %v", err)
+	}
+
+	// The second op of a batch sees the first. Replaying an op ID is a no-op.
+	a := createOp(core.Item{ID: "01JD8X4Q9V3T6M2K7P5RYY0003", Kind: core.KindAction, Title: "first"})
+	a.ID = "01JD8X4Q9V3T6M2K7P5RYYOP01"
+	b := createOp(core.Item{ID: "01JD8X4Q9V3T6M2K7P5RYY0004", Kind: core.KindAction, Title: "second", BlockedBy: []string{"01JD8X4Q9V3T6M2K7P5RYY0003"}})
+	b.ID = "01JD8X4Q9V3T6M2K7P5RYYOP02"
+	ops := must(sven.Apply("nis", a, b, a))
+	if len(ops) != 3 { // create, create, derived next→planned
+		t.Fatalf("logged %d ops, want 3", len(ops))
+	}
+	for i := 1; i < len(ops); i++ {
+		if ops[i].Seq != ops[i-1].Seq+1 {
+			t.Fatalf("op seqs are not consecutive: %d then %d", ops[i-1].Seq, ops[i].Seq)
+		}
+	}
+	if it := must(sven.Item("nis", "01JD8X4Q9V3T6M2K7P5RYY0004")); it.State != core.StPlanned {
+		t.Fatalf("second item is %s", it.State)
+	}
+	again := must(sven.Apply("nis", a, b))
+	if len(again) != 0 {
+		t.Fatalf("replay logged %d ops", len(again))
+	}
+	for _, p := range check(s) {
+		t.Error(p)
+	}
+}
+
+func TestReopen(t *testing.T) {
+	dir := t.TempDir()
+	s := fixture(t, dir)
+	before := dump(t, s)
+	sven := must(s.View("sven"))
+	wantItems := mustJSON(must(sven.Items("nis", nil)))
+	nseq := s.nseq["eric"]
+	if nseq == 0 {
+		t.Fatal("fixture should notify eric")
+	}
+
+	if _, err := Open(dir); !errors.Is(err, ErrLocked) {
+		t.Fatalf("second open: %v, want ErrLocked", err)
+	}
+	check0(s.Close())
+	if _, err := Open(t.TempDir()); !errors.Is(err, ErrNoDB) {
+		t.Fatalf("open of an empty directory: %v, want ErrNoDB", err)
+	}
+	if _, err := Create(dir, "x"); err == nil {
+		t.Fatal("create over an existing database succeeded")
+	}
+
+	s = must(Open(dir))
+	defer s.Close()
+	diffMaps(t, "after reopen", dump(t, s), before)
+	sven = must(s.View("sven"))
+	if got := mustJSON(must(sven.Items("nis", nil))); !bytes.Equal(got, wantItems) {
+		t.Error("index differs after reopen")
+	}
+	if s.nseq["eric"] != nseq || s.Server().Name != "test" {
+		t.Errorf("nseq %d (want %d), server %+v", s.nseq["eric"], nseq, s.Server())
+	}
+	if n := must(sven.CommentCount("nis", "01JD8X4Q9V3T6M2K7P5RZZ0004")); n != 2 {
+		t.Errorf("comment count = %d, want 2", n)
+	}
+	if cs := must(sven.Comments("nis", "01JD8X4Q9V3T6M2K7P5RZZ0004")); len(cs) != 2 || !cs[1].Deleted || cs[1].Body != "" {
+		t.Errorf("comments = %+v", cs)
+	}
+	ops := must(sven.Ops("nis", 3))
+	if len(ops) != 3 || ops[2].Seq != s.spaces["nis"].seq || ops[0].Seq != ops[2].Seq-2 {
+		t.Errorf("ops tail = %+v", ops)
+	}
+	for _, p := range check(s) {
+		t.Error(p)
+	}
+}
+
+func TestAdmin(t *testing.T) {
+	s := must(Create(t.TempDir(), "test"))
+	defer s.Close()
+	check0(s.AddUser(core.User{ID: "sven"}))
+	for _, c := range []struct {
+		name string
+		err  error
+		want error
+	}{
+		{"duplicate user", s.AddUser(core.User{ID: "sven"}), core.ErrConflict},
+		{"reserved user", s.AddUser(core.User{ID: "system"}), core.ErrInvalid},
+		{"reserved ai", s.AddUser(core.User{ID: "ai"}), core.ErrInvalid},
+		{"bad user id", s.AddUser(core.User{ID: "Sven/x"}), core.ErrInvalid},
+		{"space with a user's id", s.CreateSpace("sven", "", nil), core.ErrConflict},
+		{"space with unknown member", s.CreateSpace("nis", "", []string{"eric"}), core.ErrNotFound},
+		{"space", s.CreateSpace("nis", "", []string{"sven"}), nil},
+		{"duplicate space", s.CreateSpace("nis", "", nil), core.ErrConflict},
+		{"user with a space's id", s.AddUser(core.User{ID: "nis"}), core.ErrConflict},
+		{"unknown member", s.SetMember("nis", "eric", true), core.ErrNotFound},
+		{"unknown space", s.SetMember("nope", "sven", true), core.ErrNotFound},
+		{"update unknown user", s.UpdateUser("eric", func(*core.User) error { return nil }), core.ErrNotFound},
+	} {
+		if !errors.Is(c.err, c.want) || (c.want == nil && c.err != nil) {
+			t.Errorf("%s: %v, want %v", c.name, c.err, c.want)
+		}
+	}
+	u := s.User("sven")
+	if u.PersonalSpace != "sven" || u.Name != "sven" || s.UserCount() != 1 {
+		t.Errorf("user = %+v", u)
+	}
+	v := must(s.View("sven"))
+	if sp := v.Spaces(); len(sp) != 2 || sp[1].Kind != core.SpacePersonal || sp[0].Kind != core.SpaceShared {
+		t.Errorf("spaces = %+v", sp)
+	}
+}
+
+func TestBlobs(t *testing.T) {
+	s := must(Create(t.TempDir(), "test"))
+	defer s.Close()
+	sha1, n1, err := s.PutBlob(strings.NewReader("hello"))
+	check0(err)
+	sha2, _, err := s.PutBlob(strings.NewReader("hello"))
+	check0(err)
+	if sha1 != sha2 || n1 != 5 || sha1 != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
+		t.Fatalf("sha %s / %s, size %d", sha1, sha2, n1)
+	}
+	if got := must(os.ReadFile(s.BlobPath(sha1))); string(got) != "hello" {
+		t.Fatalf("blob content %q", got)
+	}
+	files := tree(t, filepath.Join(s.Dir(), "blobs"))
+	if len(files) != 1 {
+		t.Fatalf("blob directory holds %v", files)
+	}
+}
+
+// TestConcurrent runs writers on two spaces and readers at once. Its value is
+// under -race.
+func TestConcurrent(t *testing.T) {
+	s := fixture(t, t.TempDir())
+	defer s.Close()
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	for _, w := range []struct{ user, space string }{{"sven", "sven"}, {"sven", "nis"}, {"eric", "nis"}, {"eric", "eric"}} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			v := must(s.View(w.user))
+			for i := 0; i < 25; i++ {
+				a, b := s.NewID(), s.NewID()
+				must(v.Apply(w.space,
+					createOp(core.Item{ID: a, Kind: core.KindAction, Title: "a", Owner: w.user}),
+					createOp(core.Item{ID: b, Kind: core.KindAction, Title: "b", Owner: w.user, BlockedBy: []string{a}, State: core.StPlanned})))
+				must(v.Apply(w.space, moveOp(must(v.Item(w.space, a)), core.StDone)))
+				must(v.Apply(w.space, core.Op{Via: "cli", Type: core.OpComment, Item: b, Payload: raw(core.Comment{Body: "done"})}))
+			}
+		}()
+	}
+	var readers sync.WaitGroup
+	for _, user := range []string{"sven", "eric", "grit"} {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			v := must(s.View(user))
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				v.Grep("a")
+				for _, sp := range v.Spaces() {
+					must(v.Items(sp.ID, func(it *core.Item) bool { return it.State == core.StNext }))
+					must(v.Ops(sp.ID, 5))
+				}
+				must(v.Notifications())
+			}
+		}()
+	}
+	wg.Wait()
+	close(stop)
+	readers.Wait()
+	for _, p := range check(s) {
+		t.Error(p)
+	}
+}
+
+func TestSnapshots(t *testing.T) {
+	dir := t.TempDir()
+	s := fixture(t, dir)
+	sven := must(s.View("sven"))
+	var atSnapshot bytes.Buffer
+	check0(s.Export(&atSnapshot, nil))
+	stateAtSnapshot := dump(t, s)
+
+	man, err := s.Snapshot("before-change")
+	check0(err)
+	if !strings.HasSuffix(man.Name, "-before-change") || len(man.Blobs) != 2 || man.Seqs["nis"] != s.spaces["nis"].seq {
+		t.Fatalf("manifest = %+v", man)
+	}
+	if _, err := s.Snapshot("Bad Label"); !errors.Is(err, core.ErrInvalid) {
+		t.Fatalf("bad label: %v", err)
+	}
+	// The live database moves on. The snapshot does not.
+	must(sven.Capture("after the snapshot", core.Source{Via: "cli"}, nil))
+	second := must(s.Snapshot(""))
+
+	list := must(ListSnapshots(dir))
+	if len(list) != 2 || list[0].Name != man.Name || list[1].Name != second.Name {
+		t.Fatalf("list = %+v", list)
+	}
+	if err := VerifySnapshot(dir, man.Name); err != nil {
+		t.Fatalf("verify of an intact snapshot: %v", err)
+	}
+
+	t.Run("export from a snapshot", func(t *testing.T) {
+		snap := must(OpenSnapshot(dir, man.Name))
+		defer snap.Close()
+		var buf bytes.Buffer
+		check0(snap.Export(&buf, nil))
+		if !bytes.Equal(buf.Bytes(), atSnapshot.Bytes()) {
+			t.Fatal("export from the snapshot differs from the export taken at snapshot time")
+		}
+	})
+
+	t.Run("verify detects a corrupted blob", func(t *testing.T) {
+		blob := s.BlobPath(man.Blobs[0].SHA256)
+		orig := must(os.ReadFile(blob))
+		flipped := slices.Clone(orig)
+		flipped[len(flipped)/2] ^= 0x01
+		check0(os.Chmod(blob, 0o600))
+		check0(os.WriteFile(blob, flipped, 0o600))
+		err := VerifySnapshot(dir, man.Name)
+		if err == nil || !strings.Contains(err.Error(), "blob "+man.Blobs[0].SHA256+" is corrupt") {
+			t.Fatalf("verify with one flipped bit: %v", err)
+		}
+		t.Logf("verify reports: %v", err)
+		check0(os.WriteFile(blob, orig[:len(orig)-1], 0o600))
+		if err := VerifySnapshot(dir, man.Name); err == nil || !strings.Contains(err.Error(), "is corrupt") {
+			t.Fatalf("verify with a truncated blob: %v", err)
+		}
+		check0(os.Remove(blob))
+		if err := VerifySnapshot(dir, man.Name); err == nil || !strings.Contains(err.Error(), "no such file") {
+			t.Fatalf("verify with a missing blob: %v", err)
+		}
+		check0(os.WriteFile(blob, orig, 0o400))
+		if err := VerifySnapshot(dir, man.Name); err != nil {
+			t.Fatalf("verify after repair: %v", err)
+		}
+	})
+
+	t.Run("verify detects a manifest that does not match", func(t *testing.T) {
+		path := filepath.Join(snapshotDir(dir, second.Name), "manifest.json")
+		orig := must(os.ReadFile(path))
+		defer os.WriteFile(path, orig, 0o600)
+		m := *second
+		m.Seqs = map[string]uint64{"nis": 1, "sven": 1, "eric": 0, "grit": 0}
+		check0(os.WriteFile(path, indentJSON(m), 0o600))
+		if err := VerifySnapshot(dir, second.Name); err == nil || !strings.Contains(err.Error(), "op seq") {
+			t.Fatalf("verify with wrong seqs: %v", err)
+		}
+	})
+
+	t.Run("restore", func(t *testing.T) {
+		if _, err := RestoreSnapshot(dir, man.Name, s.Now()); !errors.Is(err, ErrLocked) {
+			t.Fatalf("restore with the database open: %v, want ErrLocked", err)
+		}
+		check0(s.Close())
+		moved, err := RestoreSnapshot(dir, man.Name, time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC))
+		check0(err)
+		if filepath.Base(moved) != "db.replaced-20261120T000000Z" {
+			t.Fatalf("old database moved to %s", moved)
+		}
+		s = must(Open(dir))
+		diffMaps(t, "after snapshot restore", dump(t, s), stateAtSnapshot)
+		for _, p := range check(s) {
+			t.Error(p)
+		}
+		// The replaced database is kept and still opens.
+		old := must(pebble.Open(moved, &pebble.Options{ErrorIfNotExists: true, Logger: quietLogger{}}))
+		check0(old.Close())
+	})
+	s.Close()
+}
+
+func TestPrunable(t *testing.T) {
+	at := func(s string) time.Time { return must(time.Parse("2006-01-02 15:04", s)) }
+	var all []SnapshotManifest
+	add := func(s string) { all = append(all, SnapshotManifest{Name: s, Created: at(s)}) }
+	// Every 30 minutes for three days: Monday 2026-11-16 to Wednesday 2026-11-18.
+	for d := 16; d <= 18; d++ {
+		for h := 0; h < 24; h++ {
+			add(fmt.Sprintf("2026-11-%02d %02d:00", d, h))
+			add(fmt.Sprintf("2026-11-%02d %02d:30", d, h))
+		}
+	}
+	add("2026-11-08 12:00") // the Sunday of the week before
+	add("2026-10-01 12:00") // long ago
+
+	for _, c := range []struct {
+		name string
+		keep Keep
+		want []string // kept, newest first
+	}{
+		{"no policy keeps all", Keep{}, nil},
+		{"hourly 3", Keep{Hourly: 3}, []string{"2026-11-18 23:30", "2026-11-18 22:30", "2026-11-18 21:30"}},
+		{"daily 2", Keep{Daily: 2}, []string{"2026-11-18 23:30", "2026-11-17 23:30"}},
+		{"weekly 2", Keep{Weekly: 2}, []string{"2026-11-18 23:30", "2026-11-08 12:00"}},
+		{"weekly 5 has only three weeks", Keep{Weekly: 5}, []string{"2026-11-18 23:30", "2026-11-08 12:00", "2026-10-01 12:00"}},
+		{"combined", Keep{Hourly: 2, Daily: 3, Weekly: 2},
+			[]string{"2026-11-18 23:30", "2026-11-18 22:30", "2026-11-17 23:30", "2026-11-16 23:30", "2026-11-08 12:00"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			del := prunable(all, c.keep)
+			if c.want == nil {
+				if len(del) != 0 {
+					t.Fatalf("deleted %d", len(del))
+				}
+				return
+			}
+			var kept []string
+			for _, m := range all {
+				if !slices.Contains(del, m.Name) {
+					kept = append(kept, m.Name)
+				}
+			}
+			sort.Sort(sort.Reverse(sort.StringSlice(kept)))
+			if !slices.Equal(kept, c.want) {
+				t.Fatalf("kept %v\nwant %v", kept, c.want)
+			}
+		})
+	}
+}
+
+func TestPruneSnapshots(t *testing.T) {
+	dir := t.TempDir()
+	s := fixture(t, dir)
+	defer s.Close()
+	base := time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
+	var names []string
+	for i := 0; i < 4; i++ {
+		s.Now = func() time.Time { return base.Add(time.Duration(i) * time.Hour) }
+		names = append(names, must(s.Snapshot("")).Name)
+	}
+	del := must(PruneSnapshots(dir, Keep{Hourly: 2}))
+	if !slices.Equal(del, names[:2]) {
+		t.Fatalf("deleted %v, want %v", del, names[:2])
+	}
+	left := must(ListSnapshots(dir))
+	if len(left) != 2 || left[0].Name != names[2] {
+		t.Fatalf("left %+v", left)
+	}
+}

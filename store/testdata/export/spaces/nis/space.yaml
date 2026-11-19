@@ -1,0 +1,30 @@
+id: nis
+name: NIS
+kind: shared
+created: "2026-11-19T08:00:05.123+01:00"
+members:
+    - eric
+    - sven
+people:
+    - Kim
+templates:
+    - key: edge_hypothesis
+      kind: project
+      label:
+        de: Edge-Hypothese
+        en: Edge hypothesis
+      fields:
+        - key: stage
+          type: enum
+          options:
+            - idea
+            - testing
+          label:
+            en: Stage
+        - key: expires
+          type: date
+          tickler: true
+      body: |
+        ## Hypothesis
+
+        ## Result

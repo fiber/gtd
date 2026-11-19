@@ -1,0 +1,42 @@
+{
+  "server": {
+    "v": 1,
+    "id": "01JD8X4Q9V3T6M2K7P5R000001",
+    "name": "test",
+    "created": "2026-11-19T08:00:01.123+01:00"
+  },
+  "schema": 1,
+  "exported_at": "2026-11-19T07:00:27.123Z",
+  "spaces": [
+    {
+      "id": "eric",
+      "items": 0,
+      "comments": 0,
+      "ops": 0,
+      "seq": 0
+    },
+    {
+      "id": "grit",
+      "items": 0,
+      "comments": 0,
+      "ops": 0,
+      "seq": 0
+    },
+    {
+      "id": "nis",
+      "items": 8,
+      "comments": 2,
+      "ops": 21,
+      "seq": 21
+    },
+    {
+      "id": "sven",
+      "items": 2,
+      "comments": 0,
+      "ops": 5,
+      "seq": 5
+    }
+  ],
+  "users": 3,
+  "blobs": 2
+}
