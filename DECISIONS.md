@@ -311,3 +311,7 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — The token made on the reachable side has two scopes, `capture` and `outbox`, and is bound to the link: it can capture into its owner's inbox there and read and confirm that link's outbox, and nothing else. It is stored in the clear on the dialing server, which has to present it. Removing a link revokes its tokens.
 - 2026-11-19 — Nothing is relayed: a link is between two servers and one person. A capture that must go on to a third server is sent on by hand from the inbox in between. Only captures travel; items, projects and threads do not.
 - 2026-11-19 — A sent capture arrives as it was captured (the original text and its attachments), not as edited in Clarify, and is decided on the receiving server.
+
+### Direction for M7 (not started)
+
+- 2026-11-19 — Owner: AI features should work "through ad-hoc AI buttons instead of just calling AI across the board". For M7 this means: no generation runs by itself. Each AI function is a button where it is needed (name this cluster, propose a title, find the commitments in this note, summarize this theme, brief me before the review), it runs only when pressed, and its result is a suggestion to accept. A space whose AI policy (Q-11) does not allow the configured backend does not show the buttons. This replaces the automatic `clarify` preselection of AI_CONTRACT.md as the default; AI_CONTRACT.md is to be revised when M7 starts.
