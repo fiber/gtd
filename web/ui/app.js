@@ -39,7 +39,7 @@ class App extends LitElement {
     super.connectedCallback();
     window.addEventListener('popstate', () => { this.path = location.pathname; this.menu = false; });
     window.addEventListener('gtd-auth', () => this.requestUpdate());
-    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && this.zen) this.zen = false; });
+    document.addEventListener('fullscreenchange', () => { this.zen = !!document.fullscreenElement; });
     window.addEventListener('gtd-changed', (e) => this.onChanged(e.detail));
     window.addEventListener('gtd-toast', (e) => this.showToast(e.detail));
     document.addEventListener('click', (e) => this.onClick(e));
@@ -77,7 +77,6 @@ class App extends LitElement {
       case '/': go('/search'); break;
       case 'e': go('/engage'); break;
       case 'f': this.toggleZen(); break;
-      case 'Escape': if (this.zen) this.toggleZen(); else return; break;
       case 'j': rows[Math.min(at + 1, rows.length - 1)]?.focus(); break;
       case 'k': rows[Math.max(at - 1, 0)]?.focus(); break;
       case 'x': rows[at]?.querySelector('[data-done]')?.click(); break;
@@ -87,15 +86,14 @@ class App extends LitElement {
     e.preventDefault();
   }
 
-  // Full screen: no navigation, nothing but the work. It also asks the
-  // browser for real full screen where that is allowed.
+  // Full screen: the browser's own full screen, so that tabs, address bar and
+  // the desktop are out of sight. The app's bar stays.
   toggleZen() {
-    this.zen = !this.zen;
     this.menu = false;
     try {
-      if (this.zen) document.documentElement.requestFullscreen?.().catch(() => {});
-      else if (document.fullscreenElement) document.exitFullscreen?.();
-    } catch { /* not available */ }
+      if (document.fullscreenElement) document.exitFullscreen?.();
+      else document.documentElement.requestFullscreen?.().catch(() => {});
+    } catch { /* not available on this device */ }
   }
 
   cycleTheme() {
@@ -164,7 +162,6 @@ class App extends LitElement {
 
   render() {
     if (!this.ready) return nothing;
-    this.classList.toggle('zen', !!this.zen);
     if (!store.me) return html`<gtd-login @login=${() => this.onLogin()}></gtd-login>`;
     const active = (href) => (href === '/' ? this.path === '/' : this.path.startsWith(href));
     const item = ([href, key, name]) => html`
@@ -181,7 +178,7 @@ class App extends LitElement {
           <span class="nav-gap"></span>
           <button class="nav-item tool" title=${t('nav.theme')} @click=${() => this.cycleTheme()}>
             ${this.theme === 'dark' ? icon.moon : icon.sun}<span class="text">${t('nav.theme')}: ${t('theme.' + this.theme)}</span></button>
-          <button class="nav-item tool" title=${t('nav.fullscreen')} @click=${() => this.toggleZen()}>
+          <button class="nav-item tool ${this.zen ? 'on' : ''}" title=${t('nav.fullscreen')} @click=${() => this.toggleZen()}>
             ${icon.expand}<span class="text">${t('nav.fullscreen')}</span></button>
         </div>
         <button class="nav-item more ${NAV.slice(4).some(([h]) => active(h)) ? 'on' : ''}" aria-expanded=${!!this.menu}
@@ -190,7 +187,6 @@ class App extends LitElement {
         </button>
       </nav>
       ${this.menu ? html`<div class="scrim" @click=${() => { this.menu = false; }}></div>` : nothing}
-      ${this.zen ? html`<button class="zen-exit" title=${t('nav.fullscreen')} @click=${() => this.toggleZen()}>${icon.expand}</button>` : nothing}
       <main>${this.view()}</main>
       ${this.toastMsg ? html`<div class="toast ${this.toastMsg.isError ? 'error' : ''}" role="status">${this.toastMsg.message}</div>` : nothing}
       ${this.prompt ? html`
