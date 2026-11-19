@@ -2,7 +2,7 @@
 // again, with a brief confirmation and nothing else (D-02).
 import { store } from './store.js';
 import { t } from './i18n.js';
-import { View, html, nothing } from './widgets.js';
+import { View, html, nothing, icon } from './widgets.js';
 
 class Capture extends View {
   static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true } };
@@ -80,13 +80,14 @@ class Capture extends View {
             <button @click=${() => this.submit(true)}>${t('capture.n_items', { n: this.split.length })}</button>
           </div>` : nothing}
         <div class="capture-bar">
-          <label class="iconbtn" title=${t('capture.camera')}>📷
+          <label class="iconbtn" title=${t('capture.camera')}>${icon.camera}
             <input type="file" accept="image/*" capture hidden @change=${(e) => this.addFiles(e)}></label>
-          <label class="iconbtn" title=${t('capture.file')}>📎
+          <label class="iconbtn" title=${t('capture.file')}>${icon.clip}
             <input type="file" multiple hidden @change=${(e) => this.addFiles(e)}></label>
           ${this.files.map((f, i) => html`
             <span class="chip">${f.name}
               <button class="x" aria-label=${t('action.remove')} @click=${() => { this.files = this.files.filter((_, j) => j !== i); }}>×</button></span>`)}
+          <span class="hint">${t('capture.hint')}</span>
           <span class="spacer"></span>
           <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? t('capture.done') : ''}</span>
           <button class="primary" ?disabled=${this.busy} @click=${() => this.submit()}>${t('capture.submit')}</button>

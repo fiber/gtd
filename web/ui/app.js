@@ -4,7 +4,7 @@
 import { LitElement, html, nothing } from 'lit';
 import { store } from './store.js';
 import { loadLanguage, t } from './i18n.js';
-import { go, toast } from './widgets.js';
+import { go, toast, icon } from './widgets.js';
 import './capture.js';
 import './inbox.js';
 import './wizard.js';
@@ -15,8 +15,8 @@ import './board.js';
 import './more.js';
 
 const NAV = [
-  ['/', 'nav.capture', '＋'], ['/inbox', 'nav.inbox', '📥'], ['/engage', 'nav.engage', '▶'], ['/projects', 'nav.projects', '◫'],
-  ['/board', 'nav.board', '▦'], ['/search', 'nav.search', '⌕'], ['/areas', 'nav.areas', '◎'], ['/settings', 'nav.settings', '⚙'],
+  ['/', 'nav.capture', 'capture'], ['/inbox', 'nav.inbox', 'inbox'], ['/engage', 'nav.engage', 'engage'], ['/projects', 'nav.projects', 'projects'],
+  ['/board', 'nav.board', 'board'], ['/search', 'nav.search', 'search'], ['/areas', 'nav.areas', 'areas'], ['/settings', 'nav.settings', 'settings'],
 ];
 
 class App extends LitElement {
@@ -146,18 +146,22 @@ class App extends LitElement {
     if (!this.ready) return nothing;
     if (!store.me) return html`<gtd-login @login=${() => this.onLogin()}></gtd-login>`;
     const active = (href) => (href === '/' ? this.path === '/' : this.path.startsWith(href));
-    const item = ([href, key, icon], i) => html`
-      <a href=${href} class="nav-item ${active(href) ? 'on' : ''} ${i >= 4 ? 'secondary' : ''}">
-        <span class="icon">${icon}</span><span class="text">${t(key)}</span>
+    const item = ([href, key, name]) => html`
+      <a href=${href} class="nav-item ${active(href) ? 'on' : ''}">
+        ${icon[name]}<span class="text">${t(key)}</span>
         ${href === '/inbox' && this.inbox ? html`<span class="count">${this.inbox}</span>` : nothing}
       </a>`;
     return html`
-      <nav class=${this.menu ? 'open' : ''}>
-        ${NAV.map(item)}
-        <button class="nav-item more" @click=${() => { this.menu = !this.menu; }}>
-          <span class="icon">⋯</span><span class="text">${t('nav.more')}</span>
+      <nav>
+        <a class="brand" href="/">gtd</a>
+        ${NAV.slice(0, 4).map(item)}
+        <div class="nav-more ${this.menu ? 'open' : ''}">${NAV.slice(4).map(item)}</div>
+        <button class="nav-item more ${NAV.slice(4).some(([h]) => active(h)) ? 'on' : ''}" aria-expanded=${!!this.menu}
+          @click=${() => { this.menu = !this.menu; }}>
+          ${icon.more}<span class="text">${t('nav.more')}</span>
         </button>
       </nav>
+      ${this.menu ? html`<div class="scrim" @click=${() => { this.menu = false; }}></div>` : nothing}
       <main>${this.view()}</main>
       ${this.toastMsg ? html`<div class="toast ${this.toastMsg.isError ? 'error' : ''}" role="status">${this.toastMsg.message}</div>` : nothing}
       ${this.prompt ? html`

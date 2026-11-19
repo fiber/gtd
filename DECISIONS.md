@@ -144,3 +144,4 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — Components use the light DOM so that the one stylesheet applies. `store.js` is the only module that calls `fetch`.
 - 2026-11-19 — The vendored Lit bundle is `lit-core.min.js` 3.2.1 from the lit/dist release (BSD-3-Clause), 15 kB.
 - 2026-11-19 — The user's "today" is the server's local date.
+- 2026-11-19 — Owner asked for a more modern look. The stylesheet was redone (still one file, custom properties, light and dark by system setting): floating bottom bar on phones and a sidebar on wide screens, inline SVG icons drawn in `widgets.js`, tinted chips, a state mark in front of every row, system fonts only — no font files, icon fonts or CSS framework were added.

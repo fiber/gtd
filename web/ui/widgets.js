@@ -1,10 +1,27 @@
 // Shared pieces of the UI: the base class, navigation, item rows, chips, the
 // date field and the toast. Presentation only.
-import { LitElement, html, nothing } from 'lit';
+import { LitElement, html, svg, nothing } from 'lit';
 import { t, label, fmtDate } from './i18n.js';
 import { store } from './store.js';
 
 export { html, nothing };
+
+// Icons: inline SVG, drawn with the current text colour.
+const s1 = (strings) => html`<svg class="icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+  stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svg(strings)}</svg>`;
+export const icon = {
+  capture: s1`<path d="M12 5v14M5 12h14"/>`,
+  inbox: s1`<path d="M4 13l2.6-7h10.8L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13h4.5a3.5 3.5 0 0 0 7 0H20"/>`,
+  engage: s1`<circle cx="12" cy="12" r="9"/><path d="M8.3 12.4l2.6 2.6 4.8-5.2"/>`,
+  projects: s1`<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/>`,
+  board: s1`<rect x="4" y="5" width="4.4" height="14" rx="1.2"/><rect x="9.8" y="5" width="4.4" height="9" rx="1.2"/><rect x="15.6" y="5" width="4.4" height="11.5" rx="1.2"/>`,
+  search: s1`<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-4.4-4.4"/>`,
+  areas: s1`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r=".6"/>`,
+  settings: s1`<path d="M5 8h8M18.5 8h.5M5 16h.5M11 16h8"/><circle cx="15.8" cy="8" r="2.4"/><circle cx="8.2" cy="16" r="2.4"/>`,
+  more: s1`<circle cx="6" cy="12" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="18" cy="12" r="1.1"/>`,
+  camera: s1`<rect x="3" y="7" width="18" height="13" rx="3"/><circle cx="12" cy="13.5" r="3.4"/><path d="M8.6 7l1.5-2.5h3.8L15.4 7"/>`,
+  clip: s1`<path d="M20 11.6l-7.7 7.7a4.6 4.6 0 0 1-6.5-6.5l8-8a3.1 3.1 0 0 1 4.4 4.4l-7.9 7.9a1.55 1.55 0 0 1-2.2-2.2l7.2-7.2"/>`,
+};
 
 // View is the base of every screen: light DOM (one global stylesheet), and a
 // reload() that runs on entry and whenever data changed.
@@ -66,7 +83,7 @@ export function meta(b, opts = {}) {
     ${b.time ? html`<span class="chip">${t('time.' + b.time)}</span>` : nothing}
     ${b.energy ? html`<span class="chip">${t('energy.' + b.energy)}</span>` : nothing}
     ${(b.badges || []).map((x) => html`<span class="chip badge">${x.split(':').slice(1).join(':')}</span>`)}
-    ${b.attachments ? html`<span class="chip">📎 ${b.attachments}</span>` : nothing}
+    ${b.attachments ? html`<span class="chip">${t('item.files', { n: b.attachments })}</span>` : nothing}
     ${b.rollup ? html`
       <span class="chip">${b.rollup.done}/${b.rollup.total}</span>
       ${b.state === 'active' && !b.rollup.alive ? html`<span class="chip stuck">${t('project.stuck')}</span>` : nothing}
@@ -77,6 +94,7 @@ export function meta(b, opts = {}) {
 export function row(b, opts = {}) {
   return html`
     <div class="row kind-${b.kind}" data-id=${b.id} tabindex="0">
+      <span class="mark" data-kind=${b.kind} data-state=${b.state}></span>
       <a class="row-main" href=${opts.href || '/i/' + b.id}>
         <span class="title">${b.title}</span>
         <span class="meta">${meta(b, opts)}</span>

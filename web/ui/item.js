@@ -5,7 +5,7 @@
 // ![[name.png]]) and maps them back to tokens on save.
 import { store } from './store.js';
 import { t, fmtTime } from './i18n.js';
-import { View, html, nothing, stateChip, chips, dateField, select, go, toast } from './widgets.js';
+import { View, html, nothing, stateChip, chips, dateField, select, go, toast, icon } from './widgets.js';
 
 const ENERGIES = ['low', 'med', 'high'].map((v) => ({ value: v, label: 'energy.' + v }));
 const TIMES = ['5m', '15m', '30m', '1h', '2h+'].map((v) => ({ value: v, label: 'time.' + v }));
@@ -235,7 +235,7 @@ class Note extends View {
         <div class="buttons">
           <button @click=${() => this.startEdit()}>${t(it.body ? 'action.edit' : 'note.write')}</button>
           ${it.tasks ? html`<a class="button primary" href=${'/process/' + it.id}>${t('note.process', { n: it.tasks })}</a>` : nothing}
-          <label class="button">📎 ${t('note.attach')}<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
+          <label class="button">${icon.clip} ${t('note.attach')}<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
         </div>`;
     }
     return html`
@@ -253,8 +253,8 @@ class Note extends View {
       <div class="buttons">
         <button class="primary" @click=${() => this.save()}>${t('action.save')}</button>
         <button @click=${() => this.togglePreview()}>${t(this.preview !== null ? 'action.edit' : 'note.preview')}</button>
-        <label class="button">📷<input type="file" accept="image/*" capture hidden @change=${(e) => this.attach(e)}></label>
-        <label class="button">📎<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
+        <label class="button" title=${t('capture.camera')}>${icon.camera}<input type="file" accept="image/*" capture hidden @change=${(e) => this.attach(e)}></label>
+        <label class="button" title=${t('capture.file')}>${icon.clip}<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
         <button class="link" @click=${() => { this.editing = false; }}>${t('action.cancel')}</button>
       </div>`;
   }
