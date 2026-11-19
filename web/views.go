@@ -59,6 +59,7 @@ type Brief struct {
 	Rollup       *core.Rollup `json:"rollup,omitempty"`     // projects
 	Excerpt      string       `json:"excerpt,omitempty"`    // notes: the start of the body as plain text
 	SpaceName    string       `json:"space_name,omitempty"` // in lists that span spaces
+	Score        float32      `json:"score,omitempty"`      // in a list by similarity
 	Notes        int          `json:"notes,omitempty"`      // projects in the ideas list: notes filed in them
 	Created      time.Time    `json:"created"`
 	Updated      time.Time    `json:"updated"`

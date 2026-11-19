@@ -19,21 +19,21 @@ const STATES = ['', 'unsorted', 'filed', 'archived'];
 
 class Notes extends View {
   static properties = {
-    tab: { state: true }, state: { state: true }, project: { state: true }, q: { state: true },
+    tab: { state: true }, state: { state: true }, project: { state: true }, q: { state: true }, similar: { state: true },
     data: { state: true }, ideas: { state: true },
   };
 
   constructor() {
     super();
     this.tab = new URLSearchParams(location.search).get('tab') === 'ideas' ? 'ideas' : 'notes';
-    this.state = this.project = this.q = '';
+    this.state = this.project = this.q = this.similar = '';
   }
 
   async reload() {
     if (this.tab === 'ideas') {
       this.ideas = await this.run(() => store.ideas());
     } else {
-      this.data = await this.run(() => store.notes({ state: this.state, project: this.project, q: this.q }));
+      this.data = await this.run(() => store.notes({ state: this.state, project: this.project, q: this.q, similar: this.similar }));
     }
   }
 
@@ -61,6 +61,9 @@ class Notes extends View {
         <input type="search" placeholder=${t('notes.filter')} @input=${(e) => this.search(e)}>
         ${select(d.projects, this.project, (v) => this.set('project', v), t('board.all_projects'))}
       </div>
+      ${d.similar ? html`<p class="notice similar-to">
+        <span>${t('notes.similar_to', { title: d.similar.title })}${d.similar.state === 'ok' ? '' : ' · ' + t('ai.state.' + d.similar.state)}</span>
+        <button @click=${() => this.set('similar', '')}>${t('notes.similar_clear')}</button></p>` : nothing}
       ${d.notes.map((n) => html`
         <a class="note-card" href=${'i/' + n.id}>
           <span class="title">${n.title}</span>
@@ -72,10 +75,12 @@ class Notes extends View {
             ${n.area_title ? html`<span class="chip context">${n.area_title}</span>` : nothing}
             ${store.me.spaces.length > 1 ? html`<span class="chip">${n.space_name}</span>` : nothing}
             ${n.attachments ? html`<span class="chip">${t('item.files', { n: n.attachments })}</span>` : nothing}
+            ${n.score ? html`<span class="chip link">${Math.round(n.score * 100)}%</span>` : nothing}
             <span class="when">${fmtTime(n.updated)}</span>
+            <button class="similar" title=${t('notes.similar')} @click=${(e) => { e.preventDefault(); this.set('similar', n.id); window.scrollTo(0, 0); }}>≈ ${t('notes.similar')}</button>
           </span>
         </a>`)}
-      ${d.notes.length ? nothing : html`<p class="empty">${t('notes.empty')}</p>`}`;
+      ${d.notes.length ? nothing : html`<p class="empty">${t(d.similar ? 'notes.similar_none' : 'notes.empty')}</p>`}`;
   }
 
   ideasTab() {

@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"math"
 	"math/rand/v2"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -93,6 +94,28 @@ func TestSimilarityOverHTTP(t *testing.T) {
 		}
 		return strings.Join(out, " | ")
 	}
+	// The Notes list by similarity to one note: nearest first, with scores,
+	// only notes, only from the asking user's spaces.
+	var nl struct {
+		Notes   []Brief
+		Similar struct{ ID, Title, State string }
+	}
+	robin.ok("GET", "/api/v1/notes?similar="+loose, nil, &nl)
+	var simTitles []string
+	for _, n := range nl.Notes {
+		simTitles = append(simTitles, n.Title)
+		if n.Kind != core.KindNote || n.ID == loose || n.Score <= 0 {
+			t.Errorf("similar notes: %s %q score %v", n.Kind, n.Title, n.Score)
+		}
+	}
+	if nl.Similar.ID != loose || nl.Similar.State != embed.StateOK || len(nl.Notes) == 0 || nl.Notes[0].Title != "Boat engine reset design in NET" ||
+		strings.Contains(strings.Join(simTitles, "|"), "Jo") || !sort.SliceIsSorted(nl.Notes, func(i, j int) bool { return nl.Notes[i].Score > nl.Notes[j].Score }) {
+		t.Errorf("similar to the loose note: %+v, %v", nl.Similar, simTitles)
+	}
+	if code, _ := jo.do("GET", "/api/v1/notes?similar="+loose, nil, nil); code != 404 {
+		t.Errorf("similar to a note of another user: %d", code)
+	}
+
 	// Search by meaning: "router" is in no title, the neighbours of the words are.
 	robin.ok("GET", "/api/v1/search?q=session+state+lost", nil, &res)
 	if res.Semantic != embed.StateOK || !strings.Contains(titles(res.Hits), "loses Boat session state") || strings.Contains(titles(res.Hits), "Jo") {

@@ -350,6 +350,9 @@ you never see it again.
 
 ## Similarity
 
+On the **Notes** list, **≈ Similar** on a note shows the notes most like it, nearest
+first. A note's own page lists them under "Related".
+
 If the server has an embedding model configured, gtd compares items by meaning, in
 German and English alike, and only ever within the spaces you are a member of.
 

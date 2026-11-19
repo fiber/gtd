@@ -487,3 +487,6 @@ div.facts { display: block; }
 .settings form.password { border: 1px dashed var(--line-strong); border-radius: 10px; padding: 10px 12px; margin: 10px 0 14px; max-width: 420px; }
 .notice.handback { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .notice.handback input { flex: 1; min-width: 180px; }
+.note-card .meta .similar { margin-left: 6px; padding: 1px 8px; font-size: .78rem; font-weight: 600; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); }
+.note-card .meta .similar:hover { color: var(--accent-strong); border-color: var(--accent); }
+.notice.similar-to { display: flex; gap: 10px; align-items: center; justify-content: space-between; }

@@ -1026,7 +1026,33 @@ func (s *Server) notes(w http.ResponseWriter, r *http.Request, a actor) error {
 	sort.Slice(projects, func(i, j int) bool {
 		return strings.ToLower(projects[i].Title)+projects[i].ID < strings.ToLower(projects[j].Title)+projects[j].ID
 	})
-	return reply(w, map[string]any{"notes": out, "counts": counts, "projects": projects})
+	res := map[string]any{"notes": out, "counts": counts, "projects": projects}
+	if id := q.Get("similar"); id != "" {
+		// The notes most like one note, nearest first, instead of the filtered
+		// list. Only notes the user can see are compared (invariant 4).
+		it, err := v.Find(id)
+		if err != nil {
+			return err
+		}
+		sim := s.Embed.SimilarTo(v, it, 12, func(x *core.Item) bool { return x.Kind == core.KindNote })
+		similar := []Brief{}
+		for _, h := range sim.Hits {
+			if h.Score < s.Embed.SuggestThreshold {
+				break // best first: the rest is not similar
+			}
+			st, err := v.State(h.Space)
+			if err != nil {
+				continue
+			}
+			if x := st.Item(h.ID); x != nil {
+				b := brief(st, x, today, nil)
+				b.Excerpt, b.SpaceName, b.Score = excerpt(x.Body, 180), st.Space.Name, h.Score
+				similar = append(similar, b)
+			}
+		}
+		res["notes"], res["similar"] = similar, map[string]string{"id": it.ID, "title": it.Title, "state": sim.State}
+	}
+	return reply(w, res)
 }
 
 // ideas lists what is parked: someday projects (themes that collect ideas)
