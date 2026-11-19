@@ -5,11 +5,27 @@ import { t } from './i18n.js';
 import { View, html, nothing, icon, stateChip, toast } from './widgets.js';
 
 class Capture extends View {
-  static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true }, similar: { state: true } };
+  static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true }, similar: { state: true }, private: { state: true } };
 
   constructor() {
     super();
     this.files = [];
+    // Privacy mode: nothing from the past appears on this screen, for when it
+    // is being shared. Kept per device, so it stays on until switched off.
+    try {
+      this.private = localStorage.getItem('gtd.private') === '1';
+    } catch {
+      this.private = false;
+    }
+  }
+
+  setPrivate(on) {
+    this.private = on;
+    try { localStorage.setItem('gtd.private', on ? '1' : '0'); } catch { /* private browsing */ }
+    clearTimeout(this._lookup);
+    this.similar = null;
+    if (!on) this.lookup();
+    this.field.focus();
   }
 
   firstUpdated() { this.field.focus(); }
@@ -40,14 +56,14 @@ class Capture extends View {
   lookup() {
     clearTimeout(this._lookup);
     const text = this.field.value.trim();
-    if (text.length < 8 || text.includes('\n')) {
+    if (this.private || text.length < 8 || text.includes('\n')) {
       this.similar = null;
       return;
     }
     this._lookup = setTimeout(async () => {
       try {
         const res = await store.search(text);
-        if (this.field.value.trim() !== text) return; // typed on meanwhile
+        if (this.private || this.field.value.trim() !== text) return; // switched off or typed on meanwhile
         this.similar = res.hits.filter((h) => h.state !== 'trashed').slice(0, 4);
       } catch { /* suggestions are optional */ }
     }, 350);
@@ -122,6 +138,8 @@ class Capture extends View {
           ${this.files.map((f, i) => html`
             <span class="chip">${f.name}
               <button class="x" aria-label=${t('action.remove')} @click=${() => { this.files = this.files.filter((_, j) => j !== i); }}>×</button></span>`)}
+          <label class="check private ${this.private ? 'on' : ''}" title=${t('capture.private_hint')}>
+            <input type="checkbox" .checked=${this.private} @change=${(e) => this.setPrivate(e.target.checked)}> ${t('capture.private')}</label>
           <span class="hint">${t('capture.hint')}</span>
           <span class="spacer"></span>
           <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? t('capture.done') : ''}</span>

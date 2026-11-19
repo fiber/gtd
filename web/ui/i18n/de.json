@@ -50,6 +50,8 @@
  "capture.one_item": "1 Eintrag",
  "capture.photo": "Foto",
  "capture.placeholder": "Was geht dir durch den Kopf?",
+ "capture.private": "Privatmodus",
+ "capture.private_hint": "Beim Tippen keine vorhandenen Einträge anzeigen, zum Beispiel wenn dieser Bildschirm geteilt wird",
  "capture.similar": "Schon vorhanden?",
  "capture.split_question": "Mehrere Zeilen:",
  "capture.submit": "Erfassen",

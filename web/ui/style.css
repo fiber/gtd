@@ -428,3 +428,6 @@ details.fields summary::-webkit-details-marker { display: none; }
 /* What is already there, shown quietly under the capture field. */
 .capture-similar { max-width: 680px; margin: 14px auto 0; animation: enter .18s var(--ease); }
 .capture-similar > label { display: block; font-size: .74rem; font-weight: 700; color: var(--muted); margin: 0 4px 4px; }
+
+.check.private { margin-left: 6px; padding: 3px 10px 3px 8px; border-radius: 999px; font-weight: 650; }
+.check.private.on { background: var(--text); color: var(--bg); }

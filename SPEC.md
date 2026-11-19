@@ -114,6 +114,9 @@ Unresolvable link (no access, trashed) renders as "unavailable item". An unknown
   exact matches and, with embeddings on, items that say the same in other words.
   "Add to this instead" posts the typed text to that item's thread and clears the
   field. The list never blocks: Enter captures whatever is shown.
+- **Privacy mode:** a switch on the capture screen. While it is on, no lookup runs
+  and nothing existing is shown there. It is remembered per device and stays on until
+  it is switched off, so that a shared screen never surprises.
 - **Paste of multiple lines** asks once: "1 item or N items?".
 - **Sources:** web/PWA, Android share target (text/URL/files), bookmarklet (captures
   selection plus page URL plus title, `source.ref` = URL), `POST /api/v1/capture`
