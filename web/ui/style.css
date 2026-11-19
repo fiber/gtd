@@ -392,3 +392,30 @@ details.fields summary::-webkit-details-marker { display: none; }
 
 /* A ticked task line reads as done. */
 .body li:has(> input[type=checkbox]:checked) { color: var(--faint); text-decoration: line-through; }
+
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast button { min-height: 26px; padding: 0 10px; border-color: rgb(255 255 255 / .4); background: none; color: inherit; font-size: .82rem; }
+.notice { padding: 8px 12px; margin: 8px 0; border-radius: var(--r-m); background: var(--surface-2); color: var(--muted); font-size: .88rem; font-weight: 650; border-left: 3px solid var(--faint); }
+
+/* The details panel must fit a 13-inch screen without scrolling: one line per
+   field, label on the left, date shortcuts only while the field is in use. */
+@media (min-width: 1000px) {
+  .item-cols { grid-template-columns: minmax(0, 1fr) 380px; }
+  .item-side { max-height: calc(100vh - var(--top) - 24px); overflow-y: auto; scrollbar-width: thin; }
+  .item-side details.fields { margin: 0 0 8px; padding: 0 12px; }
+  .item-side details.fields[open] { padding-bottom: 6px; }
+  .item-side details.fields summary { padding: 7px 0 3px; }
+  .item-side .field { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 3px 8px; margin: 4px 0; }
+  .item-side .field > label { margin: 0; font-size: .72rem; line-height: 1.15; }
+  .item-side .field > :not(label) { grid-column: 2; min-width: 0; }
+  .item-side .field small { display: none; }
+  .item-side input, .item-side select { min-height: 28px; padding: 2px 9px; font-size: .88rem; border-radius: var(--r-s); }
+  .item-side select { padding-right: 26px; }
+  .item-side .datefield { gap: 4px; }
+  .item-side .datefield input { width: 100%; flex: 1 1 100%; }
+  .item-side .datefield .chips { display: none; }
+  .item-side .field:focus-within .datefield .chips { display: flex; }
+  .item-side .chips { gap: 3px; }
+  .item-side button.chip { height: 23px; min-height: 23px; padding: 0 8px; font-size: .74rem; }
+  .item-side .original { margin: 2px 0 6px; max-height: 20vh; overflow: auto; }
+}

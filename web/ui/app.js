@@ -117,7 +117,17 @@ class App extends LitElement {
   showToast(detail) {
     this.toastMsg = detail;
     clearTimeout(this._toast);
-    this._toast = setTimeout(() => { this.toastMsg = null; }, detail.isError ? 6000 : 1800);
+    this._toast = setTimeout(() => { this.toastMsg = null; }, detail.isError || detail.action ? 7000 : 1800);
+  }
+
+  async toastAction() {
+    const action = this.toastMsg.action;
+    this.toastMsg = null;
+    try {
+      await action.run();
+    } catch (e) {
+      toast(t(e.message), true);
+    }
   }
 
   async onLogin() {
@@ -188,7 +198,8 @@ class App extends LitElement {
       </nav>
       ${this.menu ? html`<div class="scrim" @click=${() => { this.menu = false; }}></div>` : nothing}
       <main>${this.view()}</main>
-      ${this.toastMsg ? html`<div class="toast ${this.toastMsg.isError ? 'error' : ''}" role="status">${this.toastMsg.message}</div>` : nothing}
+      ${this.toastMsg ? html`<div class="toast ${this.toastMsg.isError ? 'error' : ''}" role="status">${this.toastMsg.message}
+        ${this.toastMsg.action ? html`<button @click=${() => this.toastAction()}>${this.toastMsg.action.label}</button>` : nothing}</div>` : nothing}
       ${this.prompt ? html`
         <div class="overlay">
           <form class="dialog" @submit=${(e) => { e.preventDefault(); this.answerPrompt('add'); }}>

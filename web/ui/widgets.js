@@ -56,8 +56,9 @@ export function go(path) {
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
-export function toast(message, isError) {
-  window.dispatchEvent(new CustomEvent('gtd-toast', { detail: { message, isError } }));
+// toast shows a short message. action adds one button, e.g. Undo.
+export function toast(message, isError, action) {
+  window.dispatchEvent(new CustomEvent('gtd-toast', { detail: { message, isError, action } }));
 }
 
 export const stateChip = (state) => html`<span class="chip state s-${state}">${t('state.' + state)}</span>`;

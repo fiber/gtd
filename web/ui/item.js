@@ -136,6 +136,30 @@ class Note extends View {
 
   // ---- actions ----
 
+  // From the trash the way back is "Restore", from done or dropped "Reopen":
+  // the plain state name would not say that.
+  moveLabel(state) {
+    const from = this.item.state;
+    if (from === 'trashed') return t('transition.restore');
+    if (from === 'done' || from === 'dropped') return t('transition.reopen');
+    return t('transition.' + state);
+  }
+
+  // Trashing leaves the page: there is nothing more to do with the item. The
+  // toast offers the way back.
+  async move(state) {
+    const it = this.item;
+    const res = await this.run(() => store.transition(it, state));
+    if (!res || state !== 'trashed') return;
+    const undo = async () => {
+      const now = await store.item(it.id);
+      await store.transition(now, now.transitions[0]);
+    };
+    toast(t('item.trashed_toast'), false, { label: t('action.undo'), run: undo });
+    if (history.length > 1) history.back();
+    else go('/projects');
+  }
+
   async fork() {
     const it = this.item;
     const res = await this.run(() => store.create(it.space, {
@@ -284,10 +308,11 @@ class Note extends View {
             ${it.kind === 'capture' && it.state === 'inbox' ? html`<a class="button primary" href=${'/clarify?item=' + it.id}>${t('inbox.clarify')}</a>` : nothing}
             ${it.kind === 'project' ? html`<a class="button primary" href=${'/p/' + it.id}>${t('plan.open')}</a>` : nothing}
             ${it.transitions.map((s) => html`
-              <button @click=${() => this.run(() => store.transition(it, s))}>${t('transition.' + s)}</button>`)}
-            ${editable ? html`<button @click=${() => this.fork()}>${t('note.fork')}</button>` : nothing}
+              <button @click=${() => this.move(s)}>${this.moveLabel(s)}</button>`)}
+            ${editable && it.state !== 'trashed' ? html`<button @click=${() => this.fork()}>${t('note.fork')}</button>` : nothing}
           </div>
         </header>
+        ${it.state === 'trashed' ? html`<p class="notice">${t('item.in_trash')}</p>` : nothing}
         ${it.warnings.length ? html`<ul class="warnings">${it.warnings.map((w) => html`<li>${t('warning.short.' + w.Type)}</li>`)}</ul>` : nothing}
 
         <div class="item-cols">
