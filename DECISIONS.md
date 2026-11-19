@@ -79,6 +79,15 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
   AI pass of `todo_detect` (AI_CONTRACT §3.5) feeds extra candidates into the Process-note wizard.
   M7, suggestions only (invariant 2).
 
+- **R-4 Notes as an Obsidian replacement.** (2026-11-19) "Since we are replacing Obsidian, the
+  note taking aspect may be coming up a little short in the current design", and: "I am being
+  bombarded with random ideas during my day, most of them fairly immature. How can I transform
+  them into a cohesive picture?" Agent reading of what is missing after M1: no list of notes at
+  all (unsorted notes are reachable only through search), no way to start a note outside a
+  project, no view of Someday items or ideas as such, a bare textarea as editor (no side-by-side
+  preview, no autosave, no image paste), and nothing that relates a new idea to older ones before
+  M4. Agent proposal: a notes milestone before M2 (see the session of 2026-11-19). Not decided.
+
 ## Agent decisions
 
 (One line each: date — decision — rationale. "Owner" marks answers Sven gave to questions raised in the M0 plan.)
