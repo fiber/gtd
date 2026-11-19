@@ -537,7 +537,9 @@ func (s *Service) Search(ctx context.Context, v *store.View, query string, k int
 	if err != nil || len(vecs) != 1 {
 		return Result{State: StateOffline, Hits: []Hit{}}
 	}
-	res := s.similar(v, vecs[0], k, key{}, func(it *core.Item) bool { return it.Kind != core.KindCapture })
+	// Every kind is searched, captures in the inbox included: search is for
+	// finding things, wherever they are.
+	res := s.similar(v, vecs[0], k, key{}, nil)
 	for i, h := range res.Hits { // best first: cut at the floor
 		if h.Score < s.SearchThreshold {
 			res.Hits = res.Hits[:i]

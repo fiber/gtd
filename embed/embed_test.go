@@ -233,6 +233,14 @@ func TestSimilarityAndIsolation(t *testing.T) {
 		t.Error("a trashed item is still found")
 	}
 
+	// A capture still in the inbox is found by meaning too.
+	s.add("sven", "sven", core.Item{Kind: core.KindCapture, Title: "need to find a present for Grit"})
+	s.settle()
+	res = s.svc.Search(context.Background(), sven, "present for Grit", 5)
+	if got := s.titles(sven, res.Hits); len(got) == 0 || got[0] != "need to find a present for Grit" {
+		t.Errorf("search does not find the capture: %q", got)
+	}
+
 	var nilSvc *Service
 	if nilSvc.Status().State != StateOff || nilSvc.SimilarTo(sven, item, 3, nil).State != StateOff ||
 		nilSvc.Search(context.Background(), sven, "x", 3).State != StateOff || nilSvc.Projects(sven, item, 3) != nil {
