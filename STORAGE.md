@@ -164,7 +164,8 @@ silently picked.
 ## 10. Config (`<data_dir>/config.yaml`, server-level only)
 ```yaml
 server: { name: "home", base_url: "https://gtd.example.org", listen: "127.0.0.1:8640" }
-embed:  { provider: fiber-ai | norad, url: "…", model: embeddinggemma, dim: 768 }
+embed:  { provider: internal | gtt-nora | ollama, model_dir: "/home/sven/models/embeddinggemma-300m",
+          url: "…", model: embeddinggemma }   # model_dir for internal, url for the other two
 gen:    { provider: "<Q-1>", url: "…", model: "…", timeout: 120s }   # optional
 snapshots: { schedule: hourly, keep: { hourly: 24, daily: 14, weekly: 8 } }
 limits: { attachment_mb: 25 }

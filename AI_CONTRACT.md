@@ -25,22 +25,23 @@ type Embedder interface {
     Dim() int
 }
 ```
-- **in-process** (both servers, the default): `github.com/fiber/ai/models/gemma`.
-  `gemma.Load(dir)` reads the EmbeddingGemma files (config, tokenizer, safetensors,
-  1.2 GB, a few seconds to load); `Embed(texts, gemma.Prompt("document"))` for stored
-  items and `gemma.Prompt("query")` for searches. One forward pass at a time; about
-  0.5 s per 2 KB text on CPU. The model reads at most 2048 tokens.
-- **embedsrv** (optional, a NIS host that already runs `norad embed`): a client for the
-  shared embedding server, so that gtd does not load its own copy of the weights. The
-  server does not add task prompts: the client wraps the texts itself
-  (`"title: none | text: "` for documents, `"task: search result | query: "` for
-  queries). See DECISIONS Q-2 for the open dependency question.
-- Not used: norad's `embed` assist op (interactive use only) and atlas vector indexes
-  (gtd's texts stay in Pebble).
+Three adapters (D-24), chosen per server in `config.yaml`:
+- **internal**: in-process through `github.com/fiber/ai/models/gemma`. `gemma.Load(dir)`
+  reads the EmbeddingGemma files from `embed.model_dir` (config, tokenizer, safetensors,
+  1.2 GB; about 1.6 s to load on an M2). `Embed(texts, gemma.Prompt("document"))` for
+  stored items, `gemma.Prompt("query")` for searches. One forward pass at a time. The
+  model reads at most 2048 tokens. gtd never downloads model files.
+- **gtt-nora**: the NIS embedding service (DECISIONS Q-2). The server does not add task
+  prompts: the adapter wraps the texts (`"title: none | text: "` for documents,
+  `"task: search result | query: "` for queries), respects the limits the server
+  announces, and sends one request at a time.
+- **ollama**: `POST <embed.url>/api/embed` with `{"model", "input": [...]}`. Ollama does
+  not add task prompts either (measured): the adapter wraps the texts the same way.
+- Not used: atlas vector indexes (gtd's texts stay in Pebble).
 
 Rules, taken from the NIS embedding brief:
-- **A vector's identity is the model identity plus the prompt set.** It is stored with
-  the vectors. Vectors of different identities are never compared: a changed identity
+- **A vector's identity is the adapter, the model identity (file hashes, the server's
+  identity, or Ollama's digest) and the prompt set.** It is stored with the vectors. Vectors of different identities are never compared: a changed identity
   invalidates `x/vec/` and triggers a background re-embed.
 - **No answers from a partial index.** While a space's vectors are being built or
   rebuilt, similarity features for it say "building, N of M" instead of ranking what
