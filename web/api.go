@@ -17,6 +17,7 @@ import (
 
 	"github.com/fiber/gtd/auth"
 	"github.com/fiber/gtd/core"
+	"github.com/fiber/gtd/embed"
 	"github.com/fiber/gtd/store"
 )
 
@@ -33,6 +34,10 @@ type Server struct {
 	// SecureCookies marks the session cookie Secure. The daemon sets it when
 	// server.base_url is https.
 	SecureCookies bool
+
+	// Embed answers similarity questions. It may be nil: then everything
+	// works without similarity and says so.
+	Embed *embed.Service
 }
 
 // actor is who a request acts as.
@@ -66,6 +71,8 @@ func New(st *store.Store) *Server {
 	s.mux.HandleFunc("GET /api/v1/search", s.user(s.search))
 	s.mux.HandleFunc("GET /api/v1/ops", s.user(s.ops))
 	s.mux.HandleFunc("GET /api/v1/export", s.any(s.export))
+	s.mux.HandleFunc("GET /api/v1/ai/status", s.user(s.aiStatus))
+	s.mux.HandleFunc("POST /api/v1/admin/reindex", s.admin(s.reindex))
 	s.mux.HandleFunc("POST /api/v1/admin/snapshots", s.admin(s.snapshot))
 	s.mux.HandleFunc("POST /api/v1/admin/users", s.admin(s.addUser))
 	s.mux.HandleFunc("POST /api/v1/admin/users/{id}/keys", s.admin(s.setKey))
@@ -286,6 +293,18 @@ type Hit struct {
 	Kind  string `json:"kind"`
 	State string `json:"state"`
 	Title string `json:"title"`
+	// Similar marks a hit found by meaning, not by the words typed.
+	Similar bool    `json:"similar,omitempty"`
+	Score   float32 `json:"score,omitempty"`
+}
+
+// SearchResult is the answer of /search: exact hits first, then hits by
+// meaning that the exact search did not find (SPEC §5.9). Semantic says
+// whether the second part could be computed: when it is not "ok", the result
+// is a text match only, and the client says so.
+type SearchResult struct {
+	Hits     []Hit  `json:"hits"`
+	Semantic string `json:"semantic"` // ok | off | offline | building
 }
 
 func (s *Server) search(w http.ResponseWriter, r *http.Request, a actor) error {
@@ -293,11 +312,36 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, a actor) error {
 	if err != nil {
 		return err
 	}
-	hits := []Hit{}
-	for _, it := range v.Grep(r.URL.Query().Get("q")) {
-		hits = append(hits, Hit{it.ID, it.Space, it.Kind, it.State, it.Title})
+	q := r.URL.Query().Get("q")
+	res := SearchResult{Hits: []Hit{}}
+	seen := map[string]bool{}
+	for _, it := range v.Grep(q) {
+		seen[it.ID] = true
+		res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title})
 	}
-	return reply(w, hits)
+	sem := s.Embed.Search(r.Context(), v, q, 20)
+	res.Semantic = sem.State
+	for _, h := range sem.Hits {
+		if it, err := v.Item(h.Space, h.ID); err == nil && !seen[h.ID] {
+			res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title, Similar: true, Score: h.Score})
+		}
+	}
+	return reply(w, res)
+}
+
+func (s *Server) aiStatus(w http.ResponseWriter, r *http.Request, a actor) error {
+	return reply(w, s.Embed.Status())
+}
+
+// reindex drops all vectors and embeds everything again (gtd reindex).
+func (s *Server) reindex(w http.ResponseWriter, r *http.Request, a actor) error {
+	if s.Embed == nil {
+		return fmt.Errorf("%w: reindex needs the daemon with an embedding provider configured (embed.provider in config.yaml)", core.ErrInvalid)
+	}
+	if err := s.Embed.Reindex(); err != nil {
+		return err
+	}
+	return reply(w, s.Embed.Status())
 }
 
 func (s *Server) ops(w http.ResponseWriter, r *http.Request, a actor) error {

@@ -39,6 +39,10 @@ type Service struct {
 	// DupThreshold and SuggestThreshold are the config values of
 	// similarity.dup_threshold and similarity.suggest_threshold.
 	DupThreshold, SuggestThreshold float32
+	// SearchThreshold is the lowest score a search hit by meaning may have.
+	// A query and a document score lower against each other than two
+	// documents do, so this is its own, lower value.
+	SearchThreshold float32
 	// Backoff is the first wait after an embedder error. It doubles up to a minute.
 	Backoff time.Duration
 
@@ -64,7 +68,7 @@ type connector interface {
 
 // New returns a service. Start runs it.
 func New(st *store.Store, emb Embedder) *Service {
-	return &Service{st: st, emb: emb, DupThreshold: 0.92, SuggestThreshold: 0.55, Backoff: time.Second,
+	return &Service{st: st, emb: emb, DupThreshold: 0.92, SuggestThreshold: 0.55, SearchThreshold: 0.30, Backoff: time.Second,
 		spaces: map[string]*index{}, hashes: map[key][32]byte{}, building: map[string]bool{},
 		state: StateOffline, queued: map[key]bool{}, wake: make(chan struct{}, 1)}
 }
@@ -533,7 +537,14 @@ func (s *Service) Search(ctx context.Context, v *store.View, query string, k int
 	if err != nil || len(vecs) != 1 {
 		return Result{State: StateOffline, Hits: []Hit{}}
 	}
-	return s.similar(v, vecs[0], k, key{}, func(it *core.Item) bool { return it.Kind != core.KindCapture })
+	res := s.similar(v, vecs[0], k, key{}, func(it *core.Item) bool { return it.Kind != core.KindCapture })
+	for i, h := range res.Hits { // best first: cut at the floor
+		if h.Score < s.SearchThreshold {
+			res.Hits = res.Hits[:i]
+			break
+		}
+	}
+	return res
 }
 
 // projectVectors returns, for every open project of a space, the unit mean of

@@ -28,6 +28,20 @@ type config struct {
 		BaseURL string `yaml:"base_url"` // https://… makes the session cookie Secure
 		Listen  string `yaml:"listen"`   // HTTP address, default 127.0.0.1:8640; "off" disables it
 	} `yaml:"server"`
+	// Embed selects the embedding adapter (D-24): "internal" runs
+	// EmbeddingGemma in-process from model_dir, "ollama" asks the server at url.
+	// Empty means no embeddings: everything works, similarity is off.
+	Embed struct {
+		Provider string `yaml:"provider"`
+		ModelDir string `yaml:"model_dir"`
+		URL      string `yaml:"url"`
+		Model    string `yaml:"model"`
+	} `yaml:"embed"`
+	Similarity struct {
+		DupThreshold     float32 `yaml:"dup_threshold"`
+		SuggestThreshold float32 `yaml:"suggest_threshold"`
+		SearchThreshold  float32 `yaml:"search_threshold"`
+	} `yaml:"similarity"`
 	Snapshots struct {
 		Schedule string     `yaml:"schedule"` // "", hourly or daily
 		Keep     store.Keep `yaml:"keep"`

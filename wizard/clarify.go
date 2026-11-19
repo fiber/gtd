@@ -62,6 +62,7 @@ type Clarify struct {
 	Action      string      `json:"action,omitempty"`
 	DoneActions []string    `json:"done_actions,omitempty"` // done in two minutes, before Action
 	Complete    bool        `json:"complete,omitempty"`     // the project is finished with DoneActions
+	Duplicate   string      `json:"duplicate,omitempty"`    // the item this capture is a duplicate of
 	WaitingOn   string      `json:"waiting_on,omitempty"`
 	Context     string      `json:"context,omitempty"`
 	Defer       string      `json:"defer,omitempty"`
@@ -107,6 +108,16 @@ func (c Clarify) Step(env Env) Step {
 			{Key: "body", Type: "textarea", Label: "field.body", Value: c.Body},
 		}
 		s.Data = map[string]any{"original": c.Original, "attachments": c.Attachments}
+		if len(env.Similar) > 0 {
+			s.Data["similar"] = env.Similar
+			// "Duplicate of…" appends the capture to that item. Only for items
+			// of the same space: a batch of ops stays in one space.
+			for _, sim := range env.Similar {
+				if sim.Space == env.Space.ID {
+					s.Options = append(s.Options[:len(s.Options):len(s.Options)], Option{Value: "dup:" + sim.ID, Label: "clarify.opt.duplicate", Text: sim.Title})
+				}
+			}
+		}
 	case StepActionable:
 		s.Type = TypeChoice
 		s.Options = []Option{{Value: "yes", Label: "answer.yes"}, {Value: "reference", Label: "clarify.opt.reference"},
@@ -115,7 +126,7 @@ func (c Clarify) Step(env Env) Step {
 		s.Fields = []Field{{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)}}
 	case StepReference:
 		s.Fields = []Field{
-			{Key: "project", Type: "select", Label: "field.project", Options: refOptions("option.unsorted", env.Projects)},
+			{Key: "project", Type: "select", Label: "field.project", Options: refOptions("option.unsorted", env.Projects), Suggest: env.suggest()},
 			{Key: "new_project", Type: "text", Label: "field.new_project"},
 			{Key: "area", Type: "select", Label: "field.area", Options: refOptions("option.none", env.Areas)},
 		}
@@ -126,9 +137,9 @@ func (c Clarify) Step(env Env) Step {
 		s.Type, s.Options, s.Preselect = TypeChoice, yesNo, "no"
 	case StepProject:
 		s.Fields = []Field{
-			{Key: "project", Type: "select", Label: "field.add_to_project", Options: refOptions("option.new_project", env.Projects)},
+			{Key: "project", Type: "select", Label: "field.add_to_project", Options: refOptions("option.new_project", env.Projects), Suggest: env.suggest()},
 			{Key: "title", Type: "text", Label: "field.outcome", Value: c.Title, Hint: "hint.outcome"},
-			{Key: "parent", Type: "select", Label: "field.parent", Options: refOptions("option.none", env.Projects)},
+			{Key: "parent", Type: "select", Label: "field.parent", Options: refOptions("option.none", env.Projects), Suggest: env.suggest()},
 			{Key: "area", Type: "select", Label: "field.area", Options: refOptions("option.none", env.Areas)},
 			{Key: "target", Type: "date", Label: "field.target", Options: DatePresets(env.Today)},
 		}
@@ -221,6 +232,10 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 
 	switch c.At {
 	case StepWhat:
+		if id, ok := strings.CutPrefix(in.Choice, "dup:"); ok {
+			c.Outcome, c.Duplicate = "duplicate", id
+			return finish()
+		}
 		if c.Title = val("title"); c.Title == "" {
 			return c, nil, false, required("title")
 		}
@@ -402,6 +417,18 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 	title := func(t string) []core.FieldChange { return change(nil, "title", c.OldTitle, t) }
 
 	switch c.Outcome {
+	case "duplicate":
+		// The capture's text and files go into the thread of the item it
+		// duplicates. The capture itself is trashed, not lost.
+		text := c.Original
+		if strings.TrimSpace(text) == "" {
+			text = c.OldTitle
+		}
+		return []core.Op{
+			{Via: "web", Type: core.OpComment, Item: c.Duplicate, Payload: mustJSON(core.Comment{Body: text, Attachments: c.Attachments})},
+			{Via: "web", Type: core.OpTransition, Item: c.Item, BaseRev: rev,
+				Changes: []core.FieldChange{{Field: "state", New: quote(core.StTrashed)}}},
+		}
 	case "trash":
 		return []core.Op{{Via: "web", Type: core.OpTransition, Item: c.Item, BaseRev: rev,
 			Changes: []core.FieldChange{{Field: "state", New: quote(core.StTrashed)}}}}

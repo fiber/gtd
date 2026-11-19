@@ -128,6 +128,15 @@ class Plan extends View {
     });
   }
 
+  // One tap files a suggested note into this project.
+  async fileHere(n) {
+    const ops = [{ type: 'patch', item: n.id, base_rev: n.rev, changes: [{ field: 'project', new: this.root.id }] }];
+    if (n.state === 'unsorted') {
+      ops.push({ type: 'transition', item: n.id, base_rev: n.rev + 1, changes: [{ field: 'state', new: 'filed' }] });
+    }
+    await this.run(() => store.ops(this.plan.space, ops));
+  }
+
   async newNote() {
     const res = await this.run(() => store.create(this.plan.space, {
       kind: 'note', state: 'filed', project: this.root.id, title: t('note.new_title', { date: fmtTime(new Date().toISOString()) }),
@@ -211,6 +220,9 @@ class Plan extends View {
         <li>${t('warning.' + w.Type, { item: this.title(w.Item), other: this.title(w.Other) })}</li>`)}</ul>` : nothing}
       ${tree(pl.projects).map(([p, depth]) => this.node(p, depth))}
 
+      ${pl.suggested.length ? html`
+        <h2>${t('plan.belong_here')}</h2>
+        ${pl.suggested.map((n) => row(n, { actions: html`<button @click=${() => this.fileHere(n)}>${t('plan.file_here')}</button>` }))}` : nothing}
       <h2>${t('plan.notes')}</h2>
       ${pl.notes.map((n) => row(n, { noProject: true }))}
       <button @click=${() => this.newNote()}>${t('note.new')}</button>

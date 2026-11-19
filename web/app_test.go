@@ -25,6 +25,7 @@ import (
 type site struct {
 	t   *testing.T
 	st  *store.Store
+	srv *Server
 	url string
 }
 
@@ -45,9 +46,10 @@ func newSite(t *testing.T) *site {
 	if err := st.CreateSpace("nis", "NIS", []string{"sven", "eric"}); err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(New(st).Handler())
+	app := New(st)
+	srv := httptest.NewServer(app.Handler())
 	t.Cleanup(func() { srv.Close(); st.Close() })
-	return &site{t, st, srv.URL}
+	return &site{t, st, app, srv.URL}
 }
 
 // client is one browser: a cookie jar.

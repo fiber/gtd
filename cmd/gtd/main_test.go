@@ -415,6 +415,10 @@ func TestSnapshotCommands(t *testing.T) {
 	if got := e.run("sven", "snapshot", "prune"); got != "deleted "+name+"\n" {
 		t.Errorf("prune = %q", got)
 	}
+	// Without an embedding provider, reindex says what it needs.
+	if msg := e.fail("sven", "reindex"); !strings.Contains(msg, "embed.provider") {
+		t.Errorf("reindex without embeddings: %q", msg)
+	}
 	if list := e.run("sven", "snapshot", "list"); strings.Contains(list, name) || !strings.Contains(list, second) {
 		t.Errorf("list after prune = %q", list)
 	}
@@ -461,6 +465,7 @@ func TestUsageErrors(t *testing.T) {
 		{[]string{"export"}, "want a target directory"},
 		{[]string{"import", "x"}, "only `import -restore <dir>`"},
 		{[]string{"restore", "nope"}, "snapshot nope"},
+		{[]string{"reindex"}, "no database"},
 	} {
 		if msg := e.fail("sven", c.args...); !strings.Contains(msg, c.want) {
 			t.Errorf("gtd %v: %q, want %q", c.args, msg, c.want)

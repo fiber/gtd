@@ -325,6 +325,10 @@ class Note extends View {
         ${this.related('item.derived', it.derived)}
         ${this.related('item.dependents', it.dependents)}
         ${this.related('item.backlinks', it.backlinks)}
+        ${it.related.length ? html`<div class="related"><label>${t('item.related')}</label>
+          ${it.related.map((x) => html`<a class="chip link" data-state=${x.state} href=${'/i/' + x.id}
+            title=${`${x.space_name} · ${Math.round(x.score * 100)}%`}>${x.title}</a>`)}</div>` : nothing}
+        ${it.related_state === 'building' || it.related_state === 'offline' ? html`<small>${t('ai.note.' + it.related_state)}</small>` : nothing}
 
         <section class="thread">
           <h2>${t('thread.title')}</h2>

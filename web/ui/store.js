@@ -82,6 +82,7 @@ export const store = {
   options: (space) => get(`/spaces/${encodeURIComponent(space)}/options`),
   templates: (space) => get(`/spaces/${encodeURIComponent(space)}/templates`),
   render: (item, text) => post('/render', { item, text }),
+  aiStatus: () => get('/ai/status'),
 
   // Writes. Every change to an item is an op; the server validates it.
   async ops(space, ops) {

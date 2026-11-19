@@ -38,6 +38,10 @@ type Field struct {
 	Options  []Option `json:"options,omitempty"` // select and chips: choices; date: presets
 	Required bool     `json:"required,omitempty"`
 	Hint     string   `json:"hint,omitempty"` // i18n key
+	// Suggest are choices worth a second look, e.g. the projects nearest to
+	// the capture. They are offered, never preselected: a suggestion becomes a
+	// choice only by a tap (invariant 2).
+	Suggest []Option `json:"suggest,omitempty"`
 }
 
 // Step is what the client shows.
@@ -86,6 +90,22 @@ type Env struct {
 	Areas     []Ref // active areas, by title
 	Contexts  []string
 	Templates []core.Template
+
+	// Similar and SuggestProjects come from the embedding index, if there is
+	// one. The wizard works the same without them.
+	Similar         []Similar
+	SuggestProjects []string // project IDs, nearest first
+}
+
+// Similar is an existing item that resembles the capture.
+type Similar struct {
+	ID        string  `json:"id"`
+	Space     string  `json:"space"`
+	Title     string  `json:"title"`
+	Kind      string  `json:"kind"`
+	State     string  `json:"state"`
+	Score     float32 `json:"score"`
+	Duplicate bool    `json:"duplicate"` // at or above the duplicate threshold
 }
 
 // NewEnv collects the choices a wizard offers from a space's state.
@@ -116,6 +136,17 @@ func (e Env) project(id string) (Ref, bool) {
 		return Ref{}, false
 	}
 	return e.Projects[i], true
+}
+
+// suggest returns the suggested projects that are among the options.
+func (e Env) suggest() []Option {
+	var out []Option
+	for _, id := range e.SuggestProjects {
+		if p, ok := e.project(id); ok {
+			out = append(out, Option{Value: p.ID, Text: p.Title})
+		}
+	}
+	return out
 }
 
 // refOptions turns refs into select options, with an empty first entry.

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fiber/gtd/embed"
 	"github.com/fiber/gtd/store"
 	"github.com/fiber/gtd/web"
 )
@@ -73,6 +74,43 @@ func serve(g globals, stdout, stderr io.Writer) error {
 	}
 
 	app := web.New(st)
+	// Embeddings are optional. A model that does not load is reported and the
+	// daemon runs without similarity.
+	var emb embed.Embedder
+	switch cfg.Embed.Provider {
+	case "internal":
+		if emb, err = embed.NewInternal(cfg.Embed.ModelDir); err != nil {
+			fmt.Fprintf(stderr, "gtd: embeddings are off: %v\n", err)
+			emb = nil
+		}
+	case "ollama":
+		url := cfg.Embed.URL
+		if url == "" {
+			url = "http://127.0.0.1:11434"
+		}
+		emb = embed.NewOllama(url, cfg.Embed.Model)
+	case "":
+	default:
+		// Only the daemon cares: other commands must keep working with a
+		// config written for another version.
+		fmt.Fprintf(stderr, "gtd: embeddings are off: embed.provider is %q, want internal or ollama\n", cfg.Embed.Provider)
+	}
+	if emb != nil {
+		defer emb.Close()
+		svc := embed.New(st, emb)
+		if cfg.Similarity.DupThreshold > 0 {
+			svc.DupThreshold = cfg.Similarity.DupThreshold
+		}
+		if cfg.Similarity.SuggestThreshold > 0 {
+			svc.SuggestThreshold = cfg.Similarity.SuggestThreshold
+		}
+		if cfg.Similarity.SearchThreshold > 0 {
+			svc.SearchThreshold = cfg.Similarity.SearchThreshold
+		}
+		svc.Start(ctx)
+		app.Embed = svc
+		fmt.Fprintf(stdout, "gtd: embeddings: %s\n", cfg.Embed.Provider)
+	}
 	app.SecureCookies = strings.HasPrefix(cfg.Server.BaseURL, "https://")
 	srv := &http.Server{Handler: app.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {

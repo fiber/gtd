@@ -66,6 +66,9 @@ type wizardSession struct {
 	clarify wizard.Clarify
 	note    wizard.Note
 	started time.Time
+	// What the embedding index said about the item when the wizard started.
+	similar  []wizard.Similar
+	projects []string
 }
 
 var reImportMap = regexp.MustCompile(`(?s)<script type="importmap">(.*?)</script>`)
@@ -806,7 +809,13 @@ func (s *Server) plan(w http.ResponseWriter, r *http.Request, a actor) error {
 	if err != nil {
 		return err
 	}
-	return reply(w, plan(st, it, s.today()))
+	p := plan(st, it, s.today())
+	for _, h := range s.Embed.BelongHere(v, it, 5) {
+		if n := st.Item(h.ID); n != nil {
+			p.Suggested = append(p.Suggested, brief(st, n, s.today(), nil))
+		}
+	}
+	return reply(w, p)
 }
 
 func (s *Server) board(w http.ResponseWriter, r *http.Request, a actor) error {
@@ -967,6 +976,18 @@ func (s *Server) wizardStart(w http.ResponseWriter, r *http.Request, a actor) er
 			return reply(w, map[string]any{"done": true, "empty": true})
 		}
 		ws.clarify = wizard.StartClarify(it)
+		// Top-3 similar items (a duplicate above the threshold) and the three
+		// nearest projects, if the capture has been embedded by now.
+		sim := s.Embed.SimilarTo(v, it, 3, func(x *core.Item) bool { return x.Kind != core.KindCapture })
+		for _, h := range sim.Hits {
+			if x, err := v.Item(h.Space, h.ID); err == nil && h.Score >= s.Embed.SuggestThreshold {
+				ws.similar = append(ws.similar, wizard.Similar{ID: x.ID, Space: x.Space, Title: x.Title, Kind: x.Kind, State: x.State,
+					Score: h.Score, Duplicate: h.Score >= s.Embed.DupThreshold})
+			}
+		}
+		for _, h := range s.Embed.Projects(v, it, 3) {
+			ws.projects = append(ws.projects, h.ID)
+		}
 	case "note":
 		if it, err = v.Find(in.Item); err != nil {
 			return err
@@ -976,6 +997,9 @@ func (s *Server) wizardStart(w http.ResponseWriter, r *http.Request, a actor) er
 			return fmt.Errorf("%w: item %s has no open task lines", core.ErrInvalid, it.ID)
 		}
 		ws.space = it.Space
+		for _, h := range s.Embed.Projects(v, it, 3) {
+			ws.projects = append(ws.projects, h.ID)
+		}
 	default:
 		return fmt.Errorf("%w: wizard %q", core.ErrNotFound, ws.kind)
 	}
@@ -1001,7 +1025,9 @@ func (s *Server) wizardEnv(v *store.View, ws *wizardSession) (wizard.Env, error)
 	if err != nil {
 		return wizard.Env{}, err
 	}
-	return wizard.NewEnv(st, ws.user, s.today()), nil
+	env := wizard.NewEnv(st, ws.user, s.today())
+	env.Similar, env.SuggestProjects = ws.similar, ws.projects
+	return env, nil
 }
 
 func (ws *wizardSession) step(env wizard.Env) wizard.Step {

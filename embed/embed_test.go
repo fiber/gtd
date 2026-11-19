@@ -88,6 +88,7 @@ func newSite(t *testing.T) *site {
 func (s *site) start() {
 	s.svc = New(s.st, s.emb)
 	s.svc.Backoff = 5 * time.Millisecond
+	s.svc.SearchThreshold = 0.2 // the fake embedder's scale
 	ctx, cancel := context.WithCancel(context.Background())
 	s.t.Cleanup(cancel)
 	s.svc.Start(ctx)
@@ -446,5 +447,37 @@ func TestTopKSpeed(t *testing.T) {
 	t.Logf("top-10 over %d × %d: %v (matrix product on fiber/ai's kernels, then selection)", n, dim, fastest.Round(10*time.Microsecond))
 	if !raceEnabled && fastest > 5*time.Millisecond {
 		t.Errorf("top-k took %v, limit is 5ms", fastest)
+	}
+}
+
+// TestPDFText: extracted PDF text is searchable and is part of what an item's
+// vector is made from.
+func TestPDFText(t *testing.T) {
+	s := newSite(t)
+	sha := strings.Repeat("ab", 32)
+	id := s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "Report", Attachments: []core.Attachment{{SHA256: sha, Name: "q3.pdf", MIME: "application/pdf", Size: 1}}})
+	sven := s.view("sven")
+	if hits := sven.Grep("quarterly"); len(hits) != 0 {
+		t.Fatal("found before extraction")
+	}
+	// The blob does not exist, so pdftotext (if installed) yields nothing: the
+	// service caches the empty result and does not try again.
+	s.start()
+	if text, ok := s.st.PDFText(sha); !ok || text != "" {
+		t.Errorf("after a failed extraction: %q, cached %v", text, ok)
+	}
+	if err := s.st.PutPDFText(sha, "Quarterly numbers for the collector fleet"); err != nil {
+		t.Fatal(err)
+	}
+	if hits := sven.Grep("quarterly fleet"); len(hits) != 1 || hits[0].ID != id {
+		t.Errorf("text search over the PDF: %v", hits)
+	}
+	it, _ := sven.Item("sven", id)
+	if text := s.svc.text(it); !strings.Contains(text, "Quarterly numbers") {
+		t.Errorf("embedding input lacks the PDF text: %q", text)
+	}
+	// It survives a restart.
+	if text, ok := s.st.PDFText(sha); !ok || !strings.HasPrefix(text, "Quarterly") {
+		t.Errorf("cached text: %q %v", text, ok)
 	}
 }

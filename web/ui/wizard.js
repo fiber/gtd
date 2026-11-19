@@ -103,6 +103,8 @@ class Wizard extends View {
     return html`
       <div class="field ${this.error?.field === f.key ? 'invalid' : ''}" data-key=${f.key}>
         <label>${t(f.label)}${f.required ? ' *' : ''}</label>
+        ${f.suggest?.length ? html`<div class="suggest"><span>${t('wizard.suggested')}</span>
+          ${chips(f.suggest, v, (x) => this.set(f.key, x === v ? '' : x))}</div>` : nothing}
         ${input}
         ${f.hint ? html`<small>${t(f.hint)}</small>` : nothing}
         ${this.error?.field === f.key ? html`<small class="error">${this.error.text}</small>` : nothing}
@@ -116,6 +118,9 @@ class Wizard extends View {
     const clock = `${Math.floor(this.left / 60)}:${String(this.left % 60).padStart(2, '0')}`;
     return html`
       ${d.original ? html`<pre class="original">${d.original}</pre>` : nothing}
+      ${d.similar ? html`<div class="similar"><label>${t('wizard.similar')}</label>
+        ${d.similar.map((x) => html`<a class="chip link" data-state=${x.state} href=${'/i/' + x.id} target="_blank" rel="noopener">
+          ${x.title} · ${Math.round(x.score * 100)}%${x.duplicate ? ' · ' + t('wizard.duplicate') : ''}</a>`)}</div>` : nothing}
       ${(d.attachments || []).map((a) => (a.mime || '').startsWith('image/')
         ? html`<img class="att" src=${'/api/v1/att/' + a.sha256} alt=${a.name}>`
         : html`<a class="chip file" href=${'/api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}

@@ -419,3 +419,8 @@ details.fields summary::-webkit-details-marker { display: none; }
   .item-side button.chip { height: 23px; min-height: 23px; padding: 0 8px; font-size: .74rem; }
   .item-side .original { margin: 2px 0 6px; max-height: 20vh; overflow: auto; }
 }
+
+/* Similarity: suggestions are offered, never chosen for you. */
+.similar, .suggest { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 6px 0; }
+.similar > label, .suggest > span { font-size: .74rem; font-weight: 700; color: var(--accent-strong); margin: 0 3px 0 0; }
+.suggest .chip { background: var(--accent-soft); color: var(--accent-strong); }

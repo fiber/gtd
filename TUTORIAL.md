@@ -167,9 +167,29 @@ you never see it again.
 
 - A note filed as "Unsorted" has no list anywhere. You find it only through Search.
   Until that is fixed, always file a reference note into a project or an area.
-- The tool does not yet notice that a new idea resembles five older ones, does not
-  group loose notes, and does not draft the summary. Those are M4, M5 and M7.
+- With embeddings switched on (M4, see "Similarity" below) the tool notices that a new
+  idea resembles older ones. It does not yet group loose notes (M5) or draft the
+  summary (M7).
 - The weekly review is not guided yet (M2). Step 7 above is the manual version.
+
+## Similarity
+
+If the server has an embedding model configured, gtd compares items by meaning, in
+German and English alike, and only ever within the spaces you are a member of.
+
+- **Clarify** shows up to three existing items that resemble the capture, with a
+  score. If one is the same thought, **Duplicate of…** appends the capture to that
+  item instead of creating another one. Where you choose a project, the nearest
+  projects are offered as **Suggested** chips. Nothing is chosen for you.
+- **Search** lists exact matches first, then "Similar in meaning": items that say the
+  same with other words.
+- An item's page lists **Related** items. A project's plan lists loose notes that
+  **might belong here**, with one tap to file them.
+- Settings shows the state: ready, building or offline. While the index is building or
+  the model does not answer, search says that it is a text match only.
+
+A new capture is compared a second or two after you made it. If you clarify it
+faster than that, you get no suggestions for it.
 
 ## Settings
 

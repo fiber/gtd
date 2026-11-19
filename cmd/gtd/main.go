@@ -37,6 +37,7 @@ const usage = `usage: gtd [-data dir] [-user id] [-key pubkey-file] <command>
   import -restore <dir>                     rebuild an empty data dir from a full export
   snapshot create [-label l] | list | prune | verify [name]...
   restore <snapshot>                        replace the database with a snapshot (daemon stopped)
+  reindex                                   drop all embeddings and build them again (needs the daemon)
   user add [-admin] [-name n] [-ssh-key k] <id> | key-add <id> <key> | key-rm <id> <key>
   user passwd <id>                          set the web password (prompted, or one line on stdin)
   space create [-name n] <id> [member]... | add-member <space> <user> | rm-member <space> <user>
@@ -103,13 +104,27 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	case "add":
 		return cmdAdd(g, args, stdin, stdout)
 	case "grep":
-		return cmdGrep(g, args, stdout)
+		return cmdGrep(g, args, stdout, stderr)
 	case "export":
 		return cmdExport(g, args, stdout)
 	case "import":
 		return cmdImport(g, args, stdout)
 	case "restore":
 		return cmdRestore(g, args, stdout)
+	case "reindex":
+		c, err := connect(g, false)
+		if err != nil {
+			return err
+		}
+		defer c.close()
+		var st struct {
+			Queued int `json:"queued"`
+		}
+		if err := c.do("POST", "/api/v1/admin/reindex", nil, &st); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "all vectors dropped, %d items queued for embedding\n", st.Queued)
+		return nil
 	case "ops":
 		s, rest, err := sub()
 		if err != nil {
@@ -237,7 +252,7 @@ func cmdAdd(g globals, args []string, stdin io.Reader, stdout io.Writer) error {
 	return nil
 }
 
-func cmdGrep(g globals, args []string, stdout io.Writer) error {
+func cmdGrep(g globals, args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("gtd grep: want search words")
 	}
@@ -246,15 +261,29 @@ func cmdGrep(g globals, args []string, stdout io.Writer) error {
 		return err
 	}
 	defer c.close()
-	var hits []web.Hit
-	if err := c.do("GET", "/api/v1/search?q="+url.QueryEscape(strings.Join(args, " ")), nil, &hits); err != nil {
+	var res web.SearchResult
+	if err := c.do("GET", "/api/v1/search?q="+url.QueryEscape(strings.Join(args, " ")), nil, &res); err != nil {
 		return err
 	}
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
-	for _, h := range hits {
-		fmt.Fprintf(tw, "%s\t%s\t%s/%s\t%s\n", h.ID, h.Space, h.Kind, h.State, h.Title)
+	for _, h := range res.Hits {
+		mark := ""
+		if h.Similar { // found by meaning, not by the words
+			mark = fmt.Sprintf("  ~%.2f", h.Score)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s/%s\t%s%s\n", h.ID, h.Space, h.Kind, h.State, h.Title, mark)
 	}
-	return tw.Flush()
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	// Say so when the answer is a text match only (never silently).
+	switch res.Semantic {
+	case "offline":
+		fmt.Fprintln(stderr, "gtd: text match only: the embedding backend does not answer")
+	case "building":
+		fmt.Fprintln(stderr, "gtd: text match only for some spaces: their embeddings are being built")
+	}
+	return nil
 }
 
 func cmdOpsTail(g globals, args []string, stdout io.Writer) error {

@@ -73,7 +73,7 @@ func (n Note) Step(env Env) Step {
 	return Step{Type: TypeForm, Key: "task", Question: "note.task", Subject: n.Title,
 		Fields: []Field{
 			{Key: "action", Type: "text", Label: "field.action", Value: line.Text, Required: true, Hint: "hint.action"},
-			{Key: "project", Type: "select", Label: "field.project", Value: n.Project, Options: refOptions("option.no_project", env.Projects)},
+			{Key: "project", Type: "select", Label: "field.project", Value: n.Project, Options: refOptions("option.no_project", env.Projects), Suggest: env.suggest()},
 			{Key: "context", Type: "chips", Label: "field.context", Options: ContextOptions(env.Contexts)},
 			{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)},
 			{Key: "target", Type: "date", Label: "field.target", Options: DatePresets(env.Today)},

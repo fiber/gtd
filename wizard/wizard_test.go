@@ -1,6 +1,7 @@
 package wizard
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -456,4 +457,62 @@ func TestProcessNote(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestClarifyWithSimilarItems(t *testing.T) {
+	w := newWorld(t)
+	env := NewEnv(w.st, "sven", today)
+	env.Similar = []Similar{
+		{ID: "p1", Space: "sven", Title: "BGP collector handles resets", Kind: core.KindProject, State: core.StActive, Score: 0.95, Duplicate: true},
+		{ID: "far", Space: "nis", Title: "In another space", Kind: core.KindNote, Score: 0.7},
+	}
+	env.SuggestProjects = []string{"p2", "gone", "p1"}
+	cl := StartClarify(w.st.Items["c"])
+	s := cl.Step(env)
+	// Both similar items are shown; only the one in this space can take the capture.
+	if sim, _ := s.Data["similar"].([]Similar); len(sim) != 2 {
+		t.Fatalf("similar = %+v", s.Data["similar"])
+	}
+	var opts []string
+	for _, o := range s.Options {
+		opts = append(opts, o.Value)
+	}
+	if !slices.Equal(opts, []string{"continue", "dup:p1"}) {
+		t.Fatalf("options = %v", opts)
+	}
+	if _, _, _, err := cl.Next(env, in("dup:far"), w.newID); !errors.Is(err, core.ErrInvalid) {
+		t.Fatalf("duplicate of an item in another space: %v", err)
+	}
+	_, ops, done, err := cl.Next(env, in("dup:p1"), w.newID)
+	if err != nil || !done || len(ops) != 2 || ops[0].Type != core.OpComment || ops[0].Item != "p1" {
+		t.Fatalf("duplicate: done %v, err %v, ops %+v", done, err, ops)
+	}
+	var cm core.Comment
+	json.Unmarshal(ops[0].Payload, &cm)
+	if cm.Body != "bgp collector reset thing" {
+		t.Errorf("the comment should carry the capture's text: %q", cm.Body)
+	}
+	if err := w.apply(ops); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.st.Items["c"]; got.State != core.StTrashed || got.Kind != core.KindCapture || got.Original != "bgp collector reset thing" {
+		t.Errorf("capture after duplicate: %+v", got)
+	}
+
+	// Suggested projects are offered on the project fields, in order, and only
+	// those that are real choices. Nothing is preselected by a suggestion.
+	w2 := newWorld(t)
+	env2 := NewEnv(w2.st, "sven", today)
+	env2.SuggestProjects = env.SuggestProjects
+	cl = StartClarify(w2.st.Items["c"])
+	cl, _, _, _ = cl.Next(env2, what, w2.newID)
+	cl, _, _, _ = cl.Next(env2, in("reference"), w2.newID)
+	f := cl.Step(env2).Fields[0]
+	if len(f.Suggest) != 2 || f.Suggest[0].Value != "p2" || f.Suggest[1].Value != "p1" || f.Value != "" {
+		t.Errorf("suggestions = %+v, value %q", f.Suggest, f.Value)
+	}
+	// Without an index the wizard is unchanged.
+	if s := StartClarify(w2.st.Items["c"]).Step(NewEnv(w2.st, "sven", today)); len(s.Options) != 1 || s.Data["similar"] != nil {
+		t.Errorf("step without similarity: %+v", s)
+	}
 }

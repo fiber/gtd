@@ -43,8 +43,13 @@ export GTD_DATA=/var/lib/gtd            # keep the path short: the daemon's Unix
 ./gtd serve                             # CLI socket, and the web UI on http://127.0.0.1:8640
 ```
 
-`config.yaml` in the data directory sets `server.name`, `server.listen`, `server.base_url`
-and `snapshots` (STORAGE.md §10). Put nginx with TLS in front for anything but localhost.
+`config.yaml` in the data directory sets `server.name`, `server.listen`, `server.base_url`,
+`snapshots` and `embed` (STORAGE.md §10). For similarity, point it at the model files:
+
+```yaml
+embed: { provider: internal, model_dir: /home/sven/models/embeddinggemma-300m }
+# or: embed: { provider: ollama, url: "http://127.0.0.1:11434", model: embeddinggemma }
+``` Put nginx with TLS in front for anything but localhost.
 
 Tests: `go test -race ./...`. `go test ./store -update` rewrites the golden export after an
 intended format change.

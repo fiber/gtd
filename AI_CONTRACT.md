@@ -74,7 +74,7 @@ vectors.** Comments are not embedded in v1.
 | Clarify 3/4: project, parent, area | capture vector | project vectors, areas | 3 |
 | Project "might belong here" | project vector | unsorted or unfiled notes, same space | 5; ≥ `suggest_threshold` |
 | Related sidebar | item vector | all kinds, user's spaces | 5 |
-| Search (semantic part) | query vector | user's spaces | 20 |
+| Search (semantic part) | query vector | user's spaces | 20; ≥ `search_threshold` |
 
 **Project vector** = normalized mean of the project's own vector and the vectors of its
 notes and actions (direct only), recomputed when membership changes.

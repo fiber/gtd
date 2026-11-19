@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fiber/gtd/core"
+	"github.com/fiber/gtd/embed"
 	"github.com/fiber/gtd/store"
 	"github.com/fiber/gtd/wizard"
 )
@@ -194,7 +195,33 @@ type ItemView struct {
 	Warnings     []core.Warning  `json:"warnings"`
 	TemplateDef  *core.Template  `json:"template_def,omitempty"`
 	Templates    []core.Template `json:"templates"` // the space's templates for this kind
-	Options      *SpaceOptions   `json:"options"`
+	// Related are the items most similar in meaning, from all the viewer's
+	// spaces. RelatedState says whether they could be computed.
+	Related      []Related     `json:"related"`
+	RelatedState string        `json:"related_state"`
+	Options      *SpaceOptions `json:"options"`
+}
+
+// Related is an item similar to the one shown.
+type Related struct {
+	Named
+	Space     string  `json:"space"`
+	SpaceName string  `json:"space_name"`
+	Score     float32 `json:"score"`
+}
+
+func (s *Server) related(v *store.View, hits []embed.Hit) []Related {
+	out := []Related{}
+	names := map[string]string{}
+	for _, sp := range v.Spaces() {
+		names[sp.ID] = sp.Name
+	}
+	for _, h := range hits {
+		if x, err := v.Item(h.Space, h.ID); err == nil {
+			out = append(out, Related{Named{x.ID, x.Title, x.State, x.Owner, x.Kind}, x.Space, names[x.Space], h.Score})
+		}
+	}
+	return out
 }
 
 // SpaceOptions are the choices the forms of a space offer.
@@ -268,6 +295,8 @@ func (s *Server) itemView(v *store.View, it *core.Item, lang, today string) (*It
 		Tasks: len(wizard.TaskLines(it.Body)), Deferred: core.Deferred(it, today), Warnings: []core.Warning{},
 		Templates: []core.Template{}, Options: spaceOptions(st, v.User())}
 	iv.BodyEdit, iv.Refs = editForm(it.Body, tk)
+	rel := s.Embed.SimilarTo(v, it, 5, func(x *core.Item) bool { return x.Kind != core.KindCapture })
+	iv.Related, iv.RelatedState = s.related(v, rel.Hits), rel.State
 	if iv.Transitions == nil {
 		iv.Transitions = []string{}
 	}
@@ -397,6 +426,8 @@ type Plan struct {
 	Actions  []Brief        `json:"actions"`
 	Notes    []Brief        `json:"notes"`
 	Warnings []core.Warning `json:"warnings"`
+	// Suggested are loose notes that might belong to the root project.
+	Suggested []Brief `json:"suggested"`
 }
 
 func plan(st *core.State, root *core.Item, today string) *Plan {
@@ -416,7 +447,7 @@ func plan(st *core.State, root *core.Item, today string) *Plan {
 		}
 		order = append(order, kids...)
 	}
-	p := &Plan{Root: root.ID, Space: root.Space, Projects: briefs(st, order, today, roll), Warnings: []core.Warning{}}
+	p := &Plan{Root: root.ID, Space: root.Space, Projects: briefs(st, order, today, roll), Warnings: []core.Warning{}, Suggested: []Brief{}}
 	var actions, notes []*core.Item
 	st.Each(func(it *core.Item) {
 		if !in[it.Project] || it.State == core.StTrashed {
