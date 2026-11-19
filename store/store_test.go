@@ -395,12 +395,21 @@ func TestIsolation(t *testing.T) {
 	item := items[0]
 
 	calls := map[string]func(v *View, space string) error{
-		"Item":         func(v *View, sp string) error { _, err := v.Item(sp, item.ID); return err },
-		"Items":        func(v *View, sp string) error { _, err := v.Items(sp, nil); return err },
-		"Comments":     func(v *View, sp string) error { _, err := v.Comments(sp, item.ID); return err },
-		"CommentCount": func(v *View, sp string) error { _, err := v.CommentCount(sp, item.ID); return err },
-		"State":        func(v *View, sp string) error { _, err := v.State(sp); return err },
-		"Ops":          func(v *View, sp string) error { _, err := v.Ops(sp, 10); return err },
+		"Item":          func(v *View, sp string) error { _, err := v.Item(sp, item.ID); return err },
+		"Items":         func(v *View, sp string) error { _, err := v.Items(sp, nil); return err },
+		"Comments":      func(v *View, sp string) error { _, err := v.Comments(sp, item.ID); return err },
+		"CommentCount":  func(v *View, sp string) error { _, err := v.CommentCount(sp, item.ID); return err },
+		"State":         func(v *View, sp string) error { _, err := v.State(sp); return err },
+		"Ops":           func(v *View, sp string) error { _, err := v.Ops(sp, 10); return err },
+		"ImportEntries": func(v *View, sp string) error { _, err := v.ImportEntries(sp); return err },
+		"ImportReport":  func(v *View, sp string) error { _, err := v.ImportReport(sp); return err },
+		"ImportMark": func(v *View, sp string) error {
+			return v.ImportMark(sp, core.ImportMarker{Source: "obsidian", Phase: "begin"}, []byte(`{}`))
+		},
+		"Import": func(v *View, sp string) error {
+			_, err := v.Import(sp, []ImportNote{{Path: "a.md", Hash: "h", Item: core.Item{ID: v.s.NewID(), Title: "intruder"}}})
+			return err
+		},
 		"Apply": func(v *View, sp string) error {
 			_, err := v.Apply(sp, createOp(core.Item{ID: v.s.NewID(), Kind: core.KindNote, Title: "intruder"}))
 			return err
@@ -429,8 +438,8 @@ func TestIsolation(t *testing.T) {
 			t.Errorf("%s leaks existence: non-member %q, missing space %q", name, errNonMember, errNoSpace)
 		}
 	}
-	if got := s.spaces["net"].seq; got != seq+1 {
-		t.Errorf("space seq moved from %d to %d, want exactly dana's one op", seq, got)
+	if got := s.spaces["net"].seq; got != seq+3 {
+		t.Errorf("space seq moved from %d to %d, want exactly dana's three ops (create, import marker, imported note)", seq, got)
 	}
 	for _, sp := range jo.Spaces() {
 		if sp.ID != "jo" {

@@ -463,7 +463,7 @@ func TestUsageErrors(t *testing.T) {
 		{[]string{"frobnicate"}, "unknown command"},
 		{[]string{"user"}, "missing subcommand"},
 		{[]string{"export"}, "want a target directory"},
-		{[]string{"import", "x"}, "only `import -restore <dir>`"},
+		{[]string{"import", "x"}, "want `import obsidian …` or `import -restore <dir>`"},
 		{[]string{"restore", "nope"}, "snapshot nope"},
 		{[]string{"reindex"}, "no database"},
 	} {

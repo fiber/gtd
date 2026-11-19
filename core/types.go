@@ -42,6 +42,7 @@ const (
 	OpComment       = "comment"
 	OpAttach        = "attach"
 	OpDeleteComment = "delete_comment"
+	OpImport        = "import" // marks the start or the end of an import run; changes nothing
 )
 
 // Space kinds.

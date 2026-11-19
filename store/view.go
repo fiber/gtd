@@ -284,6 +284,13 @@ func (v *View) Apply(spaceID string, ops ...core.Op) ([]core.Op, error) {
 // apply is the one write path (invariant 3). actor is a member, or the system
 // for rule-driven ops such as the tickler.
 func (s *Store) apply(sp *space, spaceID, actor string, ops []core.Op) ([]core.Op, error) {
+	return s.applyWith(sp, spaceID, actor, ops, nil)
+}
+
+// applyWith is apply with derived keys (x/…) that belong to the ops and are
+// written in the same batch. extra runs under the space's write lock, after
+// the ops were applied, so it sees st.Pending.
+func (s *Store) applyWith(sp *space, spaceID, actor string, ops []core.Op, extra func(b *pebble.Batch)) ([]core.Op, error) {
 	sp.wmu.Lock()
 	defer sp.wmu.Unlock()
 
@@ -343,7 +350,10 @@ func (s *Store) apply(sp *space, spaceID, actor string, ops []core.Op) ([]core.O
 		comments = append(comments, res.Comments...)
 		notes = append(notes, res.Notifications...)
 	}
-	if len(logged) == 0 {
+	if extra != nil {
+		extra(b)
+	}
+	if len(logged) == 0 && b.Empty() {
 		return nil, nil
 	}
 	for _, it := range st.Pending {

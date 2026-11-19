@@ -236,3 +236,14 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 
 - 2026-11-19 — Owner said yes to per-passage embeddings. Long texts are split between paragraphs (a short single line counts as a heading and stays with the next paragraph). Passage vectors are stored in the item's `x/vec` value and indexed in a second matrix per space; only search by meaning uses them (max of item and best passage). The stored identity carries a layout tag (`|passages-1`), so existing vectors are rebuilt once on the first start.
 - 2026-11-19 — A search hit does not say which passage matched, and the item page does not jump to it. Not asked for.
+
+### Agent decisions (M5)
+
+- 2026-11-19 — The importer runs in the CLI, where the files are, and writes through the server: `GET/POST /api/v1/import`. `gtd import obsidian [-space id] [-dry-run] <vault>`; flags come before the path (Go's flag package). There is no `--as`: the importing user is the CLI's user (`-user`), as for every other command.
+- 2026-11-19 — The start and end markers are ops of a new type `import` (payload: source, phase, note count). They touch no item; replay skips them. The path map and the report are written in the same Pebble batch as the ops they belong to.
+- 2026-11-19 — A note's ID is a ULID of its time (frontmatter `created` or `date`, else the file's modification time) and of a hash of space and path, so the same file always gets the same ID. An export does not carry the path map; after a restore a re-import therefore still finds its notes instead of duplicating them.
+- 2026-11-19 — Batches are at most 500 notes or about 4 MB.
+- 2026-11-19 — Empty files are counted and skipped. Frontmatter that is not YAML stays in the body and is reported. Frontmatter keys named like the importer's own (`filename`, `folder`, `reimported_at`, `unresolved_links`) are kept as `frontmatter_<name>`.
+- 2026-11-19 — Beyond IMPORT.md §4: a Markdown link to another note (`[text](other.md)`) becomes `[[id|text]]`; a link to any other file of the vault (`[[board.canvas]]`) becomes an attachment link. Links inside fenced code stay text. A `[[Name]]` never resolves to a non-Markdown file without its extension.
+- 2026-11-19 — A changed file updates title, body and `imported` (with `reimported_at`), adds new attachments, and keeps `original` as first imported (invariant 1). A file whose links resolve differently but whose content is unchanged is not updated.
+- 2026-11-19 — Excalidraw drawings, kanban boards and other plugin files that end in `.md` are imported like any note. `.base` and `.canvas` files are imported only where a note links to them.

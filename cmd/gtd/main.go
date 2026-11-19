@@ -35,6 +35,8 @@ const usage = `usage: gtd [-data dir] [-user id] [-key pubkey-file] <command>
   ops tail [-space id] [-n 20]              show the last ops of a space
   export [-space id]... [-from snapshot] <dir>
   import -restore <dir>                     rebuild an empty data dir from a full export
+  import obsidian [-space id] [-dry-run] <vault>
+                                            import an Obsidian vault as unsorted notes
   snapshot create [-label l] | list | prune | verify [name]...
   restore <snapshot>                        replace the database with a snapshot (daemon stopped)
   reindex                                   drop all embeddings and build them again (needs the daemon)
@@ -415,13 +417,16 @@ func manifestSummary(verb string, man *store.Manifest, dir string) string {
 }
 
 func cmdImport(g globals, args []string, stdout io.Writer) error {
+	if len(args) > 0 && args[0] == "obsidian" {
+		return importObsidian(g, args[1:], stdout)
+	}
 	restore := false
 	args, err := flags("import", args, func(fs *flag.FlagSet) { fs.BoolVar(&restore, "restore", false, "") })
 	if err != nil {
 		return err
 	}
 	if !restore {
-		return errors.New("gtd import: only `import -restore <dir>` exists so far")
+		return errors.New("gtd import: want `import obsidian …` or `import -restore <dir>`")
 	}
 	if err := want("import -restore", args, 1, "an export directory"); err != nil {
 		return err

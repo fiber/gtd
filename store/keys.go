@@ -21,6 +21,8 @@ import (
 //	opid/<opid>                     opRef
 //	sess/<id>                       Session (M1)
 //	x/vec/<space>/<itemid>          embedding: 32-byte text hash, passage count, item vector, passage vectors (LE float32)
+//	x/import/<space>/<sha1(path)>   import: {id, hash} of the file imported from that path (M5)
+//	x/import/<space>/report         the last import's report (M5)
 //	x/vecid                         identity of the stored vectors (M4)
 //	x/pdf/<sha256>                  extracted PDF text (M4)
 //

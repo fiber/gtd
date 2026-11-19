@@ -116,6 +116,8 @@ func (s *Server) initApp() {
 	m.HandleFunc("POST /api/v1/ops", s.user(s.postOps))
 	m.HandleFunc("GET /api/v1/items/{id}/comments", s.user(s.comments))
 	m.HandleFunc("POST /api/v1/attachments", s.user(s.upload))
+	m.HandleFunc("GET /api/v1/import", s.user(s.importState))
+	m.HandleFunc("POST /api/v1/import", s.user(s.importNotes))
 	m.HandleFunc("GET /api/v1/att/{sha}", s.user(s.attachment))
 	m.HandleFunc("POST /api/v1/render", s.user(s.render))
 	m.HandleFunc("GET /api/v1/pick", s.user(s.pick))

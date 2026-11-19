@@ -91,6 +91,16 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 		return res, nil
 	}
 
+	if op.Type == OpImport {
+		// A marker in the log (IMPORT.md §1). It touches no item.
+		var m ImportMarker
+		if err := strict(op.Payload, &m); err != nil || (m.Phase != "begin" && m.Phase != "end") || m.Source == "" || op.Item != "" || len(op.Changes) > 0 {
+			return nil, fmt.Errorf("%w: import marker needs a source and phase begin or end (%v)", ErrInvalid, err)
+		}
+		res.Ops = []Op{op}
+		return res, nil
+	}
+
 	before := ws.Item(op.Item)
 	var err error
 	switch op.Type {
@@ -141,11 +151,19 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 	return res, nil
 }
 
+// ImportMarker is the payload of an import op.
+type ImportMarker struct {
+	Source string `json:"source"` // "obsidian"
+	Phase  string `json:"phase"`  // begin | end
+	Notes  int    `json:"notes,omitempty"`
+}
+
 // Replay applies the recorded effect of a logged op to items and comments,
 // without validation and without rules. Replaying a space's op log in sequence
 // order from empty maps reproduces its stored items and comments exactly.
 func Replay(items map[string]*Item, comments map[string]*Comment, op Op) error {
 	switch op.Type {
+	case OpImport:
 	case OpComment:
 		c, err := replayComment(nil, op)
 		if err != nil {
