@@ -270,3 +270,12 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 
 - 2026-11-19 — Owner: go live with a version: several users, who change their passwords themselves; "admin user names are set in the config". `admins: [ids]` in config.yaml is the only source: the stored `admin` flag on users is gone (an old record or export that has it still loads; the field is ignored). `gtd user add -admin` became `gtd user add -init`, which only creates the database for the first user. An admin still needs the SSH-key challenge for admin routes (D-21); direct access to the data directory stays operator-level.
 - 2026-11-19 — Password change: Settings asks for the current and the new password (8 to 72 characters). Wrong attempts count like failed logins (same lock). A change ends the user's other web sessions. A user's first password is set by an admin with `gtd user passwd`; there is no self-registration and no "forgot password" (an admin sets a new one).
+
+### Moving a capture to a shared space (pulled forward from M6)
+
+- 2026-11-19 — Owner: capture stays "one box into the personal inbox"; where it belongs is decided in Clarify, and the "which space?" step is built now. Nothing is chosen at capture time.
+- 2026-11-19 — Only an inbox capture can move so far: it has no project, area, parent or blockers and nothing links to it, so the open questions of a general move (cross-space blockers, links) do not arise. History: the capture's earlier ops stay in the personal space's log; the shared space's log starts with the arriving move, which carries the item as it was and its thread.
+- 2026-11-19 — The step comes right after "What is it?", before the project and area questions, because those must offer the chosen space's projects and areas. The personal space is first and highlighted. SPEC said "preselected by similarity"; a suggestion does not choose (invariant 2), and there is no suggestion here yet.
+- 2026-11-19 — In a shared space the action that the capture becomes gets the user who clarified it as its owner (in a personal space the rule does that).
+- 2026-11-19 — The confirmation COLLAB §1 asks for is the step itself: each choice names the space's members, and a capture with attachments says that they become visible too.
+- 2026-11-19 — A move cannot be submitted through `POST /ops`: it changes two spaces and only `View.Move` builds the pair.

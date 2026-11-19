@@ -627,3 +627,74 @@ func TestSweep(t *testing.T) {
 		}
 	}
 }
+
+// TestClarifySpaceStep: with a shared space to choose, Clarify asks where the
+// capture belongs right after what it is (SPEC §5.2 step 2).
+func TestClarifySpaceStep(t *testing.T) {
+	w := newWorld(t)
+	env := NewEnv(w.st, "robin", today)
+	// Without shared spaces the step does not exist (every other test).
+	env.Spaces = []Ref{{ID: "robin"}, {ID: "net", Title: "NET · Robin, Dana"}}
+	start := func(choice string) Clarify {
+		cl, _, done, err := StartClarify(w.st.Items["c"]).Next(env, in(choice, title...), w.newID)
+		if err != nil || done {
+			t.Fatalf("%s: done %v, err %v", choice, done, err)
+		}
+		return cl
+	}
+	cl := start("action")
+	s := cl.Step(env)
+	if s.Key != StepSpace || s.Type != TypeChoice || s.Preselect != "robin" || len(s.Options) != 2 ||
+		s.Options[0].Label != "clarify.opt.personal" || s.Options[1].Text != "NET · Robin, Dana" {
+		t.Fatalf("space step: %+v", s)
+	}
+	if _, _, _, err := cl.Next(env, in("elsewhere"), w.newID); !errors.Is(err, core.ErrInvalid) {
+		t.Errorf("a space that is not offered: %v", err)
+	}
+	// Each outcome goes on where it would have gone.
+	for choice, next := range map[string]string{"action": StepAction, "project": StepProject, "reference": StepReference, "someday": StepSomeday} {
+		stay, _, _, err := start(choice).Next(env, in("robin"), w.newID)
+		if err != nil || stay.At != next || stay.Space != "" {
+			t.Errorf("%s, staying: at %s, space %q, %v", choice, stay.At, stay.Space, err)
+		}
+		move, _, _, err := start(choice).Next(env, in("net"), w.newID)
+		if err != nil || move.At != next || move.Space != "net" {
+			t.Errorf("%s, moving: at %s, space %q, %v", choice, move.At, move.Space, err)
+		}
+	}
+	// Trash and duplicate never ask.
+	if _, ops, done, err := StartClarify(w.st.Items["c"]).Next(env, in("trash"), w.newID); err != nil || !done || len(ops) != 1 {
+		t.Errorf("trash with shared spaces: %v %v", done, err)
+	}
+	// Moving: the ops are based on the revision after the arrival, and the
+	// action gets the one who clarified it as its owner.
+	walk := func(space string) []core.Op {
+		cl := start("action")
+		var ops []core.Op
+		for _, a := range []Input{in(space), in("continue", "action", "Do it"), in("no"), in("me"), in("continue")} {
+			var err error
+			if cl, ops, _, err = cl.Next(env, a, w.newID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return ops
+	}
+	stay, move := walk("robin"), walk("net")
+	rev := w.st.Items["c"].Rev
+	if stay[0].BaseRev != rev || move[0].BaseRev != rev+1 {
+		t.Errorf("base revisions: staying %d, moving %d, capture at %d", stay[0].BaseRev, move[0].BaseRev, rev)
+	}
+	owner := func(ops []core.Op) bool {
+		for _, op := range ops {
+			for _, c := range op.Changes {
+				if c.Field == "owner" && string(c.New) == `"robin"` {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if owner(stay) || !owner(move) {
+		t.Errorf("owner set: staying %v (want false), moving %v (want true)", owner(stay), owner(move))
+	}
+}

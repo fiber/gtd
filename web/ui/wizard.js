@@ -139,6 +139,7 @@ class Wizard extends View {
       ${(d.attachments || []).map((a) => (a.mime || '').startsWith('image/')
         ? html`<img class="att" src=${'api/v1/att/' + a.sha256} alt=${a.name}>`
         : html`<a class="chip file" href=${'api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}
+      ${d.visible ? html`<p class="facts">${t('clarify.space_hint')}</p>` : nothing}
       ${d.folders?.length ? html`<p class="facts">${t('sweep.folders')} ${d.folders.map((x) => html`<span class="chip">${x}</span> `)}</p>` : nothing}
       ${d.inbox !== undefined ? html`<p class="facts">${t('review.inbox_count', { inbox: d.inbox, others: d.from_others })}</p>` : nothing}
       ${d.count !== undefined ? html`<p class="facts">${t('review.unsorted_count', { n: d.count })}</p>` : nothing}

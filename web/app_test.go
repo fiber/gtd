@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -426,8 +427,12 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	if code, _ := s.login("dana").do("POST", "/api/v1/wizard/clarify/"+session+"/step", map[string]any{"choice": "continue"}, nil); code != 404 {
 		t.Errorf("foreign wizard session: %d", code)
 	}
-	if r := answer("project", "title", "Engine survives resets", "body", "notes"); r.Step.Key != "project" {
-		t.Fatalf("the first screen did not lead to the project step: %+v", r)
+	// robin has a shared space, so Clarify asks where it belongs. It stays.
+	if r := answer("project", "title", "Engine survives resets", "body", "notes"); r.Step.Key != "space" || len(r.Step.Options) != 2 || r.Step.Options[0].Value != "robin" || r.Step.Options[1].Value != "net" {
+		t.Fatalf("the first screen did not lead to the space step: %+v", r)
+	}
+	if r := answer("robin"); r.Step.Key != "project" {
+		t.Fatalf("after the space step: %+v", r)
 	}
 	if r := answer("continue", "title", "Engine survives resets"); r.Step.Key != "action" {
 		t.Fatalf("after project: %+v", r)
@@ -626,4 +631,113 @@ func TestChangePassword(t *testing.T) {
 	if me.User.Admin {
 		t.Error("robin is no longer in Admins but /me says yes")
 	}
+}
+
+// TestClarifyIntoSharedSpace: Clarify's "which space?" moves the capture to a
+// shared space and makes it what was decided there, in one step (SPEC §5.2,
+// COLLAB §1).
+func TestClarifyIntoSharedSpace(t *testing.T) {
+	s := newSite(t)
+	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
+	project := dana.create("net", map[string]any{"kind": "project", "title": "Shared project"})
+	robin.create("robin", map[string]any{"kind": "project", "title": "Private project"})
+	var cap struct{ ID string }
+	robin.ok("POST", "/api/v1/capture", map[string]any{"text": "ask about the shared thing\nwith a second line"}, &cap)
+
+	type res struct {
+		Session string
+		Step    struct {
+			Key     string
+			Options []struct{ Value, Text, Label string }
+			Fields  []struct {
+				Key     string
+				Options []struct{ Value, Text string }
+			}
+		}
+		Done bool
+		Ops  []core.Op
+	}
+	var w res
+	robin.ok("POST", "/api/v1/wizard/clarify/start", map[string]string{}, &w)
+	answer := func(c *client, choice string, kv ...string) (int, res) {
+		values := map[string]string{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			values[kv[i]] = kv[i+1]
+		}
+		var r res
+		code, _ := c.do("POST", "/api/v1/wizard/clarify/"+w.Session+"/step", map[string]any{"choice": choice, "values": values}, &r)
+		return code, r
+	}
+	_, r := answer(robin, "project", "title", "Ask about the shared thing")
+	if r.Step.Key != "space" || r.Step.Options[0].Label != "clarify.opt.personal" || r.Step.Options[1].Text != "NET · Dana, Robin" {
+		t.Fatalf("space step: %+v", r.Step)
+	}
+	// A space the user is not in is not a choice.
+	if code, _ := answer(robin, "jo"); code != 400 {
+		t.Errorf("choosing someone else's space: %d", code)
+	}
+	_, r = answer(robin, "net")
+	// The project step now offers the shared space's projects, not the private ones.
+	var offered []string
+	for _, o := range r.Step.Fields[0].Options {
+		offered = append(offered, o.Text)
+	}
+	if r.Step.Key != "project" || !slices.Contains(offered, "Shared project") || slices.Contains(offered, "Private project") {
+		t.Fatalf("project step after choosing net: %s %v", r.Step.Key, offered)
+	}
+	answer(robin, "continue", "project", project)
+	answer(robin, "continue", "action", "Ask Dana about the shared thing")
+	answer(robin, "no")
+	answer(robin, "me")
+	answer(robin, "continue")
+	_, r = answer(robin, "finish")
+	if !r.Done || len(r.Ops) < 2 || r.Ops[0].Type != core.OpMove || r.Ops[0].Space != "net" {
+		t.Fatalf("finish: %+v", r)
+	}
+	// It is in net now, as an action in the shared project, with its original text.
+	var iv ItemView
+	if code, _ := dana.do("GET", "/api/v1/items/"+cap.ID, nil, &iv); code != 200 || iv.Space != "net" || iv.Kind != core.KindAction || iv.State != core.StNext ||
+		iv.Project != project || iv.Title != "Ask Dana about the shared thing" || iv.Owner != "robin" {
+		t.Errorf("the item as dana sees it: %d space %s, %s/%s, project %s, %q, owner %s", code, iv.Space, iv.Kind, iv.State, iv.Project, iv.Title, iv.Owner)
+	}
+	if it, err := must(s.st.View("dana")).Item("net", cap.ID); err != nil || !strings.Contains(it.Original, "with a second line") || it.Space != "net" {
+		t.Errorf("the stored item after the move: %+v %v", it, err)
+	}
+	if code, _ := jo.do("GET", "/api/v1/items/"+cap.ID, nil, nil); code != 404 {
+		t.Errorf("a non-member reads the moved item: %d", code)
+	}
+	// It is gone from the personal space and its inbox; both logs tell the story.
+	var inbox struct{ Captures []Brief }
+	robin.ok("GET", "/api/v1/inbox", nil, &inbox)
+	if len(inbox.Captures) != 0 {
+		t.Errorf("inbox after the move: %+v", inbox.Captures)
+	}
+	items, _ := must(s.st.View("robin")).Items("robin", func(it *core.Item) bool { return it.ID == cap.ID })
+	if len(items) != 0 {
+		t.Error("the capture is still in the personal space")
+	}
+	var personal, shared []core.Op
+	robin.ok("GET", "/api/v1/ops?n=3&space=robin", nil, &personal)
+	robin.ok("GET", "/api/v1/ops?n=10&space=net", nil, &shared)
+	if last := personal[len(personal)-1]; last.Type != core.OpMove || last.Item != cap.ID || !strings.Contains(string(last.Payload), `"to":"net"`) {
+		t.Errorf("last op of the personal space: %+v", last)
+	}
+	moved := false
+	for _, op := range shared {
+		moved = moved || op.Type == core.OpMove && op.Item == cap.ID && strings.Contains(string(op.Payload), `"from":"robin"`)
+	}
+	if !moved {
+		t.Error("the shared space's log has no arriving move")
+	}
+	// A move cannot be submitted as a plain op.
+	if code, body := robin.do("POST", "/api/v1/ops", map[string]any{"space": "robin", "ops": []map[string]any{{"type": "move", "item": project, "payload": map[string]string{"to": "net"}}}}, nil); code != 400 {
+		t.Errorf("move through /ops: %d %s", code, body)
+	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

@@ -410,6 +410,14 @@ func TestIsolation(t *testing.T) {
 			_, err := v.Import(sp, []ImportNote{{Path: "a.md", Hash: "h", Item: core.Item{ID: v.s.NewID(), Title: "intruder"}}})
 			return err
 		},
+		"Move": func(v *View, sp string) error { // a capture from the own inbox into the space
+			id := v.s.NewID()
+			if _, err := v.Apply(v.user, createOp(core.Item{ID: id, Kind: core.KindCapture, Title: "to move"})); err != nil {
+				return err
+			}
+			_, err := v.Move(v.user, sp, id)
+			return err
+		},
 		"Apply": func(v *View, sp string) error {
 			_, err := v.Apply(sp, createOp(core.Item{ID: v.s.NewID(), Kind: core.KindNote, Title: "intruder"}))
 			return err
@@ -438,8 +446,8 @@ func TestIsolation(t *testing.T) {
 			t.Errorf("%s leaks existence: non-member %q, missing space %q", name, errNonMember, errNoSpace)
 		}
 	}
-	if got := s.spaces["net"].seq; got != seq+3 {
-		t.Errorf("space seq moved from %d to %d, want exactly dana's three ops (create, import marker, imported note)", seq, got)
+	if got := s.spaces["net"].seq; got != seq+4 {
+		t.Errorf("space seq moved from %d to %d, want exactly dana's four ops (create, import marker, imported note, arriving move)", seq, got)
 	}
 	for _, sp := range jo.Spaces() {
 		if sp.ID != "jo" {
@@ -901,5 +909,127 @@ func TestTickler(t *testing.T) {
 	check0(s.DeleteUserState("robin", "review"))
 	if s.GetUserState("robin", "review", &got) {
 		t.Error("user state survived its deletion")
+	}
+}
+
+// TestMove: an inbox capture moves to another space with its thread, in one
+// batch with the ops that follow, or not at all (COLLAB §1).
+func TestMove(t *testing.T) {
+	dir := t.TempDir()
+	s := must(Create(dir, "test"))
+	defer func() { s.Close() }()
+	deterministic(s)
+	for _, u := range []string{"robin", "dana", "jo"} {
+		check0(s.AddUser(core.User{ID: u}))
+	}
+	check0(s.CreateSpace("net", "NET", []string{"robin", "dana"}))
+	robin, dana := must(s.View("robin")), must(s.View("dana"))
+	sha, _, err := s.PutBlob(strings.NewReader("photo"))
+	check0(err)
+	cap := must(robin.Capture("idea for the team\nsecond line", "", core.Source{Via: "web"}, []core.Attachment{{SHA256: sha, Name: "p.png", MIME: "image/png", Size: 5}}))
+	must(robin.Apply("robin", core.Op{Via: "web", Type: core.OpComment, Item: cap.ID, Payload: raw(core.Comment{Body: "a thought on it"})}))
+	other := must(robin.Capture("stays private", "", core.Source{Via: "web"}, nil))
+	var changed []string
+	s.OnCommit = func(space string, items []*core.Item) {
+		for _, it := range items {
+			changed = append(changed, space+"/"+it.ID)
+		}
+	}
+
+	// A following op that fails takes the move with it: nothing changes anywhere.
+	before := must(robin.Ops("robin", 100))
+	if _, err := robin.Move("robin", "net", cap.ID, core.Op{Via: "web", Type: core.OpPatch, Item: cap.ID, BaseRev: 99,
+		Changes: []core.FieldChange{{Field: "title", Old: raw("something else"), New: raw("x")}}}); !errors.Is(err, core.ErrConflict) {
+		t.Fatalf("move with a failing op: %v", err)
+	}
+	if it, err := robin.Item("robin", cap.ID); err != nil || it.Rev != cap.Rev {
+		t.Fatalf("after a failed move the capture is not where it was: %+v %v", it, err)
+	}
+	if _, err := dana.Item("net", cap.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("after a failed move the capture is in the target: %v", err)
+	}
+	if after := must(robin.Ops("robin", 100)); len(after) != len(before) || len(must(robin.Ops("net", 100))) != 0 || len(changed) != 0 {
+		t.Fatalf("a failed move left ops or notifications behind")
+	}
+	for _, p := range check(s) {
+		t.Errorf("after a failed move: %s", p)
+	}
+
+	// The move, and what Clarify does next, in one batch.
+	logged, err := robin.Move("robin", "net", cap.ID,
+		core.Op{Via: "web", Type: core.OpTransition, Item: cap.ID, BaseRev: cap.Rev + 1, Changes: []core.FieldChange{{Field: "kind", New: raw(core.KindNote)}, {Field: "state", New: raw(core.StUnsorted)}}})
+	check0(err)
+	if len(logged) != 2 || logged[0].Type != core.OpMove || logged[0].Space != "net" || logged[1].Type != core.OpTransition {
+		t.Fatalf("logged: %+v", logged)
+	}
+	it, err := dana.Item("net", cap.ID)
+	if err != nil || it.Space != "net" || it.Kind != core.KindNote || it.Rev != cap.Rev+2 || it.Original != cap.Original || it.Body != cap.Body ||
+		len(it.Attachments) != 1 || !it.Created.Equal(cap.Created) || it.UpdatedBy != "robin" {
+		t.Errorf("moved item: %+v %v", it, err)
+	}
+	if _, err := robin.Item("robin", cap.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("the item is still in the personal space: %v", err)
+	}
+	if c := must(dana.Comments("net", cap.ID)); len(c) != 1 || c[0].Body != "a thought on it" || c[0].Author != "robin" {
+		t.Errorf("the thread did not move: %+v", c)
+	}
+	if n := must(robin.CommentCount("robin", cap.ID)); n != 0 {
+		t.Errorf("%d comments left behind", n)
+	}
+	if att, ok := dana.Blob(sha); !ok || att.Name != "p.png" {
+		t.Errorf("dana cannot open the attachment of the moved item: %+v %v", att, ok)
+	}
+	if hits := dana.Grep("team"); len(hits) != 1 || hits[0].ID != cap.ID {
+		t.Errorf("dana's search: %v", hits)
+	}
+	if hits := must(s.View("jo")).Grep("team"); len(hits) != 0 {
+		t.Errorf("a non-member finds the moved item: %v", hits)
+	}
+	slices.Sort(changed)
+	if !slices.Equal(changed, []string{"net/" + cap.ID, "robin/" + cap.ID}) {
+		t.Errorf("OnCommit saw %v", changed)
+	}
+	for _, p := range check(s) {
+		t.Errorf("after the move: %s", p)
+	}
+
+	// What cannot move.
+	for name, c := range map[string]struct {
+		from, to, item string
+		want           error
+	}{
+		"not a capture any more":    {"net", "robin", cap.ID, core.ErrInvalid},
+		"into the same space":       {"robin", "robin", other.ID, core.ErrInvalid},
+		"an item that is not there": {"robin", "net", "01NOPE", core.ErrNotFound},
+		"into a space of others":    {"robin", "jo", other.ID, core.ErrNotFound},
+		"out of a space of others":  {"jo", "robin", other.ID, core.ErrNotFound},
+	} {
+		if _, err := robin.Move(c.from, c.to, c.item); !errors.Is(err, c.want) {
+			t.Errorf("%s: %v, want %v", name, err, c.want)
+		}
+	}
+	if _, err := robin.Apply("robin", core.Op{Via: "web", Type: core.OpMove, Item: other.ID, Payload: raw(core.Move{To: "net"})}); !errors.Is(err, core.ErrInvalid) {
+		t.Errorf("a move submitted as a plain op: %v", err)
+	}
+
+	// After a restart, and after export and restore, everything is the same.
+	exp1, exp2, dir2 := t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "restored")
+	var buf bytes.Buffer
+	check0(s.Export(&buf, nil))
+	check0(Untar(&buf, exp1))
+	check0(s.Close())
+	s = must(Open(dir))
+	for _, p := range check(s) {
+		t.Errorf("after reopening: %s", p)
+	}
+	must(Restore(dir2, exp1))
+	s2 := must(Open(dir2))
+	defer s2.Close()
+	buf.Reset()
+	check0(s2.Export(&buf, nil))
+	check0(Untar(&buf, exp2))
+	diffMaps(t, "export after restore", tree(t, exp2), tree(t, exp1))
+	if it, err := must(s2.View("dana")).Item("net", cap.ID); err != nil || it.Kind != core.KindNote {
+		t.Errorf("the moved item after restore: %+v %v", it, err)
 	}
 }

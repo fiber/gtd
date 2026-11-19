@@ -11,6 +11,11 @@
   batch). It needs confirmation listing what becomes visible to whom (attachments,
   comments). Links from other items stay valid. Readers without access see
   "unavailable item".
+  Built so far (2026-11-19): an inbox capture moves, from Clarify's "which space?"
+  (SPEC §5.2). A move is two `move` ops in one batch, one in each space's log: the
+  space it leaves records where it went, the space it arrives in records the item and
+  its thread. Moving anything else (with projects, blockers and links to follow) is
+  still M6.
 - **Operator note:** the server's operator can technically read everything. The admin
   UI's user-creation page states this. On the home server, guests (Grit, the kids)
   are told so.

@@ -97,6 +97,7 @@ series of questions. Each answer is one tap, or a number key (1 for the first op
 | Question | What it decides |
 |---|---|
 | What is it? | Fix the title so that it will make sense in a month, then say what it becomes: **Action** (one step; Enter), **Project** (more than one step; a new one, or added to an existing one), **Reference**, **Someday** or **Trash**. Alt+1 to Alt+5 press the buttons from the keyboard. |
+| Where does it belong? | Only if you are in a shared space: **Only me**, or one of your shared spaces. Everyone in that space will see it. The questions that follow are about that space's projects and areas. |
 | Next physical action? | One sentence, starting with a verb. "Call the plumber about the quote", not "Plumber". |
 | Under 2 minutes? | Then do it now. A timer runs; press Done. |
 | Who? | You, or someone you are waiting for. |

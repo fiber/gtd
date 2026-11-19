@@ -278,6 +278,11 @@ func (v *View) Apply(spaceID string, ops ...core.Op) ([]core.Op, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, op := range ops {
+		if op.Type == core.OpMove {
+			return nil, fmt.Errorf("%w: a move is not an op to submit: it changes two spaces (use the move endpoint)", core.ErrInvalid)
+		}
+	}
 	return v.s.apply(sp, spaceID, v.user, ops)
 }
 
@@ -289,28 +294,56 @@ func (s *Store) apply(sp *space, spaceID, actor string, ops []core.Op) ([]core.O
 
 // applyWith is apply with derived keys (x/…) that belong to the ops and are
 // written in the same batch. extra runs under the space's write lock, after
-// the ops were applied, so it sees st.Pending.
+// the ops were applied, so it sees the staged state.
 func (s *Store) applyWith(sp *space, spaceID, actor string, ops []core.Op, extra func(b *pebble.Batch)) ([]core.Op, error) {
 	sp.wmu.Lock()
 	defer sp.wmu.Unlock()
+	b := s.db.NewBatch()
+	defer b.Close()
+	g := s.stage(sp, spaceID)
+	if err := s.stageOps(b, g, actor, ops, map[string]bool{}); err != nil {
+		return nil, err
+	}
+	if extra != nil {
+		extra(b)
+	}
+	if len(g.logged) == 0 && b.Empty() {
+		return nil, nil
+	}
+	if err := s.commit(b, g); err != nil {
+		return nil, err
+	}
+	return g.logged, nil
+}
 
-	// Under wmu nobody else changes this space, so its record and item map can
-	// be read without s.mu. Membership is checked again by core.Apply.
+// staged is what a batch will change in one space. Its space's wmu is held.
+type staged struct {
+	sp       *space
+	id       string
+	st       *core.State
+	seq      uint64
+	logged   []core.Op
+	comments []*core.Comment
+	removed  []*core.Item // items that leave the space (move)
+	notes    []core.Notification
+}
+
+// stage begins a batch for a space. Under wmu nobody else changes the space,
+// so its record and item map can be read without s.mu. Membership is checked
+// again by core.Apply.
+func (s *Store) stage(sp *space, spaceID string) *staged {
 	st := &core.State{Space: sp.rec, Items: sp.items, Pending: map[string]*core.Item{}}
 	if sp.rec.Kind == core.SpacePersonal {
 		if u := s.User(sp.rec.Members[0]); u != nil {
 			st.PersonalContexts = u.PersonalContexts
 		}
 	}
-	var (
-		logged   []core.Op
-		comments []*core.Comment
-		notes    []core.Notification
-		seen     = map[string]bool{}
-	)
-	b := s.db.NewBatch()
-	defer b.Close()
-	seq := sp.seq
+	return &staged{sp: sp, id: spaceID, st: st, seq: sp.seq}
+}
+
+// stageOps applies ops to the staged state and writes their log entries into
+// the batch. An op whose ID is in seen or was applied before is skipped.
+func (s *Store) stageOps(b *pebble.Batch, g *staged, actor string, ops []core.Op, seen map[string]bool) error {
 	for _, op := range ops {
 		if op.ID == "" {
 			op.ID = s.NewID()
@@ -323,77 +356,166 @@ func (s *Store) applyWith(sp *space, spaceID, actor string, ops []core.Op, extra
 			closer.Close()
 			continue
 		} else if !errors.Is(err, pebble.ErrNotFound) {
-			return nil, err
+			return err
 		}
-		op.Space, op.Actor = spaceID, actor
+		op.Space, op.Actor = g.id, actor
 		if op.TS.IsZero() {
 			op.TS = s.Now()
 		}
-		st.Comment = nil
+		g.st.Comment = nil
 		if op.Type == core.OpDeleteComment {
-			st.Comment = s.targetComment(spaceID, op)
+			g.st.Comment = s.targetComment(g.id, op)
 		}
-		res, err := core.Apply(st, op, s.NewID)
+		res, err := core.Apply(g.st, op, s.NewID)
 		if err != nil {
-			return nil, fmt.Errorf("op %s (%s): %w", op.ID, op.Type, err)
+			return fmt.Errorf("op %s (%s): %w", op.ID, op.Type, err)
+		}
+		for _, id := range res.Removed {
+			g.removed = append(g.removed, g.st.Item(id))
+			g.st.Pending[id] = nil // gone for the ops that follow
 		}
 		for _, it := range res.Items {
-			st.Pending[it.ID] = it
+			g.st.Pending[it.ID] = it
 		}
 		for _, o := range res.Ops {
-			seq++
-			o.Seq = seq
-			b.Set(opKey(spaceID, seq), mustJSON(o), nil)
-			b.Set(opidKey(o.ID), mustJSON(opRef{spaceID, seq}), nil)
-			logged = append(logged, o)
+			g.seq++
+			o.Seq = g.seq
+			b.Set(opKey(g.id, g.seq), mustJSON(o), nil)
+			b.Set(opidKey(o.ID), mustJSON(opRef{g.id, g.seq}), nil)
+			g.logged = append(g.logged, o)
 		}
-		comments = append(comments, res.Comments...)
-		notes = append(notes, res.Notifications...)
+		g.comments = append(g.comments, res.Comments...)
+		g.notes = append(g.notes, res.Notifications...)
 	}
-	if extra != nil {
-		extra(b)
+	return nil
+}
+
+// commit writes the staged state of one or more spaces in one synced batch
+// and then updates the in-memory index.
+func (s *Store) commit(b *pebble.Batch, groups ...*staged) error {
+	n := 0
+	for _, g := range groups {
+		n += len(g.logged)
+		for id, it := range g.st.Pending {
+			if it == nil {
+				b.Delete(itemKey(g.id, id), nil)
+				b.DeleteRange([]byte(commentItemPrefix(g.id, id)), prefixEnd(commentItemPrefix(g.id, id)), nil)
+				continue
+			}
+			b.Set(itemKey(g.id, it.ID), mustJSON(it), nil)
+		}
+		for _, c := range g.comments {
+			b.Set(commentKey(g.id, c.Item, c.ID), mustJSON(c), nil)
+		}
+		b.Set(seqKey(g.id), []byte(be64(g.seq)), nil)
+		s.nmu.Lock()
+		for i := range g.notes {
+			s.nseq[g.notes[i].User]++
+			g.notes[i].Seq = s.nseq[g.notes[i].User]
+			b.Set(notifKey(g.notes[i].User, g.notes[i].Seq), mustJSON(g.notes[i]), nil)
+		}
+		s.nmu.Unlock()
 	}
-	if len(logged) == 0 && b.Empty() {
-		return nil, nil
-	}
-	for _, it := range st.Pending {
-		b.Set(itemKey(spaceID, it.ID), mustJSON(it), nil)
-	}
-	for _, c := range comments {
-		b.Set(commentKey(spaceID, c.Item, c.ID), mustJSON(c), nil)
-	}
-	b.Set(seqKey(spaceID), []byte(be64(seq)), nil)
-	s.nmu.Lock()
-	for i := range notes {
-		s.nseq[notes[i].User]++
-		notes[i].Seq = s.nseq[notes[i].User]
-		b.Set(notifKey(notes[i].User, notes[i].Seq), mustJSON(notes[i]), nil)
-	}
-	s.nmu.Unlock()
 	if err := b.Commit(pebble.Sync); err != nil {
-		return nil, fmt.Errorf("commit %d ops to space %q: %w", len(logged), spaceID, err)
+		return fmt.Errorf("commit %d ops to space %q: %w", n, groups[0].id, err)
 	}
 
 	s.mu.Lock()
-	for _, it := range st.Pending {
-		sp.items[it.ID] = it
-		sp.text[it.ID] = s.searchText(it)
-	}
-	for _, c := range comments {
-		if !c.Deleted {
-			sp.comments[c.Item]++
+	for _, g := range groups {
+		for id, it := range g.st.Pending {
+			if it == nil {
+				delete(g.sp.items, id)
+				delete(g.sp.text, id)
+				delete(g.sp.comments, id)
+				continue
+			}
+			g.sp.items[it.ID] = it
+			g.sp.text[it.ID] = s.searchText(it)
 		}
+		for _, c := range g.comments {
+			if !c.Deleted {
+				g.sp.comments[c.Item]++
+			}
+		}
+		g.sp.seq = g.seq
 	}
-	sp.seq = seq
 	s.mu.Unlock()
-	if s.OnCommit != nil && len(st.Pending) > 0 {
-		changed := make([]*core.Item, 0, len(st.Pending))
-		for _, it := range st.Pending {
-			changed = append(changed, it)
+	if s.OnCommit != nil {
+		for _, g := range groups {
+			changed := append([]*core.Item(nil), g.removed...)
+			for _, it := range g.st.Pending {
+				if it != nil {
+					changed = append(changed, it)
+				}
+			}
+			if len(changed) > 0 {
+				s.OnCommit(g.id, changed)
+			}
 		}
-		s.OnCommit(spaceID, changed)
 	}
-	return logged, nil
+	return nil
+}
+
+// Move takes an item of space from to space to, with its comments, as the
+// view's user, who must be a member of both (COLLAB §1). The ops then are
+// applied to the target space right after, in the same batch: either the item
+// arrives and they all apply, or nothing happens. It returns the ops logged
+// in the target space.
+func (v *View) Move(from, to, item string, then ...core.Op) ([]core.Op, error) {
+	v.s.mu.RLock()
+	src, err := v.space(from)
+	var dst *space
+	if err == nil {
+		dst, err = v.space(to)
+	}
+	v.s.mu.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+	if from == to {
+		return nil, fmt.Errorf("%w: item %s is already in space %q", core.ErrInvalid, item, to)
+	}
+	// Two spaces are locked in the order of their IDs.
+	first, second := src, dst
+	if to < from {
+		first, second = dst, src
+	}
+	first.wmu.Lock()
+	defer first.wmu.Unlock()
+	second.wmu.Lock()
+	defer second.wmu.Unlock()
+
+	it := src.items[item]
+	if it == nil {
+		return nil, fmt.Errorf("%w: item %s", core.ErrNotFound, item)
+	}
+	var comments []*core.Comment
+	if err := scan(v.s.db, commentItemPrefix(from, item), func(_ string, val []byte) error {
+		c := &core.Comment{}
+		if err := json.Unmarshal(val, c); err != nil {
+			return err
+		}
+		comments = append(comments, c)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	b := v.s.db.NewBatch()
+	defer b.Close()
+	out, in := v.s.stage(src, from), v.s.stage(dst, to)
+	seen := map[string]bool{}
+	ts := v.s.Now()
+	if err := v.s.stageOps(b, out, v.user, []core.Op{{Via: "web", Type: core.OpMove, Item: item, TS: ts, Payload: mustJSON(core.Move{To: to})}}, seen); err != nil {
+		return nil, err
+	}
+	arrive := core.Op{Via: "web", Type: core.OpMove, Item: item, TS: ts, Payload: mustJSON(core.Move{From: from, Item: it, Comments: comments})}
+	if err := v.s.stageOps(b, in, v.user, append([]core.Op{arrive}, then...), seen); err != nil {
+		return nil, err
+	}
+	if err := v.s.commit(b, out, in); err != nil {
+		return nil, err
+	}
+	return in.logged, nil
 }
 
 // targetComment loads the comment a delete_comment op refers to, or nil.

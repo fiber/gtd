@@ -81,7 +81,7 @@ func TestCatalogs(t *testing.T) {
 		"wizard.title.":  {"clarify", "note", "review", "sweep"},
 		"review.":        {"clear", "unsorted", "projects", "stale", "waiting", "dates", "someday", "areas"},
 		"review.opt.":    {"continue", "keep", "someday", "done", "drop", "defer", "nudge", "resolved", "activate"},
-		"clarify.":       {"what", "someday", "reference", "project", "action", "two_minutes", "do_now", "who", "person", "when", "after"},
+		"clarify.":       {"what", "space", "someday", "reference", "project", "action", "two_minutes", "do_now", "who", "person", "when", "after"},
 	}
 	for _, file := range js {
 		src, _ := os.ReadFile(file)

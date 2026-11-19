@@ -43,6 +43,7 @@ const (
 	OpAttach        = "attach"
 	OpDeleteComment = "delete_comment"
 	OpImport        = "import" // marks the start or the end of an import run; changes nothing
+	OpMove          = "move"   // an item leaves this space, or arrives in it (move.go)
 )
 
 // Space kinds.

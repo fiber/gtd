@@ -39,10 +39,12 @@ func (s *State) Each(f func(*Item)) {
 		if p, ok := s.Pending[id]; ok {
 			it = p
 		}
-		f(it)
+		if it != nil { // nil in Pending: the item left the space in this batch
+			f(it)
+		}
 	}
 	for id, it := range s.Pending {
-		if _, ok := s.Items[id]; !ok {
+		if _, ok := s.Items[id]; !ok && it != nil {
 			f(it)
 		}
 	}
@@ -50,6 +52,7 @@ func (s *State) Each(f func(*Item)) {
 
 // Result is everything one op changes. The caller writes all of it in one batch.
 type Result struct {
+	Removed       []string       // items that left the space (move)
 	Items         []*Item        // new versions of changed items
 	Comments      []*Comment     // new or tombstoned comments
 	Ops           []Op           // the op as logged, followed by derived system ops
@@ -91,6 +94,9 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 		return res, nil
 	}
 
+	if op.Type == OpMove {
+		return applyMove(ws, op, res)
+	}
 	if op.Type == OpImport {
 		// A marker in the log (IMPORT.md §1). It touches no item.
 		var m ImportMarker
@@ -163,6 +169,8 @@ type ImportMarker struct {
 // order from empty maps reproduces its stored items and comments exactly.
 func Replay(items map[string]*Item, comments map[string]*Comment, op Op) error {
 	switch op.Type {
+	case OpMove:
+		return replayMove(items, comments, op)
 	case OpImport:
 	case OpComment:
 		c, err := replayComment(nil, op)

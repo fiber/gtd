@@ -83,6 +83,9 @@ type Ref struct {
 
 // Env is what a machine knows about the space it works in. NewEnv builds it.
 type Env struct {
+	// Spaces are the spaces the user may put a capture into: the one it is
+	// in first, then the shared ones. Title names the space and its members.
+	Spaces    []Ref
 	User      string
 	Today     string // YYYY-MM-DD
 	Space     *core.Space

@@ -1251,6 +1251,26 @@ func (s *Server) wizardEnv(v *store.View, ws *wizardSession) (wizard.Env, error)
 	}
 	env := wizard.NewEnv(st, ws.user, s.today())
 	env.Similar, env.SuggestProjects = ws.similar, ws.projects
+	if ws.kind == "clarify" {
+		// Where a capture may go: it can stay, or move to a shared space of
+		// the user. Each choice says who will see it there.
+		for _, sp := range v.Spaces() {
+			var names []string
+			for _, m := range sp.Members {
+				if u := s.st.User(m); u != nil && u.Name != "" {
+					names = append(names, u.Name)
+				} else {
+					names = append(names, m)
+				}
+			}
+			ref := wizard.Ref{ID: sp.ID, Title: sp.Name + " · " + strings.Join(names, ", ")}
+			if sp.ID == ws.user {
+				env.Spaces = append([]wizard.Ref{{ID: sp.ID}}, env.Spaces...) // the personal space first
+			} else {
+				env.Spaces = append(env.Spaces, ref)
+			}
+		}
+	}
 	return env, nil
 }
 
@@ -1307,6 +1327,11 @@ func (s *Server) wizardStep(w http.ResponseWriter, r *http.Request, a actor) err
 		ws.sweep, ops, done, err = ws.sweep.Next(env, in, s.st.NewID)
 	default:
 		ws.clarify, ops, done, err = ws.clarify.Next(env, in, s.st.NewID)
+		if err == nil && ws.clarify.Space != "" && ws.space != ws.clarify.Space {
+			// From here on the questions are about the space it moves to: its
+			// projects, areas, contexts and people.
+			ws.space = ws.clarify.Space
+		}
 	}
 	if done {
 		delete(ap.wizards, id)
@@ -1322,10 +1347,19 @@ func (s *Server) wizardStep(w http.ResponseWriter, r *http.Request, a actor) err
 		return err
 	}
 	if !done {
+		if env, err = s.wizardEnv(v, ws); err != nil { // the space may have changed
+			return err
+		}
 		return reply(w, map[string]any{"step": ws.step(env)})
 	}
 	logged := []core.Op{}
-	if len(ops) > 0 {
+	switch {
+	case ws.kind == "clarify" && ws.clarify.Space != "":
+		// The capture moves, and becomes what was decided, in one batch.
+		if logged, err = v.Move(a.user, ws.clarify.Space, ws.clarify.Item, ops...); err != nil {
+			return err
+		}
+	case len(ops) > 0:
 		if logged, err = v.Apply(ws.space, ops...); err != nil {
 			return err
 		}

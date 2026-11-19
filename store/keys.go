@@ -42,21 +42,22 @@ func be64(n uint64) string {
 	return string(b[:])
 }
 
-func userKey(user string) []byte              { return []byte("u/" + user) }
-func notifPrefix(user string) string          { return "u/" + user + "/n/" }
-func notifKey(user string, seq uint64) []byte { return []byte(notifPrefix(user) + be64(seq)) }
-func spaceKey(space string) []byte            { return []byte("sp/" + space) }
-func itemPrefix(space string) string          { return "sp/" + space + "/it/" }
-func itemKey(space, id string) []byte         { return []byte(itemPrefix(space) + id) }
-func commentPrefix(space string) string       { return "sp/" + space + "/cm/" }
-func opPrefix(space string) string            { return "sp/" + space + "/op/" }
-func opKey(space string, seq uint64) []byte   { return []byte(opPrefix(space) + be64(seq)) }
-func seqKey(space string) []byte              { return []byte("sp/" + space + "/seq") }
-func opidKey(opid string) []byte              { return []byte("opid/" + opid) }
-func sessionKey(id string) []byte             { return []byte("sess/" + id) }
-func vecPrefix(space string) string           { return "x/vec/" + space + "/" }
-func vecKey(space, id string) []byte          { return []byte(vecPrefix(space) + id) }
-func pdfKey(sha string) []byte                { return []byte("x/pdf/" + sha) }
+func userKey(user string) []byte                  { return []byte("u/" + user) }
+func notifPrefix(user string) string              { return "u/" + user + "/n/" }
+func notifKey(user string, seq uint64) []byte     { return []byte(notifPrefix(user) + be64(seq)) }
+func spaceKey(space string) []byte                { return []byte("sp/" + space) }
+func itemPrefix(space string) string              { return "sp/" + space + "/it/" }
+func itemKey(space, id string) []byte             { return []byte(itemPrefix(space) + id) }
+func commentPrefix(space string) string           { return "sp/" + space + "/cm/" }
+func opPrefix(space string) string                { return "sp/" + space + "/op/" }
+func opKey(space string, seq uint64) []byte       { return []byte(opPrefix(space) + be64(seq)) }
+func seqKey(space string) []byte                  { return []byte("sp/" + space + "/seq") }
+func opidKey(opid string) []byte                  { return []byte("opid/" + opid) }
+func sessionKey(id string) []byte                 { return []byte("sess/" + id) }
+func vecPrefix(space string) string               { return "x/vec/" + space + "/" }
+func vecKey(space, id string) []byte              { return []byte(vecPrefix(space) + id) }
+func pdfKey(sha string) []byte                    { return []byte("x/pdf/" + sha) }
+func commentItemPrefix(space, item string) string { return commentPrefix(space) + item + "/" }
 func commentKey(space, item, id string) []byte {
 	return []byte(commentPrefix(space) + item + "/" + id)
 }

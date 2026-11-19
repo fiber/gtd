@@ -7,10 +7,10 @@ import (
 	"github.com/fiber/gtd/core"
 )
 
-// Clarify step keys, in the order of SPEC §5.2. Step 2 ("which space?") needs
-// the move op and arrives with M6: until then an item stays in the inbox's space.
+// Clarify step keys, in the order of SPEC §5.2.
 const (
 	StepWhat       = "what"        // 1. what is it, and what becomes of it?
+	StepSpace      = "space"       // 2. which space? (only with shared spaces)
 	StepSomeday    = "someday"     //    no → someday: not before?
 	StepReference  = "reference"   //    no → reference: where does it belong?
 	StepProject    = "project"     //    yes → which project, or a new one
@@ -53,6 +53,8 @@ type Clarify struct {
 	Title       string      `json:"title"`
 	Body        string      `json:"body"`
 	Outcome     string      `json:"outcome,omitempty"`     // trash | someday | reference | action
+	Multi       bool        `json:"multi,omitempty"`       // more than one step: a project
+	Space       string      `json:"space,omitempty"`       // the shared space the capture moves to; "" = it stays
 	Project     string      `json:"project,omitempty"`     // existing project
 	NewProject  *NewProject `json:"new_project,omitempty"` // the capture becomes this project
 	Area        string      `json:"area,omitempty"`
@@ -121,6 +123,21 @@ func (c Clarify) Step(env Env) Step {
 				}
 			}
 		}
+	case StepSpace:
+		// Where it belongs, and so who will see it. The personal space is
+		// first and highlighted; a suggestion never chooses (invariant 2).
+		s.Type, s.Options = TypeChoice, nil
+		for i, sp := range env.Spaces {
+			o := Option{Value: sp.ID, Text: sp.Title}
+			if i == 0 {
+				o.Label = "clarify.opt.personal" // the space it is in: the personal one
+			}
+			s.Options = append(s.Options, o)
+		}
+		if len(s.Options) > 0 {
+			s.Preselect = s.Options[0].Value
+		}
+		s.Data = map[string]any{"visible": len(c.Attachments) > 0}
 	case StepSomeday:
 		s.Fields = []Field{{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)}}
 	case StepReference:
@@ -197,6 +214,19 @@ func (c Clarify) Step(env Env) Step {
 	return s
 }
 
+// afterSpace is the step that follows the decision of what and where.
+func (c Clarify) afterSpace() string {
+	switch {
+	case c.Outcome == "someday":
+		return StepSomeday
+	case c.Outcome == "reference":
+		return StepReference
+	case c.Multi:
+		return StepProject
+	}
+	return StepAction
+}
+
 // templates returns the space's templates for a kind as options, led by "none".
 func (c Clarify) templates(env Env, kind string) []Option {
 	out := []Option{{Value: "", Label: "option.none"}}
@@ -242,15 +272,21 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 		}
 		c.Body = strings.TrimRight(in.Values["body"], " \t\r\n")
 		switch in.Choice {
-		case "someday":
-			c.Outcome, c.At = "someday", StepSomeday
-		case "reference":
-			c.Outcome, c.At = "reference", StepReference
-		case "project":
-			c.Outcome, c.At = "action", StepProject
+		case "someday", "reference":
+			c.Outcome = in.Choice
 		default:
-			c.Outcome, c.At = "action", StepAction
+			c.Outcome, c.Multi = "action", in.Choice == "project"
 		}
+		c.At = c.afterSpace()
+		if len(env.Spaces) > 1 {
+			c.At = StepSpace
+		}
+	case StepSpace:
+		// The first option is the space the capture is in: it stays.
+		if c.Space = in.Choice; len(step.Options) > 0 && c.Space == step.Options[0].Value {
+			c.Space = ""
+		}
+		c.At = c.afterSpace()
 	case StepSomeday:
 		if c.Defer, err = date(in, "defer_until"); err != nil {
 			return c, nil, false, err
@@ -385,6 +421,9 @@ func quote(s string) json.RawMessage {
 func (c Clarify) ops(env Env, newID func() string) []core.Op {
 	var ops []core.Op
 	rev := c.Rev
+	if c.Space != "" {
+		rev++ // the capture arrives in its new space first, which is one more revision
+	}
 	// become turns the capture into kind/state and sets its fields.
 	become := func(kind, state string, changes []core.FieldChange) {
 		ops = append(ops, core.Op{Via: "web", Type: core.OpTransition, Item: c.Item, BaseRev: rev, Changes: []core.FieldChange{
@@ -407,7 +446,16 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 		ops = append(ops, core.Op{Via: "web", Type: core.OpTransition, Item: id, BaseRev: baseRev,
 			Changes: []core.FieldChange{{Field: "state", New: quote(core.StDone)}}})
 	}
+	// title starts the changes of the capture when it becomes an action. In a
+	// personal space an action belongs to its user by rule; in a shared space
+	// the one who clarified it takes it.
 	title := func(t string) []core.FieldChange { return change(nil, "title", c.OldTitle, t) }
+	mine := func(ch []core.FieldChange) []core.FieldChange {
+		if c.Space != "" {
+			ch = change(ch, "owner", "", env.User)
+		}
+		return ch
+	}
 
 	switch c.Outcome {
 	case "duplicate":
@@ -426,7 +474,7 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 		return []core.Op{{Via: "web", Type: core.OpTransition, Item: c.Item, BaseRev: rev,
 			Changes: []core.FieldChange{{Field: "state", New: quote(core.StTrashed)}}}}
 	case "someday":
-		become(core.KindAction, core.StSomeday, change(title(c.Title), "defer_until", "", c.Defer))
+		become(core.KindAction, core.StSomeday, mine(change(title(c.Title), "defer_until", "", c.Defer)))
 		return ops
 	case "reference":
 		project, state := c.Project, core.StUnsorted
@@ -463,7 +511,7 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 	for _, t := range c.DoneActions {
 		if firstIsCapture {
 			firstIsCapture = false
-			become(core.KindAction, core.StNext, change(change(title(t), "project", "", project), "area", "", c.Area))
+			become(core.KindAction, core.StNext, mine(change(change(title(t), "project", "", project), "area", "", c.Area)))
 			done(c.Item, rev)
 			continue
 		}
@@ -492,7 +540,7 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 		ch = change(ch, "target", "", c.Target)
 		ch = change(ch, "due", "", c.Due)
 		ch = change(ch, "energy", "", c.Energy)
-		become(core.KindAction, state, change(ch, "time", "", c.Time))
+		become(core.KindAction, state, mine(change(ch, "time", "", c.Time)))
 	} else {
 		next = create(core.Item{Kind: core.KindAction, State: state, Title: c.Action, Project: project, Area: c.Area,
 			Owner: env.User, WaitingOn: c.WaitingOn, Context: c.Context, DeferUntil: c.Defer, Target: c.Target,
