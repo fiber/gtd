@@ -171,8 +171,9 @@ func TestNoBuildNoThirdParty(t *testing.T) {
 	for _, f := range files {
 		switch filepath.Ext(f) {
 		case ".js", ".css", ".html", ".json":
-		case ".svg":
-			continue // an image; its xmlns is a name, not a request
+		case ".svg", ".png":
+			continue // an image; an SVG's xmlns is a name, not a request
+		case ".webmanifest": // the install manifest: JSON, checked like the scripts
 		default:
 			t.Errorf("%s: unexpected file type in the UI (no build artefacts, no TypeScript)", f)
 		}
@@ -991,5 +992,58 @@ func TestCaptureToken(t *testing.T) {
 	robin.ok("DELETE", "/api/v1/me/tokens/"+tok.ID, nil, nil)
 	if code := call(tok.Token, "POST", "/api/v1/capture", `{"text":"x"}`); code != 401 {
 		t.Errorf("a revoked token: %d", code)
+	}
+}
+
+// TestInstallable: what a phone needs to offer "install": a manifest that
+// points into the app's prefix, icons, and a service worker whose scope is
+// the app.
+func TestInstallable(t *testing.T) {
+	s := newSite(t)
+	get := func(path string) (*http.Response, []byte) {
+		t.Helper()
+		res, err := http.Get(s.url + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		return res, body
+	}
+	// None of it needs a login: the browser fetches the manifest without cookies.
+	res, body := get("/ui/manifest.webmanifest")
+	var m struct {
+		StartURL string `json:"start_url"`
+		Scope    string
+		ID       string
+		Display  string
+		Icons    []struct{ Src, Sizes, Type, Purpose string }
+	}
+	if err := json.Unmarshal(body, &m); err != nil || res.StatusCode != 200 || res.Header.Get("Content-Type") != "application/manifest+json" {
+		t.Fatalf("manifest: %d %s %v", res.StatusCode, res.Header.Get("Content-Type"), err)
+	}
+	if m.StartURL != Prefix+"/" || m.Scope != Prefix+"/" || m.ID != Prefix+"/" || m.Display != "standalone" {
+		t.Errorf("manifest does not point at %s/: %+v", Prefix, m)
+	}
+	sizes := map[string]bool{}
+	for _, ic := range m.Icons {
+		res, png := get("/ui/" + ic.Src)
+		if res.StatusCode != 200 || res.Header.Get("Content-Type") != "image/png" || !bytes.HasPrefix(png, []byte("\x89PNG")) {
+			t.Errorf("icon %s: %d %s", ic.Src, res.StatusCode, res.Header.Get("Content-Type"))
+		}
+		sizes[ic.Sizes+" "+ic.Purpose] = true
+	}
+	for _, want := range []string{"192x192 any", "512x512 any", "192x192 maskable", "512x512 maskable"} {
+		if !sizes[want] {
+			t.Errorf("the manifest has no icon %s", want)
+		}
+	}
+	res, body = get("/sw.js")
+	if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/javascript") || !bytes.Contains(body, []byte("addEventListener('fetch'")) {
+		t.Errorf("service worker: %d %s", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	_, shell := get("/")
+	if !bytes.Contains(shell, []byte(`<link rel="manifest" href="ui/manifest.webmanifest">`)) {
+		t.Error("the shell does not link the manifest")
 	}
 }

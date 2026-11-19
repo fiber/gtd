@@ -143,7 +143,15 @@ func (s *Server) initApp() {
 	m.HandleFunc("PUT /api/v1/admin/users/{id}/password", s.admin(s.setPassword))
 	m.HandleFunc("PUT /api/v1/me/password", s.user(s.changePassword))
 
-	m.HandleFunc("GET /ui/", s.static(loadAssets()))
+	assets := loadAssets()
+	m.HandleFunc("GET /ui/", s.static(assets))
+	// The service worker is served from the app's root, so that its scope is
+	// the whole app and not just /ui/.
+	m.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(assets["/sw.js"].raw)
+	})
 	// Every other GET is a UI route: the same shell, routing is client-side.
 	m.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -170,7 +178,8 @@ type asset struct {
 
 func loadAssets() map[string]asset {
 	types := map[string]string{".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
-		".json": "application/json", ".html": "text/html; charset=utf-8", ".svg": "image/svg+xml"}
+		".json": "application/json", ".html": "text/html; charset=utf-8", ".svg": "image/svg+xml",
+		".png": "image/png", ".webmanifest": "application/manifest+json"}
 	assets := map[string]asset{}
 	err := fs.WalkDir(uiFS, "ui", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {

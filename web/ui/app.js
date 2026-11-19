@@ -42,6 +42,8 @@ class App extends LitElement {
     super.connectedCallback();
     window.addEventListener('popstate', () => { this.path = appPath(); this.menu = false; });
     window.addEventListener('gtd-auth', () => this.requestUpdate());
+    // What makes the app installable on a phone ("Add to home screen").
+    navigator.serviceWorker?.register(BASE + '/sw.js', { scope: BASE + '/' }).catch(() => {});
     document.addEventListener('fullscreenchange', () => { this.zen = !!document.fullscreenElement; });
     window.addEventListener('gtd-changed', (e) => this.onChanged(e.detail));
     window.addEventListener('gtd-toast', (e) => this.showToast(e.detail));
