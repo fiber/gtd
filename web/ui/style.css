@@ -503,3 +503,7 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .notice.proposals .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
 .notice.proposals .check input { margin-top: 3px; flex: none; }
 .notice.proposals small { display: block; color: var(--muted); }
+/* On a phone there is no top bar with the logo: the capture page, where the app opens, carries it. */
+.capture-brand { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 18px 0 14px; font-weight: 850; font-size: 1.7rem; letter-spacing: -.05em; }
+.capture-brand img { border-radius: 28%; }
+@media (min-width: 860px) { .capture-brand { display: none; } }

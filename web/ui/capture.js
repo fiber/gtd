@@ -131,6 +131,7 @@ class Capture extends View {
 
   render() {
     return html`
+      <p class="capture-brand"><img src="ui/logo.svg" alt="" width="34" height="34">gtd</p>
       <section class="capture">
         <textarea rows="1" placeholder=${t('capture.placeholder')} aria-label=${t('nav.capture')}
           @keydown=${(e) => this.onKey(e)} @paste=${(e) => this.onPaste(e)} @input=${() => { this.grow(); this.lookup(); if (this.split) this.split = null; }}></textarea>
