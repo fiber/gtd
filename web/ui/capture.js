@@ -2,7 +2,7 @@
 // again, with a brief confirmation and nothing else (D-02).
 import { store } from './store.js';
 import { t } from './i18n.js';
-import { View, html, nothing, icon, stateChip, toast } from './widgets.js';
+import { View, html, nothing, icon, stateChip, toast, go } from './widgets.js';
 
 class Capture extends View {
   static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true }, similar: { state: true }, private: { state: true } };
@@ -32,7 +32,10 @@ class Capture extends View {
   get field() { return this.querySelector('textarea'); }
 
   onKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { // capture and decide right away
+      e.preventDefault();
+      this.submit(false, true);
+    } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       this.submit();
     }
@@ -94,16 +97,19 @@ class Capture extends View {
     e.target.value = '';
   }
 
-  async submit(asLines) {
+  // submit captures what is in the box. With clarify it is captured as one
+  // item and Clarify opens on it at once, ahead of the rest of the inbox.
+  async submit(asLines, clarify) {
     const text = this.field.value.trim();
     if ((!text && !this.files.length) || this.busy) return;
     if (this.split && asLines === undefined) return; // answer the question first
     this.busy = true;
+    let made = null;
     await this.run(async () => {
       if (asLines) {
         for (const line of this.split) await store.capture(line);
       } else {
-        await store.capture(text, this.files);
+        made = await store.capture(text, this.files);
       }
       this.field.value = '';
       this.files = [];
@@ -116,6 +122,10 @@ class Capture extends View {
       this._done = setTimeout(() => { this.done = false; }, 1500);
     });
     this.busy = false;
+    if (clarify && made?.id) {
+      go('/clarify?item=' + encodeURIComponent(made.id));
+      return;
+    }
     this.field.focus();
   }
 
@@ -143,6 +153,7 @@ class Capture extends View {
           <span class="hint">${t('capture.hint')}</span>
           <span class="spacer"></span>
           <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? t('capture.done') : ''}</span>
+          <button ?disabled=${this.busy} title=${t('capture.clarify_hint')} @click=${() => this.submit(false, true)}>${t('capture.clarify')}</button>
           <button class="primary" ?disabled=${this.busy} @click=${() => this.submit()}>${t('capture.submit')}</button>
         </div>
       </section>

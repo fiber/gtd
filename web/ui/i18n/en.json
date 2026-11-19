@@ -75,6 +75,8 @@
  "capture.add_to": "Add to this instead",
  "capture.added": "Added to “{title}”.",
  "capture.camera": "Take a photo",
+ "capture.clarify": "Capture and clarify",
+ "capture.clarify_hint": "Capture this and decide about it right away (Ctrl+Enter or ⌘+Enter)",
  "capture.done": "Captured",
  "capture.file": "Attach a file",
  "capture.hint": "Enter to capture · Shift+Enter for a new line",
