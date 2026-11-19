@@ -259,3 +259,4 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — Offline changes are limited to done and add. Defer was in my first proposal; it is planning, so it is out.
 - 2026-11-19 — With the merge view gone, nothing shells out to `git merge-file` and git is not a runtime dependency. `conflict` stays in the item schema unused. CLAUDE.md still names both; it is the owner's file and unchanged.
 - 2026-11-19 — M3 builds API tokens only as far as it needs them: scope `capture`. The other scopes of COLLAB §6 come with M6 and M8.
+- 2026-11-19 — Owner, after the rewrite: "we have bigger fish to fry than optimizing for the offline corner case. Not having cell reception while in a supermarket is probably the biggest manifestation." M3 is deferred: nothing of it is built. OFFLINE.md stays as the design for when it is. The app needs a connection until then.
