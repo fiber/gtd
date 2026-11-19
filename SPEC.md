@@ -154,7 +154,9 @@ Plus a "Conflicts (n)" link when any exist.
 
 ### 5.2 Clarify (process captures, oldest first, one at a time)
 No skip and no "back to inbox". Leaving mid-item is allowed, and the item stays at
-the head. At every step the AI suggestion (if any) preselects an answer, and the
+the head. One exception (Allen's "multitasking exception", owner 2026-11-20): with
+other captures waiting, the first screen has **Later**, which puts the capture three
+places back in the queue. It stays in the inbox and comes up again in its turn. At every step the AI suggestion (if any) preselects an answer, and the
 user confirms with one tap or overrides.
 
 1. **What is it?** One screen: original, attachment previews, AI-cleaned title and

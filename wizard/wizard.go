@@ -89,6 +89,9 @@ type Env struct {
 	// Members are the other members of the space, by name: whom an action
 	// can be delegated to. Empty in a personal space.
 	Members []Ref
+	// Later says that other captures wait behind this one, so that it can be
+	// put back a few places (the multitasking exception to "never skip").
+	Later bool
 	// Links are the names of the user's linked servers: a capture can be
 	// sent to the inbox of one of them.
 	Links     []string

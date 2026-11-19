@@ -727,3 +727,22 @@ func TestClarifySend(t *testing.T) {
 		t.Errorf("a link that does not exist: %v", err)
 	}
 }
+
+// TestClarifyLater: with other captures waiting, the first screen offers to
+// put this one back. That decides nothing and changes nothing.
+func TestClarifyLater(t *testing.T) {
+	w := newWorld(t)
+	env := NewEnv(w.st, "robin", today)
+	if _, _, _, err := StartClarify(w.st.Items["c"]).Next(env, in("later"), w.newID); !errors.Is(err, core.ErrInvalid) {
+		t.Errorf("later with nothing waiting behind: %v", err)
+	}
+	env.Later = true
+	s := StartClarify(w.st.Items["c"]).Step(env)
+	if last := s.Options[len(s.Options)-1]; last.Value != "later" || last.Label != "clarify.opt.later" {
+		t.Fatalf("options: %+v", s.Options)
+	}
+	cl, ops, done, err := StartClarify(w.st.Items["c"]).Next(env, in("later", "title", ""), w.newID)
+	if err != nil || !done || len(ops) != 0 || cl.Outcome != "later" {
+		t.Errorf("later: outcome %q, %d ops, done %v, %v", cl.Outcome, len(ops), done, err)
+	}
+}

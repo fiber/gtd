@@ -1245,3 +1245,106 @@ func TestBoardAllSpaces(t *testing.T) {
 		t.Errorf("robin's board of net: %q", got)
 	}
 }
+
+// TestClarifyLater: the multitasking exception. A capture is never skipped,
+// but it can be put back three places; it comes up again after those.
+func TestClarifyLater(t *testing.T) {
+	s := newSite(t)
+	robin := s.login("robin")
+	var ids = map[string]string{}
+	for _, name := range []string{"A", "B", "C", "D", "E"} {
+		var cap struct{ ID string }
+		robin.ok("POST", "/api/v1/capture", map[string]any{"text": name}, &cap)
+		ids[cap.ID] = name
+	}
+	queue := func() string {
+		t.Helper()
+		var in struct{ Captures []Brief }
+		robin.ok("GET", "/api/v1/inbox", nil, &in)
+		out := ""
+		for _, c := range in.Captures {
+			out += c.Title
+		}
+		return out
+	}
+	type res struct {
+		Session, Item string
+		Done          bool
+		Step          struct{ Options []struct{ Value string } }
+	}
+	start := func() res {
+		t.Helper()
+		var w res
+		robin.ok("POST", "/api/v1/wizard/clarify/start", map[string]string{}, &w)
+		return w
+	}
+	offered := func(w res) bool {
+		for _, o := range w.Step.Options {
+			if o.Value == "later" {
+				return true
+			}
+		}
+		return false
+	}
+	answer := func(w res, choice string) (int, res) {
+		var r res
+		code, _ := robin.do("POST", "/api/v1/wizard/clarify/"+w.Session+"/step", map[string]any{"choice": choice}, &r)
+		return code, r
+	}
+	if queue() != "ABCDE" {
+		t.Fatalf("queue at the start: %s", queue())
+	}
+	w := start()
+	if ids[w.Item] != "A" || !offered(w) {
+		t.Fatalf("first up: %s, later offered: %v", ids[w.Item], offered(w))
+	}
+	if code, r := answer(w, "later"); code != 200 || !r.Done {
+		t.Fatalf("later: %d %+v", code, r)
+	}
+	// A is three places back, still in the inbox, unchanged.
+	if queue() != "BCDAE" {
+		t.Errorf("after putting A back: %s", queue())
+	}
+	w = start()
+	if ids[w.Item] != "B" {
+		t.Errorf("next up: %s, want B", ids[w.Item])
+	}
+	answer(w, "later") // B goes behind A
+	if queue() != "CDABE" {
+		t.Errorf("after putting B back: %s", queue())
+	}
+	// C and D are decided; A comes up again, in its turn.
+	for _, want := range []string{"C", "D"} {
+		w = start()
+		if ids[w.Item] != want {
+			t.Fatalf("up: %s, want %s", ids[w.Item], want)
+		}
+		answer(w, "trash")
+	}
+	if w = start(); ids[w.Item] != "A" || queue() != "ABE" {
+		t.Errorf("after C and D: up %s, queue %s", ids[w.Item], queue())
+	}
+	// Putting it back again is allowed; with fewer than three behind, it goes last.
+	answer(w, "later")
+	if queue() != "BEA" {
+		t.Errorf("A put back a second time: %s", queue())
+	}
+	for range 2 {
+		answer(start(), "trash")
+	}
+	// The last capture has nothing to go behind: the choice is not offered,
+	// and not accepted.
+	w = start()
+	if ids[w.Item] != "A" || offered(w) {
+		t.Errorf("the last capture: %s, later offered: %v", ids[w.Item], offered(w))
+	}
+	if code, _ := answer(w, "later"); code != 400 {
+		t.Errorf("later on the last capture: %d", code)
+	}
+	// A is still exactly what was captured.
+	var iv ItemView
+	robin.ok("GET", "/api/v1/items/"+w.Item, nil, &iv)
+	if iv.State != core.StInbox || iv.Rev != 1 || iv.Title != "A" {
+		t.Errorf("the capture after being put back twice: %s rev %d", iv.State, iv.Rev)
+	}
+}

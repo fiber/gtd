@@ -131,6 +131,9 @@ func (c Clarify) Step(env Env) Step {
 		s.Options = []Option{{Value: "action", Label: "clarify.opt.action"}, {Value: "project", Label: "clarify.opt.project"},
 			{Value: "reference", Label: "clarify.opt.reference"}, {Value: "someday", Label: "clarify.opt.someday"},
 			{Value: "trash", Label: "clarify.opt.trash"}}
+		if env.Later {
+			s.Options = append(s.Options, Option{Value: "later", Label: "clarify.opt.later"})
+		}
 		for _, name := range env.Links {
 			s.Options = append(s.Options, Option{Value: "send:" + name, Label: "clarify.opt.send", Text: name})
 		}
@@ -274,6 +277,12 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 		if id, ok := strings.CutPrefix(in.Choice, "dup:"); ok {
 			c.Outcome, c.Duplicate = "duplicate", id
 			return finish()
+		}
+		if in.Choice == "later" {
+			// Not decided now. Nothing changes; the caller puts the capture a
+			// few places back in the queue.
+			c.Outcome = "later"
+			return c, nil, true, nil
 		}
 		if name, ok := strings.CutPrefix(in.Choice, "send:"); ok {
 			// It belongs on another server: it goes to the inbox there as it

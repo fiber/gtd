@@ -71,6 +71,7 @@ type wizardSession struct {
 	clarify wizard.Clarify
 	note    wizard.Note
 	sweep   wizard.Sweep
+	later   bool // clarify: other captures wait behind this one
 	started time.Time
 	// What the embedding index said about the item when the wizard started.
 	similar  []wizard.Similar
@@ -782,13 +783,10 @@ func (s *Server) inbox(w http.ResponseWriter, r *http.Request, a actor) error {
 	if err != nil {
 		return err
 	}
-	var caps []*core.Item
-	st.Each(func(it *core.Item) {
-		if it.Kind == core.KindCapture && it.State == core.StInbox {
-			caps = append(caps, it)
-		}
-	})
-	sort.Slice(caps, func(i, j int) bool { return caps[i].ID < caps[j].ID }) // oldest first
+	caps, err := s.inboxQueue(v, a.user) // the order they will be processed in
+	if err != nil {
+		return err
+	}
 	all, err := v.Notifications()
 	if err != nil {
 		return err
@@ -1259,10 +1257,11 @@ func (s *Server) wizardStart(w http.ResponseWriter, r *http.Request, a actor) er
 	switch ws.kind {
 	case "clarify":
 		ws.space = a.user
-		caps, err := v.Items(a.user, func(it *core.Item) bool { return it.Kind == core.KindCapture && it.State == core.StInbox })
+		caps, err := s.inboxQueue(v, a.user)
 		if err != nil {
 			return err
 		}
+		ws.later = len(caps) > 1
 		for _, c := range caps {
 			if in.Item == c.ID || in.Item == "" && it == nil {
 				it = c
@@ -1368,6 +1367,7 @@ func (s *Server) wizardEnv(v *store.View, ws *wizardSession) (wizard.Env, error)
 		}
 	}
 	if ws.kind == "clarify" {
+		env.Later = ws.later
 		for _, l := range s.userLinks(ws.user) {
 			env.Links = append(env.Links, l.Name)
 		}
@@ -1470,6 +1470,12 @@ func (s *Server) wizardStep(w http.ResponseWriter, r *http.Request, a actor) err
 			return err
 		}
 		return reply(w, map[string]any{"step": ws.step(env)})
+	}
+	if ws.kind == "clarify" && ws.clarify.Outcome == "later" {
+		// Allen's multitasking exception: not skipped, put back a few places.
+		if err := s.putBack(v, a.user, ws.clarify.Item); err != nil {
+			return err
+		}
 	}
 	if ws.kind == "clarify" && ws.clarify.SendTo != "" {
 		// It goes into the outbox for that server, and to the trash here. It

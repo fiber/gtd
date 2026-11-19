@@ -96,7 +96,7 @@ series of questions. Each answer is one tap, or a number key (1 for the first op
 
 | Question | What it decides |
 |---|---|
-| What is it? | Fix the title so that it will make sense in a month, then say what it becomes: **Action** (one step; Enter), **Project** (more than one step; a new one, or added to an existing one), **Reference**, **Someday** or **Trash**. Alt+1 to Alt+5 press the buttons from the keyboard. If you are in a shared space, the same screen has **Where does it belong?**, set to **Only me**: change it only for what others should see. |
+| What is it? | Fix the title so that it will make sense in a month, then say what it becomes: **Action** (one step; Enter), **Project** (more than one step; a new one, or added to an existing one), **Reference**, **Someday** or **Trash**. Alt+1 to Alt+5 press the buttons from the keyboard. If you are in a shared space, the same screen has **Where does it belong?**, set to **Only me**: change it only for what others should see. There is no Skip. If you truly cannot decide this one now, **Later** puts it three places back; it comes up again after those. |
 | Next physical action? | One sentence, starting with a verb. "Call the plumber about the quote", not "Plumber". |
 | Under 2 minutes? | Then do it now. A timer runs; press Done. |
 | Who? | You, or someone you are waiting for. |
