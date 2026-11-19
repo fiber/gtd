@@ -484,3 +484,4 @@ div.facts { display: block; }
 .wizard .check .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wizard .check input { width: 18px; height: 18px; flex: none; }
 .wizard .check .open { text-decoration: none; padding: 0 4px; color: var(--muted); }
+.settings form.password { border: 1px dashed var(--line-strong); border-radius: 10px; padding: 10px 12px; margin: 10px 0 14px; max-width: 420px; }

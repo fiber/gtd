@@ -177,7 +177,6 @@ type User struct {
 	ID               string   `json:"id"`
 	Name             string   `json:"name"`
 	Lang             string   `json:"lang,omitempty"`
-	Admin            bool     `json:"admin,omitempty"`
 	Service          bool     `json:"service,omitempty"`
 	PasswordHash     string   `json:"password_hash,omitempty"`
 	SSHKeys          []string `json:"ssh_keys,omitempty"`

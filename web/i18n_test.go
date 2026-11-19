@@ -102,7 +102,7 @@ func TestCatalogs(t *testing.T) {
 		}
 	}
 	// Keys in Go: the wizards' questions, labels and errors, and the server's own texts.
-	reGo := regexp.MustCompile(`"((?:clarify|note|field|option|answer|hint|date|err|login|capture|format|item|review|warning|sweep)\.[a-z_0-9.+]+)"`)
+	reGo := regexp.MustCompile(`"((?:clarify|note|field|option|answer|hint|date|err|login|capture|format|item|review|warning|sweep|password)\.[a-z_0-9.+]+)"`)
 	var gofiles []string
 	for _, pattern := range []string{"*.go", filepath.Join("..", "wizard", "*.go")} {
 		m, _ := filepath.Glob(pattern)

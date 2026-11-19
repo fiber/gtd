@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -34,6 +35,10 @@ type Server struct {
 	// SecureCookies marks the session cookie Secure. The daemon sets it when
 	// server.base_url is https.
 	SecureCookies bool
+	// Admins are the users who may administer the server (config.yaml,
+	// `admins`): users, spaces, backups. Being listed is not enough: admin
+	// routes also need the SSH-key challenge, not a web session (D-21).
+	Admins []string
 
 	// Embed answers similarity questions. It may be nil: then everything
 	// works without similarity and says so.
@@ -130,7 +135,7 @@ func (s *Server) any(h handler) http.HandlerFunc {
 				fail(w, errDenied)
 				return
 			}
-			a = actor{user: u.ID, admin: u.Admin, cookie: !bearer}
+			a = actor{user: u.ID, admin: slices.Contains(s.Admins, u.ID), cookie: !bearer}
 		}
 		if err := h(w, r, a); err != nil {
 			fail(w, err)
@@ -161,6 +166,13 @@ func (s *Server) admin(h handler) http.HandlerFunc {
 }
 
 func fail(w http.ResponseWriter, err error) {
+	var ke *keyError
+	if errors.As(err, &ke) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(ke.status)
+		json.NewEncoder(w).Encode(map[string]string{"error": ke.key, "field": ke.field})
+		return
+	}
 	code := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, core.ErrNotFound):
@@ -432,22 +444,18 @@ func (s *Server) addUser(w http.ResponseWriter, r *http.Request, a actor) error 
 	var in struct {
 		ID      string   `json:"id"`
 		Name    string   `json:"name"`
-		Admin   bool     `json:"admin"`
 		SSHKeys []string `json:"ssh_keys"`
 	}
 	if err := body(r, &in); err != nil {
 		return err
 	}
-	u := core.User{ID: in.ID, Name: in.Name, Admin: in.Admin}
+	u := core.User{ID: in.ID, Name: in.Name}
 	for _, k := range in.SSHKeys {
 		key, err := auth.NormalizeKey(k)
 		if err != nil {
 			return fmt.Errorf("%w: %v", core.ErrInvalid, err)
 		}
 		u.SSHKeys = append(u.SSHKeys, key)
-	}
-	if s.st.UserCount() == 0 && !u.Admin {
-		return fmt.Errorf("%w: the first user must be an admin (--admin)", core.ErrInvalid)
 	}
 	if err := s.st.AddUser(u); err != nil {
 		return err

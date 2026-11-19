@@ -16,6 +16,7 @@ import (
 	"net/http"
 	pathpkg "path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -139,6 +140,7 @@ func (s *Server) initApp() {
 	m.HandleFunc("POST /api/v1/wizard/{kind}/start", s.user(s.wizardStart))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/{session}/step", s.user(s.wizardStep))
 	m.HandleFunc("PUT /api/v1/admin/users/{id}/password", s.admin(s.setPassword))
+	m.HandleFunc("PUT /api/v1/me/password", s.user(s.changePassword))
 
 	m.HandleFunc("GET /ui/", s.static(loadAssets()))
 	// Every other GET is a UI route: the same shell, routing is client-side.
@@ -368,6 +370,67 @@ func (s *Server) setPassword(w http.ResponseWriter, r *http.Request, a actor) er
 	return reply(w, map[string]bool{"ok": true})
 }
 
+// changePassword lets a signed-in user set a new password. It asks for the
+// current one, counts wrong attempts like the login does, and ends the user's
+// other sessions.
+func (s *Server) changePassword(w http.ResponseWriter, r *http.Request, a actor) error {
+	var in struct {
+		Current  string `json:"current"`
+		Password string `json:"password"`
+	}
+	if err := body(r, &in); err != nil {
+		return err
+	}
+	u := s.st.User(a.user)
+	now := s.st.Now()
+	ap := s.app
+	ap.mu.Lock()
+	f := ap.failures[a.user]
+	locked := f != nil && f.count >= maxFailures && now.Before(f.until)
+	ap.mu.Unlock()
+	if locked {
+		return &keyError{http.StatusTooManyRequests, "login.locked", "current"}
+	}
+	if u == nil || u.PasswordHash == "" || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(in.Current)) != nil {
+		ap.mu.Lock()
+		if f == nil || now.After(f.until) {
+			f = &failure{}
+			ap.failures[a.user] = f
+		}
+		f.count++
+		f.until = now.Add(time.Minute)
+		ap.mu.Unlock()
+		return &keyError{http.StatusBadRequest, "password.wrong", "current"}
+	}
+	if len(in.Password) < 8 || len(in.Password) > 72 {
+		return &keyError{http.StatusBadRequest, "password.length", "password"}
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	if err := s.st.UpdateUser(a.user, func(u *core.User) error { u.PasswordHash = string(hash); return nil }); err != nil {
+		return err
+	}
+	keep := ""
+	if c, err := r.Cookie(cookieName); err == nil {
+		keep = c.Value
+	}
+	if err := s.st.DeleteSessions(a.user, keep); err != nil {
+		return err
+	}
+	return reply(w, map[string]bool{"ok": true})
+}
+
+// keyError is an error the client shows from its catalog: an i18n key and the
+// field it belongs to.
+type keyError struct {
+	status     int
+	key, field string
+}
+
+func (e *keyError) Error() string { return e.key }
+
 // ---- me ----
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request, a actor) error {
@@ -381,7 +444,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, a actor) error {
 		contexts = []string{}
 	}
 	return reply(w, map[string]any{
-		"user":    map[string]any{"id": u.ID, "name": u.Name, "admin": u.Admin, "personal_contexts": contexts},
+		"user":    map[string]any{"id": u.ID, "name": u.Name, "admin": slices.Contains(s.Admins, u.ID), "personal_contexts": contexts},
 		"lang":    s.lang(r, a.user),
 		"spaces":  v.Spaces(),
 		"today":   s.today(),

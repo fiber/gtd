@@ -86,7 +86,7 @@ const (
 func fixture(t testing.TB, dir string) *Store {
 	t.Helper()
 	s := must(create(dir, "test", deterministic))
-	check0(s.AddUser(core.User{ID: "robin", Name: "Robin", Lang: "de", Admin: true,
+	check0(s.AddUser(core.User{ID: "robin", Name: "Robin", Lang: "de",
 		SSHKeys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKeyFixtureKeyFixtureKeyFixtureKeyAAAA"}, PersonalContexts: []string{"boat"}, ReviewWeekday: 5}))
 	check0(s.AddUser(core.User{ID: "dana", Name: "Dana"}))
 	check0(s.AddUser(core.User{ID: "jo", Name: "Jo"}))

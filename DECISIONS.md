@@ -45,7 +45,7 @@ Settled with the product owner (Sven). The agent must not change them.
 
 ## Open questions (owner to answer; agent: ask, don't guess)
 
-- **Q-1** The generation backend on each server and its API: at work, what serves the local Gemma (fiber/ai? norad? something else); at home, which provider and model (D-25). Needed before M7.
+- **Q-1** (partly answered 2026-11-19: the home server uses Gemini, the work servers the internal Gemma 32B. The owner is "unsure about the value of this AI integration right now": M7 is not started. Still open when it is: which API serves Gemma at work.) The generation backend on each server and its API: at work, what serves the local Gemma (fiber/ai? norad? something else); at home, which provider and model (D-25). Needed before M7.
 - **Q-2** (answered 2026-11-19 by Sven's brief "NIS embeddings: what exists and how to use it",
   read from go.gtt.net at 36c524f2.) At work, EmbeddingGemma (~300M, 768-dim unit vectors) runs
   in-process on CPU through `github.com/fiber/ai`; there is no HTTP embedding server. A NIS host
@@ -69,6 +69,9 @@ Settled with the product owner (Sven). The agent must not change them.
   that member's backend. Accept that, or let a shared space restrict the backends? Before M7.
 - **Q-8** (answered yes, 2026-11-19: repeating actions are built, SPEC §6.6.)
 - **Q-7** (answered 2026-11-19: yes, capture first. "I do want to take offline notes (in IN) and probably be able to retrieve my shopping list (and also add to it) on the go. But I don't need all the planning features while offline." D-23 and OFFLINE.md are rewritten.)
+
+- **Q-9** Passing notes between servers (2026-11-19): "I would want to make business notes on my personal account and vice versa (get IN out of my head in under 5 seconds)." Agent proposal: capture always goes to the inbox of the server you have open; a capture that belongs to the other server gets one more way out, "Send to <other server>", which posts it (text and attachments) to that server's inbox with a capture-only token and trashes it here. Open: may the work server send text to the home server and the reverse at all, and can the two reach each other (or must the browser do the sending)? This is a small part of M8 (capture tokens) and M9 (linked servers).
+- **Q-10** Email (2026-11-19, "wondering if there should be some email integration"): Agent proposal, smallest first: (a) mail in: a message forwarded to a capture address becomes a capture with the mail as its text and its attachments attached, done as `gtd capture-mail` reading one message on stdin, so the mail server pipes into it and gtd runs no mail service of its own; (b) later, mail out for "From others" notifications. Not: reading a mailbox, or sending mail from actions.
 
 ## Owner requests (2026-11-19)
 
@@ -260,3 +263,8 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — With the merge view gone, nothing shells out to `git merge-file` and git is not a runtime dependency. `conflict` stays in the item schema unused. CLAUDE.md still names both; it is the owner's file and unchanged.
 - 2026-11-19 — M3 builds API tokens only as far as it needs them: scope `capture`. The other scopes of COLLAB §6 come with M6 and M8.
 - 2026-11-19 — Owner, after the rewrite: "we have bigger fish to fry than optimizing for the offline corner case. Not having cell reception while in a supermarket is probably the biggest manifestation." M3 is deferred: nothing of it is built. OFFLINE.md stays as the design for when it is. The app needs a connection until then.
+
+### Going live
+
+- 2026-11-19 — Owner: go live with a version: several users, who change their passwords themselves; "admin user names are set in the config". `admins: [ids]` in config.yaml is the only source: the stored `admin` flag on users is gone (an old record or export that has it still loads; the field is ignored). `gtd user add -admin` became `gtd user add -init`, which only creates the database for the first user. An admin still needs the SSH-key challenge for admin routes (D-21); direct access to the data directory stays operator-level.
+- 2026-11-19 — Password change: Settings asks for the current and the new password (8 to 72 characters). Wrong attempts count like failed logins (same lock). A change ends the user's other web sessions. A user's first password is set by an admin with `gtd user passwd`; there is no self-registration and no "forgot password" (an admin sets a new one).

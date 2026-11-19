@@ -496,3 +496,20 @@ func (s *Store) GetSession(id string) *Session {
 func (s *Store) DeleteSession(id string) error {
 	return s.db.Delete(sessionKey(id), pebble.Sync)
 }
+
+// DeleteSessions ends every web session of a user except the one named keep.
+func (s *Store) DeleteSessions(user, keep string) error {
+	b := s.db.NewBatch()
+	defer b.Close()
+	err := scan(s.db, "sess/", func(key string, v []byte) error {
+		var sess Session
+		if json.Unmarshal(v, &sess) == nil && sess.User == user && key != string(sessionKey(keep)) {
+			return b.Delete([]byte(key), nil)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return b.Commit(pebble.Sync)
+}

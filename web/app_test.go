@@ -37,7 +37,7 @@ func newSite(t *testing.T) *site {
 		t.Fatal(err)
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
-	for _, u := range []core.User{{ID: "robin", Name: "Robin", Admin: true, Lang: "en"}, {ID: "dana", Name: "Dana", Lang: "en"}, {ID: "jo", Name: "Jo", Lang: "de"}} {
+	for _, u := range []core.User{{ID: "robin", Name: "Robin", Lang: "en"}, {ID: "dana", Name: "Dana", Lang: "en"}, {ID: "jo", Name: "Jo", Lang: "de"}} {
 		u.PasswordHash = string(hash)
 		if err := st.AddUser(u); err != nil {
 			t.Fatal(err)
@@ -47,6 +47,7 @@ func newSite(t *testing.T) *site {
 		t.Fatal(err)
 	}
 	app := New(st)
+	app.Admins = []string{"robin"}
 	srv := httptest.NewServer(app.Handler())
 	t.Cleanup(func() { srv.Close(); st.Close() })
 	return &site{t, st, app, srv.URL + Prefix}
@@ -567,5 +568,62 @@ func TestPhotoCaptureTitle(t *testing.T) {
 	c.ok("GET", "/api/v1/items/"+out.ID, nil, &iv)
 	if !regexp.MustCompile(`^Foto \d\d\.\d\d\.\d{4} \d\d:\d\d$`).MatchString(iv.Title) || iv.Original != "" || len(iv.Attachments) != 1 {
 		t.Errorf("photo capture: title %q original %q", iv.Title, iv.Original)
+	}
+}
+
+// TestChangePassword: a user changes their own password in the web UI; the
+// other sessions end; admins are who the config says.
+func TestChangePassword(t *testing.T) {
+	s := newSite(t)
+	phone, laptop, dana := s.login("robin"), s.login("robin"), s.login("dana")
+	put := func(c *client, current, next string) (int, string) {
+		return c.do("PUT", "/api/v1/me/password", map[string]string{"current": current, "password": next}, nil)
+	}
+	if code, body := put(laptop, "wrong", "a-new-password"); code != 400 || !strings.Contains(body, `"password.wrong"`) || !strings.Contains(body, `"current"`) {
+		t.Fatalf("wrong current password: %d %s", code, body)
+	}
+	if code, body := put(laptop, password, "short"); code != 400 || !strings.Contains(body, `"password.length"`) {
+		t.Fatalf("short password: %d %s", code, body)
+	}
+	if code, body := put(laptop, password, "a-new-password"); code != 200 {
+		t.Fatalf("change: %d %s", code, body)
+	}
+	// This session goes on, the other one of the same user is over, dana's is untouched.
+	if code, _ := laptop.do("GET", "/api/v1/me", nil, nil); code != 200 {
+		t.Errorf("the session that changed the password: %d", code)
+	}
+	if code, _ := phone.do("GET", "/api/v1/me", nil, nil); code != 401 {
+		t.Errorf("another session of the same user: %d, want 401", code)
+	}
+	if code, _ := dana.do("GET", "/api/v1/me", nil, nil); code != 200 {
+		t.Errorf("another user's session: %d", code)
+	}
+	// The old password no longer signs in, the new one does.
+	fresh := s.anon()
+	if code, _ := fresh.do("POST", "/api/v1/login", map[string]string{"user": "robin", "password": password}, nil); code != 401 {
+		t.Errorf("login with the old password: %d", code)
+	}
+	if code, _ := fresh.do("POST", "/api/v1/login", map[string]string{"user": "robin", "password": "a-new-password"}, nil); code != 200 {
+		t.Errorf("login with the new password: %d", code)
+	}
+	// Repeated wrong attempts lock, like the login.
+	for range maxFailures {
+		put(dana, "wrong", "whatever-else")
+	}
+	if code, body := put(dana, password, "whatever-else"); code != 429 || !strings.Contains(body, "login.locked") {
+		t.Errorf("after %d wrong attempts: %d %s", maxFailures, code, body)
+	}
+	// /me says who is an admin: the config's list, nothing stored.
+	var me struct {
+		User struct{ Admin bool }
+	}
+	laptop.ok("GET", "/api/v1/me", nil, &me)
+	if !me.User.Admin {
+		t.Error("robin is in Admins but /me says no")
+	}
+	s.srv.Admins = nil
+	laptop.ok("GET", "/api/v1/me", nil, &me)
+	if me.User.Admin {
+		t.Error("robin is no longer in Admins but /me says yes")
 	}
 }

@@ -114,6 +114,23 @@ class Settings extends View {
       this.error = e.message;
     }
   }
+  async changePassword(e) {
+    e.preventDefault();
+    const f = e.target;
+    this.pwError = null;
+    if (f.password.value !== f.repeat.value) {
+      this.pwError = { field: 'repeat', key: 'password.mismatch' };
+    } else {
+      try {
+        await store.changePassword(f.current.value, f.password.value);
+        f.reset();
+        toast(t('settings.password_changed'));
+      } catch (err) {
+        this.pwError = { field: err.field || 'current', key: err.message };
+      }
+    }
+    this.requestUpdate();
+  }
   render() {
     const me = store.me;
     return html`
@@ -121,6 +138,16 @@ class Settings extends View {
       <section class="settings">
         <p>${t('settings.signed_in', { name: me.user.name, server: me.server })}
           <button @click=${() => store.logout()}>${t('settings.logout')}</button></p>
+        <form class="password" @submit=${(e) => this.changePassword(e)}>
+          <div class="field ${this.pwError?.field === 'current' ? 'invalid' : ''}"><label>${t('settings.password_current')}</label>
+            <input type="password" name="current" autocomplete="current-password" required></div>
+          <div class="field ${this.pwError?.field === 'password' ? 'invalid' : ''}"><label>${t('settings.password_new')}</label>
+            <input type="password" name="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
+          <div class="field ${this.pwError?.field === 'repeat' ? 'invalid' : ''}"><label>${t('settings.password_repeat')}</label>
+            <input type="password" name="repeat" autocomplete="new-password" required></div>
+          ${this.pwError ? html`<p class="error">${t(this.pwError.key)}</p>` : nothing}
+          <button type="submit">${t('settings.password_change')}</button>
+        </form>
         <div class="field"><label>${t('settings.language')}</label>
           ${select([{ id: 'en', title: 'English' }, { id: 'de', title: 'Deutsch' }], me.lang, (v) => this.setLang(v))}</div>
         <div class="field"><label>${t('settings.review_weekday')}</label>

@@ -59,7 +59,7 @@ func newEnv(t *testing.T, users ...string) *env {
 	e := &env{t: t, data: filepath.Join(dir, "d"), agents: map[string]string{}, pubs: map[string]string{}}
 	// Tests run several daemons: none of them serves HTTP on the default port.
 	os.MkdirAll(e.data, 0o700)
-	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("server: {listen: \"off\"}\n"), 0o644)
+	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("admins: [robin]\nserver: {listen: \"off\"}\n"), 0o644)
 	for _, u := range users {
 		_, priv, _ := ed25519.GenerateKey(rand.Reader)
 		keyring := agent.NewKeyring()
@@ -203,9 +203,9 @@ func setup(t *testing.T) *env {
 		t.Fatalf("grep without a database: %s", msg)
 	}
 	if msg := e.fail("robin", "user", "add", "robin"); !strings.Contains(msg, "no database") {
-		t.Fatalf("non-admin bootstrap: %s", msg)
+		t.Fatalf("user add without -init on a missing database: %s", msg)
 	}
-	e.run("robin", "user", "add", "-admin", "-name", "Robin", "-ssh-key", e.pubs["robin"], "robin")
+	e.run("robin", "user", "add", "-init", "-name", "Robin", "-ssh-key", e.pubs["robin"], "robin")
 	e.run("robin", "user", "add", "-ssh-key", e.pubs["dana"], "dana")
 	e.run("robin", "user", "add", "jo")
 	e.run("robin", "user", "key-add", "jo", e.pubs["jo"])
@@ -410,7 +410,7 @@ func TestSnapshotCommands(t *testing.T) {
 	if msg := e.fail("robin", "snapshot", "prune"); !strings.Contains(msg, "no retention configured") {
 		t.Errorf("prune without config: %q", msg)
 	}
-	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("server: {name: home, listen: \"off\"}\nsnapshots: {schedule: hourly, keep: {hourly: 1}}\nembed: {provider: other}\n"), 0o644)
+	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("admins: [robin]\nserver: {name: home, listen: \"off\"}\nsnapshots: {schedule: hourly, keep: {hourly: 1}}\nembed: {provider: other}\n"), 0o644)
 	second := strings.TrimSpace(e.run("robin", "snapshot", "create"))
 	if got := e.run("robin", "snapshot", "prune"); got != "deleted "+name+"\n" {
 		t.Errorf("prune = %q", got)

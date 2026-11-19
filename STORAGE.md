@@ -22,7 +22,7 @@ is debuggable, and schema evolution is handled by on-read upgrade plus `gtd migr
 ```
 m/schema                         → {"v": N}
 m/server                         → server id, name, created
-u/<user>                         → user: name, lang, admin, service, password_hash,
+u/<user>                         → user: name, lang, service, password_hash,
                                    ssh_keys[], personal_contexts[], review_weekday,
                                    personal_space
 u/<user>/tok/<tokid>             → token: hash, scopes[], spaces[], label, created, last_used
@@ -121,9 +121,9 @@ silently picked.
      all the keys in the agent.
   4. The server verifies against `u/<user>.ssh_keys` and issues a short-lived CLI
      session (socket connection or 12 h token).
-  - `admin` commands additionally require `admin: true`. Bootstrapping:
-    `gtd user add --admin --ssh-key <pubkey>` works only via direct DB access (no
-    daemon running) or by a user who is already admin.
+  - `admin` commands additionally require the user to be listed under `admins` in
+    config.yaml. Bootstrapping: `gtd user add -init --ssh-key <pubkey>` creates the
+    database by direct access (no daemon running).
   - Socket file permissions are a second barrier, not the only one.
 
 ## 8. Export and import (lossless)
@@ -170,6 +170,7 @@ embed:  { provider: internal | gtt-nora | ollama, model_dir: "/home/sven/models/
 gen:    { provider: "<Q-1>", url: "…", model: "…", timeout: 120s }   # optional
 snapshots: { schedule: hourly, keep: { hourly: 24, daily: 14, weekly: 8 } }
 limits: { attachment_mb: 25 }
+admins: [sven]                     # who may administer (users, spaces, backups)
 similarity: { dup_threshold: 0.92, suggest_threshold: 0.60, search_threshold: 0.30 }
 ```
 Users, spaces, tokens and templates live in Pebble, managed via CLI or the admin UI.

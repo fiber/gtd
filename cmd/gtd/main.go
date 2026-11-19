@@ -41,7 +41,7 @@ const usage = `usage: gtd [-data dir] [-user id] [-key pubkey-file] <command>
   snapshot create [-label l] | list | prune | verify [name]...
   restore <snapshot>                        replace the database with a snapshot (daemon stopped)
   reindex                                   drop all embeddings and build them again (needs the daemon)
-  user add [-admin] [-name n] [-ssh-key k] <id> | key-add <id> <key> | key-rm <id> <key>
+  user add [-init] [-name n] [-ssh-key k] <id> | key-add <id> <key> | key-rm <id> <key>
   user passwd <id>                          set the web password (prompted, or one line on stdin)
   space create [-name n] <id> [member]... | add-member <space> <user> | rm-member <space> <user>
 
@@ -575,10 +575,10 @@ func cmdUser(g globals, sub string, args []string, stdin io.Reader, stdout io.Wr
 		fmt.Fprintf(stdout, "password set for %s\n", args[0])
 		return nil
 	case "add":
-		var admin bool
 		var name, key string
+		var initDB bool
 		args, err := flags("user add", args, func(fs *flag.FlagSet) {
-			fs.BoolVar(&admin, "admin", false, "")
+			fs.BoolVar(&initDB, "init", false, "")
 			fs.StringVar(&name, "name", "", "")
 			fs.StringVar(&key, "ssh-key", "", "")
 		})
@@ -588,12 +588,15 @@ func cmdUser(g globals, sub string, args []string, stdin io.Reader, stdout io.Wr
 		if err := want("user add", args, 1, "a user id"); err != nil {
 			return err
 		}
-		in := map[string]any{"id": args[0], "name": name, "admin": admin}
+		in := map[string]any{"id": args[0], "name": name}
 		if key != "" {
 			in["ssh_keys"] = []string{keyArg(key)}
 		}
-		// Bootstrap: the first admin is created by direct access to a new database.
-		c, err := connect(g, admin)
+		// Bootstrap: with -init the first user is created by direct access,
+		// which also creates the database. Without it a missing database is an
+		// error, so that a mistyped data directory creates nothing. Who is an
+		// admin is said in config.yaml.
+		c, err := connect(g, initDB)
 		if err != nil {
 			return err
 		}

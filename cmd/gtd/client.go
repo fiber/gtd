@@ -23,6 +23,8 @@ import (
 // config is <data_dir>/config.yaml (STORAGE §10). So far the
 // server and snapshot sections are read. Other sections are ignored until their milestone.
 type config struct {
+	// Admins are the users who may administer this server.
+	Admins []string `yaml:"admins"`
 	Server struct {
 		Name    string `yaml:"name"`
 		BaseURL string `yaml:"base_url"` // https://… makes the session cookie Secure

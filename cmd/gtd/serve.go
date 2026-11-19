@@ -134,6 +134,12 @@ func serve(g globals, stdout, stderr io.Writer) error {
 		fmt.Fprintf(stdout, "gtd: embeddings: %s\n", cfg.Embed.Provider)
 	}
 	app.SecureCookies = strings.HasPrefix(cfg.Server.BaseURL, "https://")
+	app.Admins = cfg.Admins
+	for _, id := range cfg.Admins {
+		if st.User(id) == nil {
+			fmt.Fprintf(stderr, "gtd: config.yaml names admin %q, but there is no such user\n", id)
+		}
+	}
 	// The CLI talks to the bare API on the socket; browsers get everything
 	// under web.Prefix over HTTP.
 	sockSrv := &http.Server{Handler: app.API(), ReadHeaderTimeout: 10 * time.Second}
