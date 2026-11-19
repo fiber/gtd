@@ -230,7 +230,7 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 ### Clarify in fewer steps
 
 - 2026-11-19 — Owner: "What is it?", "Actionable?" and "More than one step?" are one screen. The title and notes fields are followed by Action, Project, Reference, Someday, Trash (and "Duplicate of…"). Enter means Action. Trash does not require a title. The steps `actionable` and `multi` are gone. Alt+number presses a step's nth button, also while typing; my addition, so the first screen needs no mouse.
-- 2026-11-19 — Clarify has Cancel (back to the inbox; nothing is changed, the capture stays at the head) and, after the first screen, Start over. Both only leave or restart the wizard, which SPEC §5.2 already allows. There is still no Skip: SPEC §5.2 rules it out; asked the owner.
+- 2026-11-19 — Clarify has Cancel (back to the inbox; nothing is changed, the capture stays at the head) and, after the first screen, Start over. Both only leave or restart the wizard, which SPEC §5.2 already allows. There is no Skip: SPEC §5.2 rules it out, and the owner confirmed it on 2026-11-19 (Allen: never put anything back into "in"; "not now" is Someday with a date).
 
 ### Passages
 
