@@ -52,7 +52,7 @@ func TestSimilarityOverHTTP(t *testing.T) {
 
 	// Without an embedder everything answers, and says that similarity is off.
 	var res SearchResult
-	robin.ok("GET", "/api/v1/search?q=collector", nil, &res)
+	robin.ok("GET", "/api/v1/search?q=engine", nil, &res)
 	if res.Semantic != embed.StateOff || len(res.Hits) != 0 {
 		t.Fatalf("search without embeddings: %+v", res)
 	}
@@ -62,14 +62,14 @@ func TestSimilarityOverHTTP(t *testing.T) {
 		t.Fatalf("status = %+v", status)
 	}
 
-	project := robin.create("robin", map[string]any{"kind": "project", "title": "BGP collector survives session resets"})
-	robin.create("robin", map[string]any{"kind": "action", "title": "Ask about reset semantics of the BGP collector", "project": project})
-	loose := robin.create("robin", map[string]any{"kind": "note", "title": "The collector loses BGP session state on every reset"})
+	project := robin.create("robin", map[string]any{"kind": "project", "title": "Boat engine survives session resets"})
+	robin.create("robin", map[string]any{"kind": "action", "title": "Ask about reset semantics of the Boat engine", "project": project})
+	loose := robin.create("robin", map[string]any{"kind": "note", "title": "The engine loses Boat session state on every reset"})
 	robin.create("robin", map[string]any{"kind": "note", "title": "Apple cake recipe"})
-	shared := robin.create("net", map[string]any{"kind": "note", "title": "BGP collector reset design in NET"})
-	jo.create("jo", map[string]any{"kind": "note", "title": "BGP collector reset, Jo's secret note"})
+	shared := robin.create("net", map[string]any{"kind": "note", "title": "Boat engine reset design in NET"})
+	jo.create("jo", map[string]any{"kind": "note", "title": "Boat engine reset, Jo's secret note"})
 	var cap struct{ ID string }
-	robin.ok("POST", "/api/v1/capture", map[string]any{"text": "the bgp collector loses session state on reset"}, &cap)
+	robin.ok("POST", "/api/v1/capture", map[string]any{"text": "the boat engine loses session state on reset"}, &cap)
 
 	svc := embed.New(s.st, wordEmbedder{})
 	svc.SuggestThreshold = 0.3
@@ -95,7 +95,7 @@ func TestSimilarityOverHTTP(t *testing.T) {
 	}
 	// Search by meaning: "router" is in no title, the neighbours of the words are.
 	robin.ok("GET", "/api/v1/search?q=session+state+lost", nil, &res)
-	if res.Semantic != embed.StateOK || !strings.Contains(titles(res.Hits), "loses BGP session state") || strings.Contains(titles(res.Hits), "Jo") {
+	if res.Semantic != embed.StateOK || !strings.Contains(titles(res.Hits), "loses Boat session state") || strings.Contains(titles(res.Hits), "Jo") {
 		t.Errorf("robin's search: %s (%s)", titles(res.Hits), res.Semantic)
 	}
 	for _, h := range res.Hits {
@@ -104,12 +104,12 @@ func TestSimilarityOverHTTP(t *testing.T) {
 		}
 	}
 	// Dana shares net with robin, nothing else. Jo shares nothing.
-	dana.ok("GET", "/api/v1/search?q=bgp+collector+reset", nil, &res)
-	if got := titles(res.Hits); got != "BGP collector reset design in NET" {
+	dana.ok("GET", "/api/v1/search?q=boat+engine+reset", nil, &res)
+	if got := titles(res.Hits); got != "Boat engine reset design in NET" {
 		t.Errorf("dana's search: %s", got)
 	}
-	jo.ok("GET", "/api/v1/search?q=bgp+collector+reset", nil, &res)
-	if got := titles(res.Hits); got != "BGP collector reset, Jo's secret note" {
+	jo.ok("GET", "/api/v1/search?q=boat+engine+reset", nil, &res)
+	if got := titles(res.Hits); got != "Boat engine reset, Jo's secret note" {
 		t.Errorf("jo's search: %s", got)
 	}
 
@@ -181,7 +181,7 @@ func TestSimilarityOverHTTP(t *testing.T) {
 		t.Errorf("the capture's text was not appended to the item: %d comments", iv.Comments)
 	}
 	robin.ok("GET", "/api/v1/items/"+cap.ID, nil, &iv)
-	if iv.State != core.StTrashed || iv.Original != "the bgp collector loses session state on reset" {
+	if iv.State != core.StTrashed || iv.Original != "the boat engine loses session state on reset" {
 		t.Errorf("capture after duplicate: %s, original %q", iv.State, iv.Original)
 	}
 

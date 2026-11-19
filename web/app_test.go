@@ -383,7 +383,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	s := newSite(t)
 	c := s.login("robin")
 	var cap struct{ ID string }
-	c.ok("POST", "/api/v1/capture", map[string]any{"text": "collector thing <script>alert(1)</script>\nsecond line"}, &cap)
+	c.ok("POST", "/api/v1/capture", map[string]any{"text": "engine thing <script>alert(1)</script>\nsecond line"}, &cap)
 	var inbox struct{ Captures []Brief }
 	c.ok("GET", "/api/v1/inbox", nil, &inbox)
 	if len(inbox.Captures) != 1 || inbox.Captures[0].ID != cap.ID {
@@ -418,17 +418,17 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 		return r
 	}
 	// A rejected answer names the field and an i18n key, and keeps the step.
-	if code, body := c.do("POST", "/api/v1/wizard/clarify/"+session+"/step", map[string]any{"choice": "continue", "values": map[string]string{"title": ""}}, nil); code != 400 || !strings.Contains(body, `"err.required"`) || !strings.Contains(body, `"field":"title"`) {
+	if code, body := c.do("POST", "/api/v1/wizard/clarify/"+session+"/step", map[string]any{"choice": "action", "values": map[string]string{"title": ""}}, nil); code != 400 || !strings.Contains(body, `"err.required"`) || !strings.Contains(body, `"field":"title"`) {
 		t.Fatalf("empty title: %d %s", code, body)
 	}
 	// Another user cannot answer in this session.
 	if code, _ := s.login("dana").do("POST", "/api/v1/wizard/clarify/"+session+"/step", map[string]any{"choice": "continue"}, nil); code != 404 {
 		t.Errorf("foreign wizard session: %d", code)
 	}
-	answer("continue", "title", "Collector survives resets", "body", "notes")
-	answer("yes")
-	answer("yes")
-	if r := answer("continue", "title", "Collector survives resets"); r.Step.Key != "action" {
+	if r := answer("project", "title", "Engine survives resets", "body", "notes"); r.Step.Key != "project" {
+		t.Fatalf("the first screen did not lead to the project step: %+v", r)
+	}
+	if r := answer("continue", "title", "Engine survives resets"); r.Step.Key != "action" {
 		t.Fatalf("after project: %+v", r)
 	}
 	answer("continue", "action", "Ask Dana")
@@ -450,12 +450,12 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	// The capture became the project. Its original text is untouched.
 	var p ItemView
 	c.ok("GET", "/api/v1/items/"+cap.ID, nil, &p)
-	if p.Kind != core.KindProject || p.Original != "collector thing <script>alert(1)</script>\nsecond line" || p.Rollup == nil || p.Rollup.Total != 2 || !p.Rollup.Alive {
+	if p.Kind != core.KindProject || p.Original != "engine thing <script>alert(1)</script>\nsecond line" || p.Rollup == nil || p.Rollup.Total != 2 || !p.Rollup.Alive {
 		t.Fatalf("project: %+v rollup %+v", p.Item, p.Rollup)
 	}
 	var eng struct{ Items []Brief }
 	c.ok("GET", "/api/v1/engage?context=calls", nil, &eng)
-	if len(eng.Items) != 1 || eng.Items[0].Title != "Ask Dana" || eng.Items[0].ProjectTitle != "Collector survives resets" {
+	if len(eng.Items) != 1 || eng.Items[0].Title != "Ask Dana" || eng.Items[0].ProjectTitle != "Engine survives resets" {
 		t.Fatalf("engage: %+v", eng.Items)
 	}
 	c.ok("GET", "/api/v1/engage?context=home", nil, &eng)
@@ -494,7 +494,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	var iv ItemView
 	c.ok("GET", "/api/v1/items/"+note, nil, &iv)
 	if strings.Contains(iv.BodyHTML, "<script") || !strings.Contains(iv.BodyHTML, `href="i/`+cap.ID+`"`) || iv.Tasks != 1 ||
-		!strings.Contains(iv.BodyEdit, "[[Collector survives resets]]") || len(iv.Refs) != 1 || iv.Refs[0].Token != "[["+cap.ID+"]]" {
+		!strings.Contains(iv.BodyEdit, "[[Engine survives resets]]") || len(iv.Refs) != 1 || iv.Refs[0].Token != "[["+cap.ID+"]]" {
 		t.Errorf("note view: html %q edit %q refs %+v tasks %d", iv.BodyHTML, iv.BodyEdit, iv.Refs, iv.Tasks)
 	}
 	var rendered struct{ HTML string }

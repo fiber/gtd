@@ -210,11 +210,11 @@ func setup(t *testing.T) *env {
 	e.run("robin", "user", "add", "jo")
 	e.run("robin", "user", "key-add", "jo", e.pubs["jo"])
 	e.run("robin", "space", "create", "-name", "NET", "net", "robin", "dana")
-	e.run("robin", "add", "bgp collector reset thing ask dana")
+	e.run("robin", "add", "boat engine reset thing ask dana")
 	att := filepath.Join(filepath.Dir(e.data), "whiteboard.png")
 	os.WriteFile(att, []byte("\x89PNG not really"), 0o644)
 	e.run("robin", "add", "-file", att, "design session whiteboard")
-	e.run("dana", "add", "dana's private capture about the collector")
+	e.run("dana", "add", "dana's private capture about the engine")
 	return e
 }
 
@@ -226,7 +226,7 @@ func TestExportWithAndWithoutDaemon(t *testing.T) {
 	direct, viaDaemon := filepath.Join(out, "direct"), filepath.Join(out, "daemon")
 
 	msgDirect := e.run("robin", "export", direct)
-	grepDirect := e.run("robin", "grep", "collector")
+	grepDirect := e.run("robin", "grep", "engine")
 	opsDirect := e.run("robin", "ops", "tail")
 	partialDirect := filepath.Join(out, "pd")
 	e.run("dana", "export", "-space", "dana", partialDirect)
@@ -237,7 +237,7 @@ func TestExportWithAndWithoutDaemon(t *testing.T) {
 	if a, b := strings.Replace(msgDirect, direct, "", 1), strings.Replace(msgDaemon, viaDaemon, "", 1); a != b {
 		t.Errorf("export message differs:\n%s%s", a, b)
 	}
-	if got := e.run("robin", "grep", "collector"); got != grepDirect || !strings.Contains(got, "bgp collector reset thing ask dana") {
+	if got := e.run("robin", "grep", "engine"); got != grepDirect || !strings.Contains(got, "boat engine reset thing ask dana") {
 		t.Errorf("grep differs:\ndirect: %s\ndaemon: %s", grepDirect, got)
 	}
 	if strings.Contains(grepDirect, "dana's private") {
@@ -310,7 +310,7 @@ func TestDaemonAuth(t *testing.T) {
 		})
 	}
 	t.Run("another user's key", func(t *testing.T) {
-		cmd := e.cmd("robin", "grep", "collector")
+		cmd := e.cmd("robin", "grep", "engine")
 		cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK="+e.agents["dana"])
 		out, err := cmd.CombinedOutput()
 		if err == nil || !strings.Contains(string(out), "authentication failed") {
@@ -318,7 +318,7 @@ func TestDaemonAuth(t *testing.T) {
 		}
 	})
 	t.Run("no agent", func(t *testing.T) {
-		cmd := e.cmd("robin", "grep", "collector")
+		cmd := e.cmd("robin", "grep", "engine")
 		cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK=")
 		out, err := cmd.CombinedOutput()
 		if err == nil || !strings.Contains(string(out), "SSH_AUTH_SOCK is not set") {
@@ -334,9 +334,9 @@ func TestDaemonAuth(t *testing.T) {
 		}
 	})
 	t.Run("a removed key stops working", func(t *testing.T) {
-		e.run("dana", "grep", "collector")
+		e.run("dana", "grep", "engine")
 		e.run("robin", "user", "key-rm", "dana", e.pubs["dana"])
-		if msg := e.fail("dana", "grep", "collector"); !strings.Contains(msg, "authentication failed") {
+		if msg := e.fail("dana", "grep", "engine"); !strings.Contains(msg, "authentication failed") {
 			t.Errorf("stderr = %q", msg)
 		}
 	})

@@ -157,20 +157,21 @@ No skip and no "back to inbox". Leaving mid-item is allowed, and the item stays 
 the head. At every step the AI suggestion (if any) preselects an answer, and the
 user confirms with one tap or overrides.
 
-1. **What is it?** Original, attachment previews, AI-cleaned title and body as a diff,
-   top-3 similar items with "duplicate of…" (append the capture to that item).
+1. **What is it?** One screen: original, attachment previews, AI-cleaned title and
+   body as a diff, top-3 similar items with "duplicate of…" (append the capture to
+   that item), and the decision as five buttons:
+   - **Action** (Enter): one step. Continues at 5.
+   - **Project**: more than one step. Offer the top-3 existing projects ("add to this
+     project") or a new project: an outcome-phrased title, a parent project
+     (optional, top-3 suggestions), a home area, a target. A new project cannot be
+     finished without a next action.
+   - **Reference** (→ note; choose project/area from top-3 suggestions, "new
+     project", or "unsorted"; offer a template if the space has any).
+   - **Someday** (with optional `defer_until`).
+   - **Trash**.
 2. **Which space?** Personal (default) or a shared space the user belongs to.
    Preselected by similarity (only among the user's spaces on this server).
    Skipped if the user has no shared spaces.
-3. **Actionable?**
-   - No → **Trash** / **Someday** (with optional `defer_until`) / **Reference** (→ note;
-     choose project/area from top-3 suggestions, "new project", or "unsorted"; offer
-     a template if the space has any).
-4. **More than one step?**
-   - Yes → project. Offer the top-3 existing projects ("add to this project") or a
-     new project: an outcome-phrased title, a parent project (optional, top-3
-     suggestions), a home area, a target. A new project cannot be finished without
-     a next action.
 5. **Next physical action?** A verb-first sentence (AI-prefilled, editable). Area
    preselected from the project.
 6. **Under 2 minutes?**

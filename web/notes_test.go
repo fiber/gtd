@@ -10,14 +10,14 @@ import (
 func TestNotesAndIdeas(t *testing.T) {
 	s := newSite(t)
 	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
-	theme := robin.create("robin", map[string]any{"kind": "project", "title": "Gap fill trading", "state": "someday"})
-	active := robin.create("robin", map[string]any{"kind": "project", "title": "Collector survives resets"})
+	theme := robin.create("robin", map[string]any{"kind": "project", "title": "Sourdough baking", "state": "someday"})
+	active := robin.create("robin", map[string]any{"kind": "project", "title": "Engine survives resets"})
 	robin.create("robin", map[string]any{"kind": "note", "title": "Loose thought", "body": "# Heading\n\nSome **bold** idea about [[" + theme + "]] and `code`.\n- [ ] a task"})
 	robin.create("robin", map[string]any{"kind": "note", "title": "Backtest results", "state": "filed", "project": theme, "body": strings.Repeat("long text ", 60)})
 	robin.create("robin", map[string]any{"kind": "note", "title": "Second idea", "state": "filed", "project": theme})
 	robin.create("robin", map[string]any{"kind": "note", "title": "Reset design", "state": "filed", "project": active})
 	shared := robin.create("net", map[string]any{"kind": "note", "title": "Shared NET note"})
-	robin.create("robin", map[string]any{"kind": "action", "title": "Try options on earnings days", "state": "someday"})
+	robin.create("robin", map[string]any{"kind": "action", "title": "Try rye flour", "state": "someday"})
 	robin.create("robin", map[string]any{"kind": "action", "title": "A real next action"})
 	jo.create("jo", map[string]any{"kind": "note", "title": "Jo's secret note"})
 	jo.create("jo", map[string]any{"kind": "project", "title": "Jo's secret theme", "state": "someday"})
@@ -78,7 +78,7 @@ func TestNotesAndIdeas(t *testing.T) {
 
 	var ideas struct{ Themes, Actions []Brief }
 	robin.ok("GET", "/api/v1/ideas", nil, &ideas)
-	if titles(ideas.Themes) != "Gap fill trading" || ideas.Themes[0].Notes != 2 || titles(ideas.Actions) != "Try options on earnings days" {
+	if titles(ideas.Themes) != "Sourdough baking" || ideas.Themes[0].Notes != 2 || titles(ideas.Actions) != "Try rye flour" {
 		t.Errorf("ideas: themes %s (%d notes), actions %s", titles(ideas.Themes), ideas.Themes[0].Notes, titles(ideas.Actions))
 	}
 	dana.ok("GET", "/api/v1/ideas", nil, &ideas)

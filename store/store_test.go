@@ -75,7 +75,7 @@ func patchOp(it *core.Item, field string, value any) core.Op {
 
 // nasty strings that a Markdown-with-frontmatter export must carry unchanged.
 const (
-	nastyTitle = `NET/BGP: Collector — "session reset"? #1 [[x]] @dana: {a: b} | > ' ` + "`" + ` é 日本 🚀`
+	nastyTitle = `NET/Boat: Engine — "session reset"? #1 [[x]] @dana: {a: b} | > ' ` + "`" + ` é 日本 🚀`
 	nastyBody  = "# Heading\r\nCRLF line\r\n\ttab  trailing spaces   \n---\nkey: value\n\n\n- [ ] todo\n```\ncode\n```\nno newline at end"
 	nastyOrig  = "  leading spaces\nline two: with colon\n---\n\ttab\n\n"
 )
@@ -109,7 +109,7 @@ func fixture(t testing.TB, dir string) *Store {
 	pdf := must2(s.PutBlob(strings.NewReader("%PDF-1.7 fake report")))
 
 	// Personal space: captures, one trashed, one clarified into an action.
-	c1 := must(robin.Capture("bgp collector reset thing ask dana", "", core.Source{Via: "cli"}, nil))
+	c1 := must(robin.Capture("boat engine reset thing ask dana", "", core.Source{Via: "cli"}, nil))
 	c2 := must(robin.Capture(nastyOrig+"multi-line capture", "", core.Source{Via: "share", Ref: "https://example.org/a?b=c"},
 		[]core.Attachment{{SHA256: png.sha, Name: "whiteboard.png", MIME: "image/png", Size: png.size}}))
 	must(robin.Apply("robin", moveOp(c2, core.StTrashed)))
@@ -117,14 +117,14 @@ func fixture(t testing.TB, dir string) *Store {
 		core.Op{Via: "web", Type: core.OpTransition, Item: c1.ID, BaseRev: c1.Rev, Changes: []core.FieldChange{
 			{Field: "kind", New: raw(core.KindAction)}, {Field: "state", New: raw(core.StNext)}}},
 		core.Op{Via: "web", Type: core.OpPatch, Item: c1.ID, BaseRev: c1.Rev + 1, Changes: []core.FieldChange{
-			{Field: "title", New: raw("Ask Dana about BGP collector session resets")},
+			{Field: "title", New: raw("Ask Dana about Boat engine session resets")},
 			{Field: "context", New: raw("boat")}, {Field: "energy", New: raw("low")}, {Field: "time", New: raw("15m")}}}))
 
 	// Shared space: area, project tree, actions with dependencies, a note.
 	id := func(n int) string { return fmt.Sprintf("01JD8X4Q9V3T6M2K7P5RZZ%04d", n) }
 	area, proj, sub, a, b, c, d, note := id(1), id(2), id(3), id(4), id(5), id(6), id(7), id(8)
 	must(robin.Apply("net",
-		createOp(core.Item{ID: area, Kind: core.KindArea, Title: "Collectors"}),
+		createOp(core.Item{ID: area, Kind: core.KindArea, Title: "Engines"}),
 		createOp(core.Item{ID: proj, Kind: core.KindProject, Title: nastyTitle, Area: area, Target: "2027-01-15",
 			Template: "edge_hypothesis", Fields: map[string]string{"stage": "testing", "odd": "- yes: null ~ 1e3", "empty": ""}}),
 		createOp(core.Item{ID: sub, Kind: core.KindProject, Title: "Sub-outcome", Parent: proj, State: core.StSomeday}),
@@ -138,7 +138,7 @@ func fixture(t testing.TB, dir string) *Store {
 	must(dana.Apply("net", createOp(core.Item{ID: note, Kind: core.KindNote, Title: "Design notes", Project: proj,
 		Original: nastyOrig, Body: nastyBody, Source: core.Source{Via: "import", Ref: "obsidian:NET/Design notes.md"},
 		DerivedFrom: []string{a}, Generated: true, AIGenerated: true,
-		Imported: map[string]any{"folder": "NET/BGP", "tags": []any{"bgp", "todo"}, "nested": map[string]any{"n": 1.5, "ok": true}},
+		Imported: map[string]any{"folder": "NET/Boat", "tags": []any{"boat", "todo"}, "nested": map[string]any{"n": 1.5, "ok": true}},
 		Conflict: raw(map[string]any{"by": "dana", "base_rev": 1, "ours": "a\n", "theirs": "b\n"}),
 	})))
 	must(dana.Apply("net", core.Op{Via: "service", Type: core.OpAttach, Item: note,

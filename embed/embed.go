@@ -27,7 +27,7 @@ const (
 const promptSet = "gemma-retrieval-1"
 
 // Embedder is the one interface of this package. It has three planned
-// adapters (D-24): internal, ollama, and gtt-nora (deferred).
+// adapters (D-24): internal, ollama, and a third (deferred).
 type Embedder interface {
 	// Embed returns one unit-length vector per text, in order.
 	Embed(ctx context.Context, texts []string, task Task) ([][]float32, error)

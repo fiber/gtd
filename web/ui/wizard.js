@@ -14,9 +14,11 @@ class Wizard extends View {
   connectedCallback() {
     super.connectedCallback();
     // Number keys answer a choice step: 1 for the first option, and so on.
+    // With Alt they answer any step, also while typing in one of its fields.
     this._keys = (e) => {
       const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
-      const o = this.step?.type === 'choice' && !typing && !e.metaKey && !e.ctrlKey && this.step.options[Number(e.key) - 1];
+      const n = Number((e.code || '').replace(/^Digit/, '')) - 1;
+      const o = this.step && !e.metaKey && !e.ctrlKey && (e.altKey || (this.step.type === 'choice' && !typing)) && this.step.options[n];
       if (o) {
         e.preventDefault();
         this.answer(o.value);
@@ -166,6 +168,7 @@ class Wizard extends View {
           ${s.options.map((o, i) => html`
             <button type=${s.type === 'form' && i === 0 ? 'submit' : 'button'} ?disabled=${this.busy} data-value=${o.value}
               class=${(s.preselect ? o.value === s.preselect : i === 0) ? 'primary' : ''}
+              title=${s.options.length > 1 && i < 9 ? t('wizard.key', { n: i + 1 }) : nothing}
               @click=${s.type === 'form' && i === 0 ? null : () => this.answer(o.value)}>${label(o)}</button>`)}
         </div>
         </div>

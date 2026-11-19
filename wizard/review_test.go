@@ -23,7 +23,7 @@ func reviewWorld(t *testing.T) *world {
 	w.ts = time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
 	err := w.apply([]core.Op{
 		createOp(core.Item{ID: "home", Kind: core.KindArea, Title: "Home"}),
-		createOp(core.Item{ID: "a1", Kind: core.KindAction, Title: "Read RFC 4271", Project: "p1"}),
+		createOp(core.Item{ID: "a1", Kind: core.KindAction, Title: "Read the manual", Project: "p1"}),
 		createOp(core.Item{ID: "psub", Kind: core.KindProject, Title: "Session state persisted", Parent: "p1", Target: "2027-03-01"}),
 		createOp(core.Item{ID: "w1", Kind: core.KindAction, Title: "Get the API key", Project: "psub", State: core.StWaiting, WaitingOn: "Lee"}),
 		createOp(core.Item{ID: "pstuck", Kind: core.KindProject, Title: "Garden gate fixed", Area: "home"}),
@@ -141,7 +141,7 @@ func TestReviewWalk(t *testing.T) {
 	env = w.reviewEnv(0)
 	at, _ = r.At(env)
 	areasData := fmt.Sprint(at.Step(env).Data["areas"])
-	if !strings.Contains(areasData, "projects:1 title:Home") || !strings.Contains(areasData, "title:Collectors") {
+	if !strings.Contains(areasData, "projects:1 title:Home") || !strings.Contains(areasData, "title:Engines") {
 		t.Errorf("areas step: %s", areasData)
 	}
 	must(in("continue"))
@@ -149,9 +149,9 @@ func TestReviewWalk(t *testing.T) {
 		t.Fatalf("the review is not over, at %q", r.Phase)
 	}
 
-	want := "clear: | clear: | unsorted: | projects:BGP collector handles resets | projects:Session state persisted | " +
+	want := "clear: | clear: | unsorted: | projects:Boat engine handles resets | projects:Session state persisted | " +
 		"projects:Example API integrated | projects:Garden gate fixed | projects:Garden gate fixed | projects:Garden gate fixed | " +
-		"stale:Read RFC 4271 | stale:Read RFC 4271 | stale:Renew passport | waiting:Get the API key | dates: | " +
+		"stale:Read the manual | stale:Read the manual | stale:Renew passport | waiting:Get the API key | dates: | " +
 		"someday:Learn to sail | someday:Try gap fill trades | areas:"
 	if got := strings.Join(visited, " | "); got != want {
 		t.Errorf("steps visited:\n%s\nwant:\n%s", got, want)

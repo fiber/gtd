@@ -148,14 +148,14 @@ func TestTextAndChunks(t *testing.T) {
 	it := &core.Item{Title: "Call notes", Kind: core.KindNote,
 		Body:        "# Heading\n\n- [ ] **call** [[01ABC]] about `ports`\n> see ![[att:" + sha + "]] and @[user:dana] and [[01XYZ|the plan]]\n",
 		Fields:      map[string]string{"stage": "testing", "empty": ""},
-		Imported:    map[string]any{"folder": "NET/BGP", "tags": []any{"bgp", "todo"}},
+		Imported:    map[string]any{"folder": "NET/Boat", "tags": []any{"boat", "todo"}},
 		Attachments: []core.Attachment{{SHA256: sha, Name: "board.png"}}}
 	got := Text(it, Resolver{
 		Title:    func(id string) string { return map[string]string{"01ABC": "Lee"}[id] },
 		UserName: func(id string) string { return "Dana" },
 		PDFText:  func(string) string { return "text of the pdf" },
 	})
-	want := "Call notes\n\nHeading\n\ncall Lee about ports\nsee board.png and Dana and the plan\nstage: testing\nfolder: NET/BGP\ntags: bgp todo\n\ntext of the pdf"
+	want := "Call notes\n\nHeading\n\ncall Lee about ports\nsee board.png and Dana and the plan\nstage: testing\nfolder: NET/Boat\ntags: boat todo\n\ntext of the pdf"
 	if got != want {
 		t.Errorf("text:\n%q\nwant:\n%q", got, want)
 	}
@@ -181,55 +181,55 @@ func TestTextAndChunks(t *testing.T) {
 
 func TestSimilarityAndIsolation(t *testing.T) {
 	s := newSite(t)
-	bgp := s.add("robin", "net", core.Item{Kind: core.KindNote, Title: "BGP collector session reset semantics"})
-	s.add("dana", "net", core.Item{Kind: core.KindAction, Title: "Fix the BGP collector reset handling", Owner: "dana"})
+	boat := s.add("robin", "net", core.Item{Kind: core.KindNote, Title: "Boat engine session reset semantics"})
+	s.add("dana", "net", core.Item{Kind: core.KindAction, Title: "Fix the Boat engine reset handling", Owner: "dana"})
 	s.add("robin", "net", core.Item{Kind: core.KindNote, Title: "Lunch menu for the offsite"})
-	s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Private thoughts on the BGP collector reset"})
+	s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Private thoughts on the Boat engine reset"})
 	s.add("jo", "jo", core.Item{Kind: core.KindNote, Title: "Garden plan for spring"})
 	s.start()
 
 	robin, dana, jo := s.view("robin"), s.view("dana"), s.view("jo")
-	item, _ := robin.Item("net", bgp)
+	item, _ := robin.Item("net", boat)
 
 	// Robin sees his personal space and net.
 	got := s.titles(robin, s.svc.SimilarTo(robin, item, 5, nil).Hits)
-	if len(got) != 3 || got[0] != "Fix the BGP collector reset handling" && got[0] != "Private thoughts on the BGP collector reset" || slices.Contains(got, "Garden plan for spring") {
+	if len(got) != 3 || got[0] != "Fix the Boat engine reset handling" && got[0] != "Private thoughts on the Boat engine reset" || slices.Contains(got, "Garden plan for spring") {
 		t.Errorf("robin's similar items: %q", got)
 	}
 	// Dana is in net, not in robin's personal space.
 	got = s.titles(dana, s.svc.SimilarTo(dana, item, 5, nil).Hits)
-	if slices.Contains(got, "Private thoughts on the BGP collector reset") || !slices.Contains(got, "Fix the BGP collector reset handling") {
+	if slices.Contains(got, "Private thoughts on the Boat engine reset") || !slices.Contains(got, "Fix the Boat engine reset handling") {
 		t.Errorf("dana's similar items leak robin's space: %q", got)
 	}
 	// Jo is in neither: nothing about the item, and no hit from other spaces in search.
 	if res := s.svc.SimilarTo(jo, item, 5, nil); len(res.Hits) != 0 {
 		t.Errorf("jo gets similar items for an item she cannot see: %+v", res.Hits)
 	}
-	res := s.svc.Search(context.Background(), jo, "BGP collector reset", 20)
+	res := s.svc.Search(context.Background(), jo, "Boat engine reset", 20)
 	for _, title := range s.titles(jo, res.Hits) {
 		if title != "Garden plan for spring" {
 			t.Errorf("jo's search returned %q", title)
 		}
 	}
-	res = s.svc.Search(context.Background(), robin, "BGP collector reset", 2)
-	if got := s.titles(robin, res.Hits); len(got) != 2 || !strings.Contains(got[0], "BGP") || !strings.Contains(got[1], "BGP") {
+	res = s.svc.Search(context.Background(), robin, "Boat engine reset", 2)
+	if got := s.titles(robin, res.Hits); len(got) != 2 || !strings.Contains(got[0], "Boat") || !strings.Contains(got[1], "Boat") {
 		t.Errorf("robin's search: %q", got)
 	}
 	// Removing a member takes effect at once: membership is read on every question.
 	if err := s.st.SetMember("net", "dana", false); err != nil {
 		t.Fatal(err)
 	}
-	if res := s.svc.Search(context.Background(), dana, "BGP collector reset", 20); len(res.Hits) != 0 {
+	if res := s.svc.Search(context.Background(), dana, "Boat engine reset", 20); len(res.Hits) != 0 {
 		t.Errorf("removed member still gets hits: %q", s.titles(robin, res.Hits))
 	}
 	// Trashed items disappear, edited ones are re-embedded.
-	if _, err := robin.Apply("net", core.Op{Via: "cli", Type: core.OpTransition, Item: bgp, BaseRev: 1,
+	if _, err := robin.Apply("net", core.Op{Via: "cli", Type: core.OpTransition, Item: boat, BaseRev: 1,
 		Changes: []core.FieldChange{{Field: "state", New: []byte(`"trashed"`)}}}); err != nil {
 		t.Fatal(err)
 	}
 	s.settle()
 	res = s.svc.Search(context.Background(), robin, "session semantics", 20)
-	if slices.Contains(s.titles(robin, res.Hits), "BGP collector session reset semantics") {
+	if slices.Contains(s.titles(robin, res.Hits), "Boat engine session reset semantics") {
 		t.Error("a trashed item is still found")
 	}
 
@@ -298,7 +298,7 @@ func TestBackendDown(t *testing.T) {
 // gives the same vectors and the same answers (M4 acceptance).
 func TestReindexIsIdentical(t *testing.T) {
 	s := newSite(t)
-	words := strings.Fields("collector session reset bgp alpha curation example api garden gate passport dentist trade backtest")
+	words := strings.Fields("engine session reset boat alpha curation example api garden gate passport dentist trade backtest")
 	rng := rand.New(rand.NewPCG(7, 7))
 	for i := 0; i < 60; i++ {
 		title := ""
@@ -315,7 +315,7 @@ func TestReindexIsIdentical(t *testing.T) {
 			vecs[space+"/"+id] = fmt.Sprintf("%x %v", hash, vec)
 		})
 		var answers []string
-		for _, q := range []string{"bgp collector", "garden gate", "example api trade"} {
+		for _, q := range []string{"boat engine", "garden gate", "example api trade"} {
 			res := s.svc.Search(context.Background(), robin, q, 10)
 			answers = append(answers, fmt.Sprintf("%s: %v", q, res.Hits))
 		}
@@ -333,7 +333,7 @@ func TestReindexIsIdentical(t *testing.T) {
 		t.Errorf("reindex did not wipe: %+v", st)
 	}
 	// While a space is being rebuilt, it gives no answers: a partial index is not ranked.
-	if res := s.svc.Search(context.Background(), robin, "bgp collector", 10); res.State != StateBuilding && len(res.Hits) != 0 && s.svc.Status().Queued > 0 {
+	if res := s.svc.Search(context.Background(), robin, "boat engine", 10); res.State != StateBuilding && len(res.Hits) != 0 && s.svc.Status().Queued > 0 {
 		t.Errorf("answer from a partial index: %+v", res)
 	}
 	s.settle()
@@ -367,14 +367,14 @@ func TestReindexIsIdentical(t *testing.T) {
 
 func TestProjectsAndBelongHere(t *testing.T) {
 	s := newSite(t)
-	bgp := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "BGP collector survives session resets"})
-	s.add("robin", "robin", core.Item{Kind: core.KindAction, Title: "Ask Dana about reset semantics of the collector", Project: bgp})
-	trade := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "Gap fill trading hypothesis tested", State: core.StSomeday})
+	boat := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "Boat engine survives session resets"})
+	s.add("robin", "robin", core.Item{Kind: core.KindAction, Title: "Ask Dana about reset semantics of the engine", Project: boat})
+	trade := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "Sourdough baking hypothesis tested", State: core.StSomeday})
 	s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Backtest results for gap fill trades", Project: trade, State: core.StFiled})
-	done := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "BGP collector reset old project"})
-	loose := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "The collector loses BGP session state on reset"})
+	done := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "Boat engine reset old project"})
+	loose := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "The engine loses Boat session state on reset"})
 	s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Recipe for apple cake"})
-	filed := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "BGP collector reset design", Project: bgp, State: core.StFiled})
+	filed := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Boat engine reset design", Project: boat, State: core.StFiled})
 	cap := s.add("robin", "robin", core.Item{Kind: core.KindCapture, Title: "gap fill idea for earnings trades"})
 	robin := s.view("robin")
 	p, _ := robin.Item("robin", done)
@@ -385,12 +385,12 @@ func TestProjectsAndBelongHere(t *testing.T) {
 	s.svc.SuggestThreshold = 0.3
 
 	capture, _ := robin.Item("robin", cap)
-	if got := s.titles(robin, s.svc.Projects(robin, capture, 3)); len(got) != 2 || got[0] != "Gap fill trading hypothesis tested" {
+	if got := s.titles(robin, s.svc.Projects(robin, capture, 3)); len(got) != 2 || got[0] != "Sourdough baking hypothesis tested" {
 		t.Errorf("projects for the capture: %q (a finished project must not be offered)", got)
 	}
-	project, _ := robin.Item("robin", bgp)
+	project, _ := robin.Item("robin", boat)
 	got := s.titles(robin, s.svc.BelongHere(robin, project, 5))
-	if !slices.Equal(got, []string{"The collector loses BGP session state on reset"}) {
+	if !slices.Equal(got, []string{"The engine loses Boat session state on reset"}) {
 		t.Errorf("might belong here: %q", got)
 	}
 	_, _ = loose, filed
@@ -475,7 +475,7 @@ func TestPDFText(t *testing.T) {
 	if text, ok := s.st.PDFText(sha); !ok || text != "" {
 		t.Errorf("after a failed extraction: %q, cached %v", text, ok)
 	}
-	if err := s.st.PutPDFText(sha, "Quarterly numbers for the collector fleet"); err != nil {
+	if err := s.st.PutPDFText(sha, "Quarterly numbers for the engine fleet"); err != nil {
 		t.Fatal(err)
 	}
 	if hits := robin.Grep("quarterly fleet"); len(hits) != 1 || hits[0].ID != id {

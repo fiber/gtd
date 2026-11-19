@@ -10,11 +10,9 @@ import (
 // Clarify step keys, in the order of SPEC §5.2. Step 2 ("which space?") needs
 // the move op and arrives with M6: until then an item stays in the inbox's space.
 const (
-	StepWhat       = "what"        // 1. what is it?
-	StepActionable = "actionable"  // 3. actionable?
+	StepWhat       = "what"        // 1. what is it, and what becomes of it?
 	StepSomeday    = "someday"     //    no → someday: not before?
 	StepReference  = "reference"   //    no → reference: where does it belong?
-	StepMulti      = "multi"       // 4. more than one step?
 	StepProject    = "project"     //    yes → which project, or a new one
 	StepAction     = "action"      // 5. next physical action?
 	StepTwoMinutes = "two_minutes" // 6. under 2 minutes?
@@ -108,20 +106,21 @@ func (c Clarify) Step(env Env) Step {
 			{Key: "body", Type: "textarea", Label: "field.body", Value: c.Body},
 		}
 		s.Data = map[string]any{"original": c.Original, "attachments": c.Attachments}
+		// One screen decides what the capture becomes. The first option is
+		// what Enter does.
+		s.Options = []Option{{Value: "action", Label: "clarify.opt.action"}, {Value: "project", Label: "clarify.opt.project"},
+			{Value: "reference", Label: "clarify.opt.reference"}, {Value: "someday", Label: "clarify.opt.someday"},
+			{Value: "trash", Label: "clarify.opt.trash"}}
 		if len(env.Similar) > 0 {
 			s.Data["similar"] = env.Similar
 			// "Duplicate of…" appends the capture to that item. Only for items
 			// of the same space: a batch of ops stays in one space.
 			for _, sim := range env.Similar {
 				if sim.Space == env.Space.ID {
-					s.Options = append(s.Options[:len(s.Options):len(s.Options)], Option{Value: "dup:" + sim.ID, Label: "clarify.opt.duplicate", Text: sim.Title})
+					s.Options = append(s.Options, Option{Value: "dup:" + sim.ID, Label: "clarify.opt.duplicate", Text: sim.Title})
 				}
 			}
 		}
-	case StepActionable:
-		s.Type = TypeChoice
-		s.Options = []Option{{Value: "yes", Label: "answer.yes"}, {Value: "reference", Label: "clarify.opt.reference"},
-			{Value: "someday", Label: "clarify.opt.someday"}, {Value: "trash", Label: "clarify.opt.trash"}}
 	case StepSomeday:
 		s.Fields = []Field{{Key: "defer_until", Type: "date", Label: "field.defer_until", Options: DatePresets(env.Today)}}
 	case StepReference:
@@ -133,8 +132,6 @@ func (c Clarify) Step(env Env) Step {
 		if tpls := c.templates(env, core.KindNote); len(tpls) > 1 {
 			s.Fields = append(s.Fields, Field{Key: "template", Type: "select", Label: "field.template", Options: tpls})
 		}
-	case StepMulti:
-		s.Type, s.Options, s.Preselect = TypeChoice, yesNo, "no"
 	case StepProject:
 		s.Fields = []Field{
 			{Key: "project", Type: "select", Label: "field.add_to_project", Options: refOptions("option.new_project", env.Projects), Suggest: env.suggest()},
@@ -236,22 +233,23 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 			c.Outcome, c.Duplicate = "duplicate", id
 			return finish()
 		}
+		if in.Choice == "trash" { // the title does not matter for what is thrown away
+			c.Outcome = "trash"
+			return finish()
+		}
 		if c.Title = val("title"); c.Title == "" {
 			return c, nil, false, required("title")
 		}
 		c.Body = strings.TrimRight(in.Values["body"], " \t\r\n")
-		c.At = StepActionable
-	case StepActionable:
 		switch in.Choice {
-		case "trash":
-			c.Outcome = "trash"
-			return finish()
 		case "someday":
 			c.Outcome, c.At = "someday", StepSomeday
 		case "reference":
 			c.Outcome, c.At = "reference", StepReference
+		case "project":
+			c.Outcome, c.At = "action", StepProject
 		default:
-			c.Outcome, c.At = "action", StepMulti
+			c.Outcome, c.At = "action", StepAction
 		}
 	case StepSomeday:
 		if c.Defer, err = date(in, "defer_until"); err != nil {
@@ -273,11 +271,6 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 			c.Project, c.NewProject = "", &NewProject{Title: title, Area: c.Area}
 		}
 		return finish()
-	case StepMulti:
-		c.At = StepAction
-		if in.Choice == "yes" {
-			c.At = StepProject
-		}
 	case StepProject:
 		if c.Project, err = oneOf(in, "project", field("project").Options); err != nil {
 			return c, nil, false, err

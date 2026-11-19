@@ -96,9 +96,7 @@ series of questions. Each answer is one tap, or a number key (1 for the first op
 
 | Question | What it decides |
 |---|---|
-| What is it? | Fix the title so that it will make sense in a month. |
-| Is it actionable? | **Yes**, or one of three ways out: reference, someday, trash. |
-| More than one step? | Yes makes it a project (a new one, or added to an existing one). |
+| What is it? | Fix the title so that it will make sense in a month, then say what it becomes: **Action** (one step; Enter), **Project** (more than one step; a new one, or added to an existing one), **Reference**, **Someday** or **Trash**. Alt+1 to Alt+5 press the buttons from the keyboard. |
 | Next physical action? | One sentence, starting with a verb. "Call the plumber about the quote", not "Plumber". |
 | Under 2 minutes? | Then do it now. A timer runs; press Done. |
 | Who? | You, or someone you are waiting for. |
@@ -273,8 +271,8 @@ you never see it again.
 
 1. **Capture it raw.** One line. Do not develop it while you are busy with something else.
 
-2. **In Clarify, be honest at "Is it actionable?"** For an immature idea the answer
-   is No. Then choose:
+2. **In Clarify, be honest at "What is it?"** An immature idea is neither
+   an Action nor a Project. Choose:
    - **Someday** if it is a possible thing to do ("learn to bake sourdough").
    - **Reference** if it is a thought, an observation or a question ("the heating bill keeps
      rising: is the insulation the real problem?").

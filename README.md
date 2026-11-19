@@ -4,10 +4,10 @@ The agent brief for a self-hosted, multi-user GTD tool:
 - guided Capture → Clarify → Engage → Weekly Review
 - cross-area projects with subproject trees, dependencies and target dates
 - notes with images and PDFs
-- similarity and clustering via embeddinggemma (fiber/ai at home, norad at work)
+- similarity and clustering via embeddinggemma (in-process, or Ollama)
 - AI suggestions (local or, at home, a cloud model) and `@ai` in item threads
 - shared spaces with mentions and delegation
-- service users (nuro) and MCP
+- service users and MCP
 - PWA with offline operation queue
 - Pebble v2 storage with lossless export and snapshots
 
@@ -28,10 +28,8 @@ when the milestone that needs them comes up. The agent is instructed to ask.
 | NON_GOALS.md | Binding exclusions |
 
 Deployment shape: two servers running the same binary.
-- **Home (shada):** users Sven, Grit, the kids; spaces personal, "Sven & Grit",
-  "Family", "Trading" (with service user nuro).
-- **Work (company infrastructure):** users Sven, Eric, contractors; space `NIS`
-  (areas Nora, Atlas, Collectors, Data curation, Automation).
+- **Home:** the family; personal spaces and shared ones such as "Family".
+- **Work:** the team; personal spaces and a shared team space with its areas.
 
 ## Running it
 

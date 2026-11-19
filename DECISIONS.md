@@ -226,3 +226,7 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — Owner: repeating actions are wanted; the non-goal is lifted. `repeat` is a string on actions: `<n>d`, `<n>w` or weekday names. The successor is created by a system op when the action is done, deferred to its date. Intervals count from the day of completion, not from a fixed schedule, and only one instance is open at a time — simplest rule, and it does not punish a skipped day.
 - 2026-11-19 — Reopening a completed repeating action leaves its successor in place: there are then two open instances until one is dropped. Not handled specially.
 - 2026-11-19 — "Three times a week" is expressed as three weekdays. A count without days ("any three days") is not supported.
+
+### Clarify in fewer steps
+
+- 2026-11-19 — Owner: "What is it?", "Actionable?" and "More than one step?" are one screen. The title and notes fields are followed by Action, Project, Reference, Someday, Trash (and "Duplicate of…"). Enter means Action. Trash does not require a title. The steps `actionable` and `multi` are gone. Alt+number presses a step's nth button, also while typing; my addition, so the first screen needs no mouse.

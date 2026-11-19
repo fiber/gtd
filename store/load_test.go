@@ -27,7 +27,7 @@ func bulk(t testing.TB, dir string) {
 	check0(s.AddUser(core.User{ID: "dana"}))
 	check0(s.CreateSpace("net", "", []string{"robin", "dana"}))
 	rng := rand.New(rand.NewPCG(1, 2))
-	words := strings.Fields("collector session reset bgp beta alpha curation automation review deploy fix draft plan test write call ask check migrate import export snapshot index query")
+	words := strings.Fields("engine session reset boat beta alpha curation automation review deploy fix draft plan test write call ask check migrate import export snapshot index query")
 	text := func(n int) string {
 		var b strings.Builder
 		for i := 0; i < n; i++ {
@@ -136,8 +136,8 @@ func TestLoad50k(t *testing.T) {
 		}),
 		timeIt("one item by id", func() int { must(v.Item("net", "01JD8X4Q9V3T6M2K7P5R000001")); return 1 }),
 	}
-	grep := timeIt("grep, two words, 37,500 items scanned", func() int { return len(v.Grep("collector zzz")) })
-	timeIt("grep, common word (sorting 37,500 hits)", func() int { return len(v.Grep("bgp")) })
+	grep := timeIt("grep, two words, 37,500 items scanned", func() int { return len(v.Grep("engine zzz")) })
+	timeIt("grep, common word (sorting 37,500 hits)", func() int { return len(v.Grep("boat")) })
 
 	if raceEnabled {
 		t.Log("timing limits are not enforced under the race detector")

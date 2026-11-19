@@ -14,7 +14,7 @@ func TestReviewOverHTTP(t *testing.T) {
 	s := newSite(t)
 	phone, laptop, dana := s.login("robin"), s.login("robin"), s.login("dana")
 	stuck := phone.create("robin", map[string]any{"kind": "project", "title": "Garden gate fixed"})
-	alive := phone.create("net", map[string]any{"kind": "project", "title": "Collector survives resets"})
+	alive := phone.create("net", map[string]any{"kind": "project", "title": "Engine survives resets"})
 	phone.create("net", map[string]any{"kind": "action", "title": "Ask Dana", "project": alive, "owner": "robin"})
 	maybe := phone.create("robin", map[string]any{"kind": "action", "title": "Learn to sail", "state": "someday"})
 	var cap struct{ ID string }
@@ -89,7 +89,7 @@ func TestReviewOverHTTP(t *testing.T) {
 			t.Fatalf("keep: %d %s", code, body)
 		}
 	}
-	if !seen["Garden gate fixed"] || !seen["Collector survives resets"] {
+	if !seen["Garden gate fixed"] || !seen["Engine survives resets"] {
 		t.Errorf("projects reviewed: %v", seen)
 	}
 	var pl Plan
