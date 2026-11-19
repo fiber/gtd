@@ -23,7 +23,12 @@ though collaboration features arrive in M6. Goal: Sven can use the tool daily
   - The same `export` output with and without a running daemon.
 
 ## M1 — Web core (single user, GTD loop)
-- Login and sessions, i18n `de`/`en`, mobile-first shell, item URLs.
+- Login and sessions, the JSON API (SPEC §9) incl. the wizard endpoints and
+  server-rendered `body_html`.
+- The Lit frontend in `web/ui/` (buildless, D-22): app shell with client-side
+  routing and item URLs, `store.js` as the single data layer, one component per
+  screen, generic step rendering for wizards, i18n `de`/`en` from JSON catalogs
+  with dates via `Intl`, mobile-first.
 - Capture (text, camera, file, multi-line split). Clarify wizard (all steps, no AI).
   Engage incl. focus mode. Project plan view (tree, dependencies via drag, roll-ups,
   warnings). Areas. Board. Note view (editor, images inline, attachment chips, link
@@ -37,6 +42,8 @@ though collaboration features arrive in M6. Goal: Sven can use the tool daily
     blocker unblocks the dependent action.
   - The capture page is interactive in under 1 s on a mid-range phone over 4G.
   - All UI strings exist in both catalogs (a test fails on missing keys).
+  - The UI loads with no build step: only embedded files, and no request leaves the
+    server's origin.
 
 ## M2 — Weekly Review and tickler
 - The review wizard (SPEC §5.4), resumable across devices. Tickler resurfacing.

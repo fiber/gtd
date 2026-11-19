@@ -38,5 +38,10 @@ If a task seems to need one of these, stop and ask.
 
 **Engineering**
 - Frontend build tooling (npm, bundlers, TypeScript, CSS frameworks)
+- Any frontend framework or library besides the vendored Lit bundle. No
+  state-management library, no router library, no htmx, no server-rendered
+  `html/template` pages (the app shell is the only HTML the server sends).
+- GTD logic in JS: no state, dependency, wizard-flow or permission rules in the
+  client, and no client-side Markdown rendering
 - DI containers, plugin systems, generic repository or service layers
 - Flags, options or extension points not required by a milestone

@@ -57,9 +57,13 @@ Blobs in IndexedDB). Attachments upload first (`POST /attachments`), then the ca
 op. The badge shows "3 queued".
 
 ## 6. Service worker
-Caches the app shell (HTML templates rendered for offline use, CSS, JS, icons) with
-versioned cache names. Network-first for HTML when online, cache fallback offline.
-Attachments are cache-first by hash (immutable).
+Hand-written (`web/ui/sw.js`). Caches the app shell with versioned cache names: the
+shell HTML, the vendored Lit bundle, the JS modules, the CSS file, the i18n catalogs,
+the manifest and icons. Network-first for the shell when online, cache fallback
+offline, and every UI route falls back to the cached shell. The service worker does
+not cache API data: components read through `store.js`, which uses the API online
+and IndexedDB offline (one data layer, two sources). Attachments are cache-first by
+hash (immutable).
 
 ## 7. Acceptance (automated where possible)
 1. Offline: complete 3 actions, defer 1, capture 2 (1 photo), edit a note body. Online:

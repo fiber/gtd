@@ -72,7 +72,10 @@ Rules:
 ### 3.1 Markdown
 CommonMark plus tables and task lists. Rendered server-side with a small, safe
 renderer. If stdlib isn't enough, propose a dependency (e.g. goldmark) per CLAUDE.md.
-No raw HTML passthrough.
+No raw HTML passthrough. The sanitized result is delivered as `body_html` alongside
+`body` in API and sync payloads. `body_html` is derived: it is never stored in the
+item record and never exported. The client inserts `body_html` as is and never
+renders Markdown itself.
 
 ### 3.2 Attachments
 - Ingest via upload, paste, drag and drop, the Android share target, camera
@@ -117,7 +120,16 @@ Unresolvable link (no access, trashed) renders as "unavailable item". An unknown
 
 All wizards live in `wizard/` as pure step machines:
 `Step(state, input) → (newState, ops []core.Op)`. Every user-confirmed step produces
-ops applied in one batch. The web layer only renders states and posts inputs.
+ops applied in one batch. They are exposed as:
+
+```
+POST /api/v1/wizard/{clarify|review|sweep}/start → {session, step}
+POST /api/v1/wizard/{kind}/{session}/step        → {step} | {done, ops}
+```
+
+Each `step` is plain data: step type, question, options, preselection and the data
+to show. The Lit client renders steps generically by step type and posts the chosen
+input. It contains no GTD logic and no per-wizard flow.
 
 ### 5.1 Inbox
 Two sections: **Captures** (oldest first) and **From others** (notifications:
@@ -293,9 +305,17 @@ templates:
 - Editing templates is admin-ish UI: a YAML textarea with validation is fine for v1.
 
 ## 8. UI shell
+- Lit web components, buildless (D-22), in `web/ui/`: one component per screen
+  (`gtd-capture`, `gtd-clarify`, `gtd-engage`, `gtd-plan`, `gtd-note`, `gtd-review`,
+  `gtd-board`) plus small shared widgets. One CSS file with custom properties.
+- The server returns the same app shell for every UI route (`/i/<id>` etc.). Routing
+  is client-side.
+- Components read and write only through `store.js`, the single data layer: from the
+  API when online, from IndexedDB when offline (OFFLINE.md).
 - Mobile-first. Bottom nav: **Capture · Inbox (n) · Engage · Projects · More**
   (Review, Board, Search, Areas, Settings). Desktop: the same as a left rail.
-- Language per user (D-09). All dates are formatted via the locale.
+- Language per user (D-09): JSON catalogs `web/ui/i18n/{de,en}.json`. All dates are
+  formatted via `Intl` in the user's locale.
 - Every item has a stable URL `/i/<id>`.
 - Keyboard on desktop: `c` capture, `/` search, `e` engage, `j/k` lists, `x` done.
 
@@ -308,4 +328,11 @@ templates:
 - `POST /attachments` (multipart) → `{sha256, mime, size}` · `GET /att/{sha}` · `GET /att/{sha}/thumb`
 - `GET /search?q=` · `GET /engage?...` · `GET /sync?cursor=` (OFFLINE.md)
 - `GET /notifications` · `POST /notifications/{id}/dismiss`
+- `POST /wizard/{clarify|review|sweep}/start` → `{session, step}` ·
+  `POST /wizard/{kind}/{session}/step` → `{step}` or `{done, ops}` (§5)
+- Item payloads (items, search, engage, sync) carry `body_html` alongside `body`
+  (§3.1).
+- Outside `/api/v1`: every UI route returns the app shell, and the embedded
+  `web/ui/` assets (JS modules, CSS, Lit bundle, i18n catalogs, manifest, `sw.js`)
+  are served as static files.
 - Auth: session cookie or `Authorization: Bearer <token>` (COLLAB.md §6).

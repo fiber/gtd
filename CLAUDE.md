@@ -29,14 +29,24 @@ Read before writing any code, in this order:
   `github.com/fiber/ai`). Anything else: propose it with one paragraph of
   justification and wait.
 - **No SQL, no ORM.** Pebble is the only database (STORAGE.md).
-- **No frontend build chain.** `html/template` + vendored `htmx.min.js` + one CSS
-  file + a hand-written service worker and a small offline JS module. No npm,
-  bundler, TypeScript or SPA framework.
+- **Buildless Lit frontend.** Lit web components as plain JS modules, loaded through
+  an import map from a vendored Lit ES module bundle, plus one CSS file with custom
+  properties and a hand-written service worker. All of it is embedded via
+  `embed.FS`. No npm, no bundler, no TypeScript. No other frontend framework and no
+  state-management library. The vendored Lit bundle is the only frontend dependency;
+  anything else: propose it and wait.
+- **The client is a pure renderer. No GTD logic in JS.** Markdown is rendered and
+  sanitized on the server (`body_html`). Wizards are Go step machines that the client
+  renders generically by step type. State rules, dependency rules and permission
+  checks exist only in Go.
 - **Shell out where it is the simple, robust choice:** `pdftotext` (optional) and
   `git merge-file` (text three-way merge; git is a runtime dependency only for this).
 - **Pure core, thin edges.** Domain logic (state machine, op application, wizard
   steps, dependency rules, merge rules, permission checks) lives in plain functions
   over plain structs, with no I/O, and is table-tested. Storage and HTTP are thin.
+  `core/` and `wizard/` contain no rendering concerns: no HTML, no markup, no
+  localized strings. Wizard steps are plain data (step type, question key, options,
+  preselection, data).
 
 ## Invariants (never violate)
 
@@ -70,7 +80,13 @@ auth/        password+sessions, API tokens+scopes, SSH-key challenge auth
 embed/       Embedder (fiber/ai or norad), vector cache, similarity, clustering
 ai/          generation client, embedded prompt files, schema validation, @ai worker
 mcp/         MCP server endpoint
-web/         HTTP handlers, templates, i18n catalogs, static (htmx, css, sw.js, offline.js, manifest)
+web/         HTTP/JSON handlers, wizard endpoints, server-side Markdown rendering,
+             app shell; embeds web/ui
+web/ui/      frontend assets (not a Go package): Lit components, one per screen
+             (gtd-capture, gtd-clarify, gtd-engage, gtd-plan, gtd-note, gtd-review,
+             gtd-board) plus small shared widgets; store.js (the single data layer),
+             offline.js (IndexedDB + op queue), sw.js, manifest, one CSS file,
+             vendored Lit bundle, i18n/{de,en}.json
 importer/    Obsidian vault import
 ```
 
