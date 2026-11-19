@@ -150,6 +150,7 @@ export const store = {
 
   // Wizards: the server holds the step machine, the client renders its steps.
   setSpaceContexts: (space, contexts) => put(`/spaces/${encodeURIComponent(space)}/contexts`, { contexts }),
+  stopReview: () => request('DELETE', '/wizard/review'),
   tokens: () => get('/me/tokens'),
   addToken: (label) => post('/me/tokens', { label, scopes: ['capture'] }),
   removeToken: (id) => request('DELETE', '/me/tokens/' + encodeURIComponent(id)),

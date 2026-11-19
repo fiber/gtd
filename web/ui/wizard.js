@@ -262,7 +262,16 @@ class Review extends View {
         <p class="subject">${t('review.decisions', { n })}</p>
         <a class="button primary" href="engage">${t('nav.engage')}</a></section>`;
     }
-    return html`<gtd-wizard kind="review" @finished=${(e) => this.finished(e)}></gtd-wizard>`;
+    return html`<gtd-wizard kind="review" @finished=${(e) => this.finished(e)}></gtd-wizard>
+      <p class="leave-review"><button class="quiet" @click=${() => this.stop()}>${t('review.stop')}</button></p>`;
+  }
+  // Abandon the review: the bar that points back to it goes away. What was
+  // decided so far stays decided.
+  async stop() {
+    await this.run(() => store.stopReview());
+    await store.loadMe();
+    document.querySelector('gtd-app').requestUpdate();
+    go('/engage');
   }
 }
 customElements.define('gtd-review', Review);

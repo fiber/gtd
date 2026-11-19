@@ -495,3 +495,5 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .admin .chips.members { margin: 2px 0 12px 22px; }
 .admin form.password .chips { gap: 10px; }
 .admin form.password .check { display: inline-flex; gap: 6px; align-items: center; font-weight: 500; }
+.leave-review { text-align: center; margin-top: 10px; }
+.leave-review .quiet { background: none; border-color: transparent; color: var(--muted); }

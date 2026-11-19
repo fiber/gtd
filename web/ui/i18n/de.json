@@ -351,6 +351,7 @@
  "review.since": "unverändert seit {date}",
  "review.someday": "Irgendwann / vielleicht: jetzt?",
  "review.stale": "Das hat sich seit zwei Wochen nicht bewegt. Noch richtig?",
+ "review.stop": "Diese Durchsicht abbrechen",
  "review.unsorted": "Unsortierte Notizen",
  "review.unsorted_count": "{n} Notizen sind noch nicht abgelegt.",
  "review.waiting": "Wartest du noch darauf?",

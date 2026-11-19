@@ -351,6 +351,7 @@
  "review.since": "unchanged since {date}",
  "review.someday": "Someday / maybe: now?",
  "review.stale": "This has not moved in two weeks. Still right?",
+ "review.stop": "Stop this review",
  "review.unsorted": "Unsorted notes",
  "review.unsorted_count": "{n} notes are not filed yet.",
  "review.waiting": "Still waiting for this?",

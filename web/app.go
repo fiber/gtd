@@ -139,6 +139,7 @@ func (s *Server) initApp() {
 	m.HandleFunc("GET /api/v1/spaces/{id}/templates", s.user(s.getTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/templates", s.user(s.putTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/contexts", s.user(s.putContexts))
+	m.HandleFunc("DELETE /api/v1/wizard/review", s.user(s.reviewStop))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/start", s.user(s.wizardStart))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/{session}/step", s.user(s.wizardStep))
 	m.HandleFunc("PUT /api/v1/admin/users/{id}/password", s.admin(s.setPassword))
@@ -1525,8 +1526,10 @@ func (s *Server) reviewEnv(r *http.Request, v *store.View) (wizard.ReviewEnv, er
 	return env, nil
 }
 
-// reviewAnswer sends the current step, or closes the review when no step is left.
-func (s *Server) reviewAnswer(w http.ResponseWriter, v *store.View, rev wizard.Review, env wizard.ReviewEnv, ops []core.Op) error {
+// reviewAnswer sends the current step, or closes the review when no step is
+// left. With save the progress is stored: that is what makes a review "in
+// progress", so looking at the first step does not.
+func (s *Server) reviewAnswer(w http.ResponseWriter, v *store.View, rev wizard.Review, env wizard.ReviewEnv, ops []core.Op, save bool) error {
 	if ops == nil {
 		ops = []core.Op{}
 	}
@@ -1542,8 +1545,10 @@ func (s *Server) reviewAnswer(w http.ResponseWriter, v *store.View, rev wizard.R
 		}
 		return reply(w, map[string]any{"done": true, "ops": ops, "summary": rev.Stats})
 	}
-	if err := s.st.PutUserState(v.User(), "review", at); err != nil {
-		return err
+	if save {
+		if err := s.st.PutUserState(v.User(), "review", at); err != nil {
+			return err
+		}
 	}
 	return reply(w, map[string]any{"session": "review", "step": at.Step(env), "ops": ops})
 }
@@ -1555,10 +1560,20 @@ func (s *Server) reviewStart(w http.ResponseWriter, r *http.Request, v *store.Vi
 		return err
 	}
 	var rev wizard.Review
-	if !s.st.GetUserState(v.User(), "review", &rev) {
+	started := s.st.GetUserState(v.User(), "review", &rev)
+	if !started {
 		rev = wizard.StartReview(s.today())
 	}
-	return s.reviewAnswer(w, v, rev, env, nil)
+	return s.reviewAnswer(w, v, rev, env, nil, started)
+}
+
+// reviewStop abandons the review in progress. What was decided in it stays
+// decided; only the place in it is forgotten.
+func (s *Server) reviewStop(w http.ResponseWriter, r *http.Request, a actor) error {
+	if err := s.st.DeleteUserState(a.user, "review"); err != nil {
+		return err
+	}
+	return reply(w, map[string]bool{"ok": true})
 }
 
 // reviewStep takes one answer. Its ops are applied at once, and the progress
@@ -1570,11 +1585,11 @@ func (s *Server) reviewStep(w http.ResponseWriter, r *http.Request, v *store.Vie
 	}
 	var rev wizard.Review
 	if !s.st.GetUserState(v.User(), "review", &rev) {
-		return fmt.Errorf("%w: no review in progress (start one)", core.ErrNotFound)
+		rev = wizard.StartReview(s.today()) // the first answer starts it
 	}
 	at, done := rev.At(env)
 	if done {
-		return s.reviewAnswer(w, v, rev, env, nil)
+		return s.reviewAnswer(w, v, rev, env, nil, true)
 	}
 	next, space, ops, _, err := at.Next(env, in, s.st.NewID)
 	var ie *wizard.InputError
@@ -1603,5 +1618,5 @@ func (s *Server) reviewStep(w http.ResponseWriter, r *http.Request, v *store.Vie
 	if env, err = s.reviewEnv(r, v); err != nil { // the world after the ops
 		return err
 	}
-	return s.reviewAnswer(w, v, next, env, logged)
+	return s.reviewAnswer(w, v, next, env, logged, true)
 }

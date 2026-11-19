@@ -122,8 +122,30 @@ func TestReviewOverHTTP(t *testing.T) {
 	if me.Review["started"] != false || me.Review["last_done"] == "" {
 		t.Errorf("after the review: %v", me.Review)
 	}
-	if _, code, _ := step(phone, "continue"); code != 404 {
-		t.Errorf("answering a finished review: %d", code)
+	// Looking at the review does not start one: the bar that says "in
+	// progress" must not appear just because the page was opened.
+	started := func() bool {
+		var me struct{ Review map[string]any }
+		phone.ok("GET", "/api/v1/me", nil, &me)
+		return me.Review["started"] == true
+	}
+	var look res
+	phone.ok("POST", "/api/v1/wizard/review/start", map[string]string{}, &look)
+	if look.Step.Key != "clear" || started() {
+		t.Errorf("opening the review page: step %q, started %v", look.Step.Key, started())
+	}
+	// The first answer starts it. Stopping it forgets the place, and nothing else.
+	if _, code, body := step(phone, "continue"); code != 200 || !started() {
+		t.Errorf("the first answer: %d %s, started %v", code, body, started())
+	}
+	phone.ok("DELETE", "/api/v1/wizard/review", nil, nil)
+	if started() {
+		t.Error("the review is still in progress after it was stopped")
+	}
+	phone.ok("DELETE", "/api/v1/wizard/review", nil, nil) // stopping nothing is fine
+	phone.ok("GET", "/api/v1/me", nil, &me)
+	if me.Review["last_done"] == "" {
+		t.Error("stopping a review forgot when the last one was finished")
 	}
 
 	// Dana's review is his own: robin's personal project never comes up.
