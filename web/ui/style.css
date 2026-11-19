@@ -473,3 +473,5 @@ details.fields summary::-webkit-details-marker { display: none; }
 div.facts { display: block; }
 .facts .row { color: inherit; }
 .subject a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+
+.chip.repeat { --c: var(--blue); }

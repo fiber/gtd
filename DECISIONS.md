@@ -67,11 +67,7 @@ Settled with the product owner (Sven). The agent must not change them.
 - **Q-6** (answered 2026-11-19: generation is per server and per user, see D-25.) Still open
   inside it: in a shared space, a job started by one member sends the other members' text to
   that member's backend. Accept that, or let a shared space restrict the backends? Before M7.
-- **Q-8** (raised by Sven, 2026-11-19) Repeating actions ("take out the trash", "exercise three
-  times a week"). NON_GOALS excludes "recurring actions or checklists" for v1. Agent proposal: a
-  `repeat` setting on an action (every N days or weeks after it was done, or on given weekdays).
-  When the action is done, the dependency-rule machinery creates the next one, deferred to its
-  date; the tickler brings it back. Not built: it lifts a non-goal, so it needs a yes.
+- **Q-8** (answered yes, 2026-11-19: repeating actions are built, SPEC §6.6.)
 - **Q-7** Proposed change to D-23 (offline), raised by Sven 2026-11-19: "focus offline on capture
   mostly, plan when you're at your desk". Agent proposal: offline means capture (text, photos,
   files), reading the cached lists, and marking actions done or deferred. Offline note editing,
@@ -224,3 +220,9 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — A link a user writes in Markdown as `[x](/i/…)` is left as written and now points outside the app. Links belong in `[[…]]` tokens, which follow the prefix.
 - 2026-11-19 — Owner said yes to repeating actions (Q-8) and to per-passage embeddings; both are next, then M5.
 - 2026-11-19 — Owner: examples use neutral names, no real people, companies or products. Done in the tutorial, the UI texts, the README's commands and all test fixtures including the sample export (users robin, dana and jo, the shared space net, a person called Lee, "Example API"). The names were chosen so that every ordering the tests rely on stays the same. The brief documents (SPEC, COLLAB, DECISIONS and the others) still describe the real deployment and its names: they are the specification, not samples.
+
+### Repeating actions
+
+- 2026-11-19 — Owner: repeating actions are wanted; the non-goal is lifted. `repeat` is a string on actions: `<n>d`, `<n>w` or weekday names. The successor is created by a system op when the action is done, deferred to its date. Intervals count from the day of completion, not from a fixed schedule, and only one instance is open at a time — simplest rule, and it does not punish a skipped day.
+- 2026-11-19 — Reopening a completed repeating action leaves its successor in place: there are then two open instances until one is dropped. Not handled specially.
+- 2026-11-19 — "Three times a week" is expressed as three weekdays. A count without days ("any three days") is not supported.

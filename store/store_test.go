@@ -359,7 +359,7 @@ func TestPartialExport(t *testing.T) {
 
 func TestItemMarkdownRoundTrip(t *testing.T) {
 	stamp := time.Date(2026, 11, 19, 8, 12, 3, 0, time.FixedZone("", 3600))
-	base := core.Item{V: 1, ID: "01JD8X4Q9V3T6M2K7P5R1W0Y8Z", Space: "net", Kind: core.KindNote, Title: "t", State: core.StFiled,
+	base := core.Item{V: 1, ID: "01JD8X4Q9V3T6M2K7P5R1W0Y8Z", Space: "net", Kind: core.KindNote, Title: "t", State: core.StFiled, Repeat: "mon,wed,fri",
 		Rev: 7, Created: stamp, Updated: stamp.Add(time.Hour + 5*time.Nanosecond).UTC(), UpdatedBy: "robin"}
 	for i, str := range []string{
 		"plain", nastyTitle, nastyBody, nastyOrig, "", " ", "\n", "\n\n\n", "---", "---\n", "\n---\n", "a\n---\nb\n---\n",

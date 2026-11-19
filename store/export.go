@@ -69,6 +69,7 @@ type itemFM struct {
 	Due         string            `yaml:"due,omitempty" json:"due,omitempty"`
 	Energy      string            `yaml:"energy,omitempty" json:"energy,omitempty"`
 	Time        string            `yaml:"time,omitempty" json:"time,omitempty"`
+	Repeat      string            `yaml:"repeat,omitempty" json:"repeat,omitempty"`
 	Template    string            `yaml:"template,omitempty" json:"template,omitempty"`
 	Fields      map[string]string `yaml:"fields,omitempty" json:"fields,omitempty"`
 	Attachments []core.Attachment `yaml:"attachments,omitempty" json:"attachments,omitempty"`
@@ -84,7 +85,7 @@ const fmSep = "---\n"
 // in it. Keys not listed (fields, imported) follow in alphabetical order.
 var fmOrder = func() map[string]int {
 	keys := strings.Fields(`id space kind title state rev created updated updated_by original source ai_generated
-		area project parent context owner delegated_by waiting_on blocked_by defer_until target due energy time
+		area project parent context owner delegated_by waiting_on blocked_by defer_until target due energy time repeat
 		template fields attachments derived_from generated conflict imported
 		via ref by sha256 name mime size`)
 	m := map[string]int{}

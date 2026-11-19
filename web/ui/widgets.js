@@ -95,6 +95,7 @@ export function meta(b, opts = {}) {
     ${b.unblocked ? html`<span class="chip unblocked">${t('item.unblocked')}</span>` : nothing}
     ${b.resurfaced ? html`<span class="chip unblocked">${t('item.resurfaced')}</span>` : nothing}
     ${(b.waits_for || []).map((w) => html`<span class="chip waits">${t('item.waits_for', { title: w.title })}${w.owner ? ` (${w.owner})` : ''}</span>`)}
+    ${b.repeat ? html`<span class="chip repeat">↻ ${t('item.repeats')}</span>` : nothing}
     ${b.time ? html`<span class="chip">${t('time.' + b.time)}</span>` : nothing}
     ${b.energy ? html`<span class="chip">${t('energy.' + b.energy)}</span>` : nothing}
     ${(b.badges || []).map((x) => html`<span class="chip badge">${x.split(':').slice(1).join(':')}</span>`)}

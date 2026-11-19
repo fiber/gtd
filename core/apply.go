@@ -132,6 +132,9 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 	res.Ops = []Op{op}
 	touched := []string{after.ID}
 	touched = append(touched, settle(ws, op, before, after, newID, res)...)
+	if id := repeatRule(ws, op, before, after, newID, res); id != "" {
+		touched = append(touched, id)
+	}
 	for _, id := range touched {
 		res.Items = append(res.Items, ws.Pending[id])
 	}
@@ -260,7 +263,7 @@ var patchable = map[string]bool{
 	"title": true, "body": true, "area": true, "project": true, "parent": true,
 	"context": true, "owner": true, "delegated_by": true, "waiting_on": true,
 	"blocked_by": true, "defer_until": true, "target": true, "due": true,
-	"energy": true, "time": true, "template": true, "fields": true,
+	"energy": true, "time": true, "repeat": true, "template": true, "fields": true,
 	"derived_from": true, "generated": true, "conflict": true, "imported": true,
 }
 
@@ -619,6 +622,11 @@ func validate(ws *State, it *Item) error {
 	}
 	if !slices.Contains([]string{"", "5m", "15m", "30m", "1h", "2h+"}, it.Time) {
 		return bad("time %q", it.Time)
+	}
+	if it.Repeat != "" {
+		if canonical, err := ParseRepeat(it.Repeat); err != nil || canonical != it.Repeat || it.Kind != KindAction {
+			return bad("repeat %q (only actions repeat; want e.g. 2d, 1w or mon,wed,fri)", it.Repeat)
+		}
 	}
 	for _, a := range it.Attachments {
 		if !ValidSHA256(a.SHA256) {

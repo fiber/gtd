@@ -52,6 +52,7 @@ target: 2027-01-15
 due: ""
 energy: ""                          # low|med|high
 time: ""                            # 5m|15m|30m|1h|2h+
+repeat: ""                          # actions: 2d | 1w | mon,wed,fri (§6.6)
 template: ""                        # template key from the space (§7)
 fields: {}                          # template field values, string-encoded
 attachments: [{sha256, name, mime, size}]
@@ -321,6 +322,16 @@ another sets `blocked_by`. Dragging a project onto another sets `parent`.
 ### 6.5 Date plausibility (warnings only)
 Child project target later than its parent's target. Action target earlier than any
 blocker's target. Target passed while not done → slipping.
+
+### 6.6 Repeating actions
+An action's `repeat` is `<n>d`, `<n>w` (that long after the day it was done) or a list
+of weekdays such as `mon,wed,fri` (the next of those days after it was done). When a
+repeating action is completed, a system op in the same batch creates its successor: a
+copy (title, body, project, area, context, owner, energy, time, template fields,
+repeat) in `next`, with `defer_until` set to that date and `derived_from` the
+completed one. The tickler brings it back. Blockers, target and due are not copied.
+Dropping or trashing the action, or clearing `repeat`, ends the repetition. There is
+one open instance at a time: missed days do not pile up.
 
 ## 7. Templates
 Defined per space (space record):

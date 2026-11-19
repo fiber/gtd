@@ -23,7 +23,7 @@ If a task seems to need one of these, stop and ask.
 - Native apps (the PWA covers it). A TUI is later, not v1.
 - Calendar integration. `due` and `target` are dates, nothing more.
 - Gantt charts, timeline views, critical-path or resource planning
-- Recurring actions or checklists
+- Checklists (repeating actions exist since 2026-11-19, SPEC §6.6)
 - Horizons above areas as special objects (goals and vision are plain notes)
 - Free-form tags or a tag UI
 - Obsidian compatibility, graph view, canvas, plugins, themes

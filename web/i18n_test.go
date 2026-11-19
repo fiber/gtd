@@ -73,6 +73,7 @@ func TestCatalogs(t *testing.T) {
 		"warning.short.": {"child_after_parent", "target_before_blocker", "slipping"},
 		"field.":         {"project", "parent", "area", "context", "owner", "waiting_on", "defer_until", "target", "energy", "time", "template"},
 		"theme.":         {"light", "dark", "system"},
+		"repeat.":        {"1d", "2d", "3d", "1w", "2w", "4w"},
 		"notes.tab.":     {"notes", "ideas"},
 		"note.":          {"saving", "saved", "unsaved"},
 		"ai.state.":      {"off", "ok", "offline", "building"},

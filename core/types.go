@@ -111,6 +111,7 @@ type Item struct {
 	Due         string            `json:"due,omitempty"`
 	Energy      string            `json:"energy,omitempty"`
 	Time        string            `json:"time,omitempty"`
+	Repeat      string            `json:"repeat,omitempty"` // actions: 2d, 1w or mon,wed,fri (repeat.go)
 	Template    string            `json:"template,omitempty"`
 	Fields      map[string]string `json:"fields,omitempty"`
 	Attachments []Attachment      `json:"attachments,omitempty"`

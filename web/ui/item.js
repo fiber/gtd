@@ -325,6 +325,17 @@ class Note extends View {
     if (it.kind === 'action') {
       out.push(f('energy', chips(ENERGIES, it.energy, (v) => this.set('energy', v === it.energy ? '' : v))));
       out.push(f('time', chips(TIMES, it.time, (v) => this.set('time', v === it.time ? '' : v))));
+      const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      const onDays = weekdays.filter((d) => (it.repeat || '').split(',').includes(d));
+      const byDays = onDays.length > 0 || this.repeatDays;
+      const dayName = (i) => new Intl.DateTimeFormat(store.me.lang, { weekday: 'short' }).format(new Date(2024, 0, i + 1));
+      out.push(html`<div class="field"><label>${t('field.repeat')}</label>
+        ${select(['1d', '2d', '3d', '1w', '2w', '4w'].map((v) => ({ id: v, title: t('repeat.' + v) })).concat([{ id: 'days', title: t('repeat.days') }]),
+          byDays ? 'days' : it.repeat || '',
+          (v) => { this.repeatDays = v === 'days'; if (v !== 'days') this.set('repeat', v); else this.requestUpdate(); }, t('repeat.none'))}
+        ${byDays ? chips(weekdays.map((d, i) => ({ value: d, text: dayName(i) })), onDays,
+          (d) => this.set('repeat', (onDays.includes(d) ? onDays.filter((x) => x !== d) : [...onDays, d]).join(','))) : nothing}
+      </div>`);
       const candidates = o.actions.filter((a) => a.id !== it.id && !(it.blocked_by || []).includes(a.id));
       out.push(html`<div class="field"><label>${t('field.blocked_by')}</label>
         <div class="chips">${it.blockers.map((b) => html`

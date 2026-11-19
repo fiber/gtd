@@ -47,6 +47,7 @@ type Brief struct {
 	Due          string       `json:"due,omitempty"`
 	Energy       string       `json:"energy,omitempty"`
 	Time         string       `json:"time,omitempty"`
+	Repeat       string       `json:"repeat,omitempty"`
 	Deferred     bool         `json:"deferred,omitempty"`
 	Slipping     bool         `json:"slipping,omitempty"`
 	Unblocked    bool         `json:"unblocked,omitempty"`  // the dependency rule made it next, in the last 3 days
@@ -85,7 +86,7 @@ func brief(st *core.State, it *core.Item, today string, roll map[string]core.Rol
 	b := Brief{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Rev: it.Rev, Title: it.Title,
 		Project: it.Project, ProjectTitle: title(st, it.Project), Parent: it.Parent, Area: it.Area, AreaTitle: title(st, it.Area),
 		Context: it.Context, Owner: it.Owner, WaitingOn: it.WaitingOn, DeferUntil: it.DeferUntil, Target: it.Target, Due: it.Due,
-		Energy: it.Energy, Time: it.Time, Attachments: len(it.Attachments), Created: it.Created, Updated: it.Updated,
+		Energy: it.Energy, Time: it.Time, Repeat: it.Repeat, Attachments: len(it.Attachments), Created: it.Created, Updated: it.Updated,
 		Deferred:   core.Deferred(it, today),
 		Slipping:   it.Target != "" && it.Target < today && !finished(it.State),
 		Unblocked:  core.Unblocked(it, recent(today)),

@@ -127,6 +127,19 @@ The tabs **Waiting for** and **Due and targets** are for a quick look, not for w
 Keys: `c` capture, `e` Engage, `n` new note, `/` search, `j`/`k` move, `x` done,
 `f` full screen, and number keys to answer a wizard question.
 
+## Things you do again and again
+
+For "take out the trash" or "exercise three times a week", open the action and set
+**Repeat** in its details:
+
+- **Every day / 2 days / week / …** counts from the day you did it. Do the bins on
+  Wednesday instead of Tuesday and the next one is a week from Wednesday.
+- **On weekdays…** lets you tick days, for example Monday, Wednesday and Friday.
+
+When you mark a repeating action done, gtd makes the next one and hides it until its
+day. There is only ever one of them open: if you skip a week, you find one reminder
+waiting, not seven. To stop, drop the action or set Repeat back to "Does not repeat".
+
 ## The weekly review
 
 The review is what keeps the rest honest. Without it, lists fill with things that are
