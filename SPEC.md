@@ -220,7 +220,15 @@ Progress is stored per user. Steps:
    activate / keep / drop.
 8. **Areas:** active project counts. Flag areas with none.
 
-A progress bar, then a summary. A banner on the configured weekday.
+A progress bar, then a summary. A banner on the configured weekday (the user's
+`review_weekday`, 1 Monday to 7 Sunday), until a review is finished that day, and
+whenever a review is in progress.
+
+Every answer applies its ops at once. The progress (phase, items decided, counts) is
+stored per user, so `POST /wizard/review/start` continues a review on any device.
+Within one review an item is asked about once: a project parked in step 3 does not
+come up again in step 7. Step 2 lists the number of unsorted notes with a link until
+the clustered sweep exists (M5).
 
 ### 5.5 Collate and organize notes
 - **Notes screen** (`/notes`): every note of the user's spaces, most recently changed

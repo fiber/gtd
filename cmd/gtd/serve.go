@@ -73,6 +73,28 @@ func serve(g globals, stdout, stderr io.Writer) error {
 		}()
 	}
 
+	// The tickler (SPEC §5.6): at start and whenever the local date changes.
+	go func() {
+		day := ""
+		tick := time.NewTicker(time.Minute)
+		defer tick.Stop()
+		for {
+			if today := st.Now().Format(time.DateOnly); today != day {
+				day = today
+				if n, err := st.Tickle(today); err != nil {
+					fmt.Fprintf(stderr, "gtd: tickler: %v\n", err)
+				} else if n > 0 {
+					fmt.Fprintf(stdout, "gtd: tickler: %d items resurfaced\n", n)
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+
 	app := web.New(st)
 	// Embeddings are optional. A model that does not load is reported and the
 	// daemon runs without similarity.

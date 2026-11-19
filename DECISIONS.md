@@ -67,6 +67,11 @@ Settled with the product owner (Sven). The agent must not change them.
 - **Q-6** (answered 2026-11-19: generation is per server and per user, see D-25.) Still open
   inside it: in a shared space, a job started by one member sends the other members' text to
   that member's backend. Accept that, or let a shared space restrict the backends? Before M7.
+- **Q-8** (raised by Sven, 2026-11-19) Repeating actions ("take out the trash", "exercise three
+  times a week"). NON_GOALS excludes "recurring actions or checklists" for v1. Agent proposal: a
+  `repeat` setting on an action (every N days or weeks after it was done, or on given weekdays).
+  When the action is done, the dependency-rule machinery creates the next one, deferred to its
+  date; the tickler brings it back. Not built: it lifts a non-goal, so it needs a yes.
 - **Q-7** Proposed change to D-23 (offline), raised by Sven 2026-11-19: "focus offline on capture
   mostly, plan when you're at your desk". Agent proposal: offline means capture (text, photos,
   files), reading the cached lists, and marking actions done or deferred. Offline note editing,
@@ -200,3 +205,15 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — The counts on the Notes tabs follow the word and project filters, not the selected tab, so they say what each tab would show.
 - 2026-11-19 — The tutorial moved to `web/TUTORIAL.md` so that the binary can embed it; the app renders it under Help. It is English only for now.
 - 2026-11-19 — Sven's Obsidian vaults are in `/Users/sven/Documents/Obsidian/`: two with notes (124 and 166, about 153,000 words together) and one empty. Surveyed read-only: median note 0.5 to 2 kB, 13 notes over 24,000 characters (the largest 98 kB and 168 kB), only 33 `[[links]]` in 290 notes, 76 open task lines, 145 images or embeds, and 36 `.base` and 12 `.canvas` files, which the importer cannot convert. IMPORT.md's "thousands of notes" is an overestimate; its rules stand. For M5 this means: per-passage embeddings matter (today's 16-chunk cap would leave most of the two largest notes out of their vectors), link conversion is a small job, and "Process note" has real work waiting.
+
+### M2
+
+- 2026-11-19 — The tickler clears `defer_until` on open items whose date has come, as one system patch op per item, at daemon start and when the local date changes (checked once a minute). Someday items keep their date: they come up in the review's Someday step. A CLI without a daemon does not run the tickler.
+- 2026-11-19 — "Resurfaced" and "unblocked" are derived, not stored: the item's last change was by the system within three days, without (resurfaced) or with (unblocked) blockers.
+- 2026-11-19 — The review's first step is a gate: it does not continue while a capture is in the inbox ("captures to zero", SPEC §5.4). "From others" is shown but does not block.
+- 2026-11-19 — A kept project that is stuck needs a next action typed into the same step; otherwise the answer is rejected. That is how "finishing a stuck kept project is impossible" is enforced.
+- 2026-11-19 — Review thresholds: stale = next and unchanged for more than 14 days; waiting = more than 7 days; someday = 10 per review, least recently reviewed first (remembered per user). "Nudge" on someone outside the space creates a "Follow up with X: …" action with context calls; on a member it posts a comment that mentions them. "Resolved" completes the waiting action.
+- 2026-11-19 — The dates and areas steps are overviews with links, not one decision per item: the decisions are edits on the items themselves.
+- 2026-11-19 — Review progress and "last reviewed" dates are per-user state under `u/<user>/st/`. They are not ops and not exported: after a restore a review starts from the beginning.
+- 2026-11-19 — Review ops span spaces: each decision's ops go to the space of the item it is about.
+- 2026-11-19 — Owner asked for "a cute little logo": a violet rounded tile with two eyes and a check mark for a smile (`web/ui/logo.svg`), used as favicon, in the bar and on the login page.

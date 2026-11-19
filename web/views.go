@@ -49,7 +49,8 @@ type Brief struct {
 	Time         string       `json:"time,omitempty"`
 	Deferred     bool         `json:"deferred,omitempty"`
 	Slipping     bool         `json:"slipping,omitempty"`
-	Unblocked    bool         `json:"unblocked,omitempty"` // last moved by the dependency rule
+	Unblocked    bool         `json:"unblocked,omitempty"`  // the dependency rule made it next, in the last 3 days
+	Resurfaced   bool         `json:"resurfaced,omitempty"` // the tickler brought it back, in the last 3 days
 	WaitsFor     []Named      `json:"waits_for,omitempty"`
 	Badges       []string     `json:"badges,omitempty"` // values of the template's enum fields
 	Attachments  int          `json:"attachments,omitempty"`
@@ -85,9 +86,10 @@ func brief(st *core.State, it *core.Item, today string, roll map[string]core.Rol
 		Project: it.Project, ProjectTitle: title(st, it.Project), Parent: it.Parent, Area: it.Area, AreaTitle: title(st, it.Area),
 		Context: it.Context, Owner: it.Owner, WaitingOn: it.WaitingOn, DeferUntil: it.DeferUntil, Target: it.Target, Due: it.Due,
 		Energy: it.Energy, Time: it.Time, Attachments: len(it.Attachments), Created: it.Created, Updated: it.Updated,
-		Deferred:  core.Deferred(it, today),
-		Slipping:  it.Target != "" && it.Target < today && !finished(it.State),
-		Unblocked: it.State == core.StNext && it.UpdatedBy == core.System,
+		Deferred:   core.Deferred(it, today),
+		Slipping:   it.Target != "" && it.Target < today && !finished(it.State),
+		Unblocked:  core.Unblocked(it, recent(today)),
+		Resurfaced: core.Resurfaced(it, recent(today)),
 	}
 	if it.Kind == core.KindAction {
 		b.WaitsFor = named(core.OpenBlockers(st, it))
@@ -105,6 +107,16 @@ func brief(st *core.State, it *core.Item, today string, roll map[string]core.Rol
 		b.Rollup = &r
 	}
 	return b
+}
+
+// recent is the date three days before today: how long "unblocked" and
+// "resurfaced" stay highlighted (SPEC §5.6).
+func recent(today string) string {
+	t, err := time.Parse(time.DateOnly, today)
+	if err != nil {
+		return today
+	}
+	return t.AddDate(0, 0, -3).Format(time.DateOnly)
 }
 
 func briefs(st *core.State, items []*core.Item, today string, roll map[string]core.Rollup) []Brief {

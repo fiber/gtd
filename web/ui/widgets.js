@@ -20,6 +20,7 @@ export const icon = {
   settings: s1`<path d="M5 8h8M18.5 8h.5M5 16h.5M11 16h8"/><circle cx="15.8" cy="8" r="2.4"/><circle cx="8.2" cy="16" r="2.4"/>`,
   more: s1`<circle cx="6" cy="12" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="18" cy="12" r="1.1"/>`,
   notes: s1`<path d="M7 3.5h7.5L19 8v12.5H7z"/><path d="M14 3.5V8h5M10 12.5h6M10 16h6"/>`,
+  review: s1`<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 4.2v3.6h-3.6"/><path d="M9 12.2l2.2 2.2 3.8-4"/>`,
   help: s1`<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.9"/><circle cx="12" cy="16.8" r=".6"/>`,
   sun: s1`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>`,
   moon: s1`<path d="M20 14.4A8 8 0 0 1 9.6 4 8 8 0 1 0 20 14.4z"/>`,
@@ -85,6 +86,7 @@ export function meta(b, opts = {}) {
     ${b.target ? html`<span class="chip ${b.slipping ? 'slipping' : 'target'}">${t('item.target', { date: fmtDate(b.target) })}</span>` : nothing}
     ${b.deferred ? html`<span class="chip deferred">${t('item.deferred', { date: fmtDate(b.defer_until) })}</span>` : nothing}
     ${b.unblocked ? html`<span class="chip unblocked">${t('item.unblocked')}</span>` : nothing}
+    ${b.resurfaced ? html`<span class="chip unblocked">${t('item.resurfaced')}</span>` : nothing}
     ${(b.waits_for || []).map((w) => html`<span class="chip waits">${t('item.waits_for', { title: w.title })}${w.owner ? ` (${w.owner})` : ''}</span>`)}
     ${b.time ? html`<span class="chip">${t('time.' + b.time)}</span>` : nothing}
     ${b.energy ? html`<span class="chip">${t('energy.' + b.energy)}</span>` : nothing}

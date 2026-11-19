@@ -459,3 +459,17 @@ details.fields summary::-webkit-details-marker { display: none; }
 .help h1 { font-size: 1.9rem; }
 .help h2 { font-size: 1.3rem; margin-top: 1.6em; }
 .help table { display: table; width: 100%; }
+
+/* ---- Review, banner, logo ---- */
+.brand img, .login h1 img { vertical-align: -5px; margin-right: 7px; border-radius: 28%; }
+.login h1 img { vertical-align: -6px; margin-right: 10px; }
+.brand::after, .login h1::after { display: none !important; }
+.banner { display: block; position: fixed; z-index: 18; left: 0; right: 0; top: 0; padding: 7px 16px; background: var(--accent); color: #fff; font-weight: 700; font-size: .9rem; text-align: center; }
+@media (min-width: 860px) { .banner { top: var(--top); } .banner + main { padding-top: calc(var(--top) + 54px); } }
+@media (max-width: 859px) { .banner + main { padding-top: 48px; } }
+.progressbar { height: 4px; background: var(--surface-2); }
+.progressbar span { display: block; height: 100%; background: var(--accent); transition: width .3s var(--ease); }
+.facts { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; color: var(--muted); }
+div.facts { display: block; }
+.facts .row { color: inherit; }
+.subject a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }

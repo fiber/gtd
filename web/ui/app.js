@@ -17,7 +17,7 @@ import { newNote } from './notes.js';
 
 const NAV = [
   ['/', 'nav.capture', 'capture'], ['/inbox', 'nav.inbox', 'inbox'], ['/engage', 'nav.engage', 'engage'], ['/projects', 'nav.projects', 'projects'],
-  ['/notes', 'nav.notes', 'notes'], ['/board', 'nav.board', 'board'], ['/search', 'nav.search', 'search'], ['/areas', 'nav.areas', 'areas'],
+  ['/notes', 'nav.notes', 'notes'], ['/review', 'nav.review', 'review'], ['/board', 'nav.board', 'board'], ['/search', 'nav.search', 'search'], ['/areas', 'nav.areas', 'areas'],
   ['/settings', 'nav.settings', 'settings'],
 ];
 
@@ -152,6 +152,7 @@ class App extends LitElement {
     if ((m = p.match(/^\/p\/([^/]+)$/))) return html`<gtd-plan .project=${m[1]}></gtd-plan>`;
     if ((m = p.match(/^\/i\/([^/]+)$/))) return html`<gtd-note .itemId=${m[1]}></gtd-note>`;
     if (p === '/notes') return html`<gtd-notes></gtd-notes>`;
+    if (p === '/review') return html`<gtd-review></gtd-review>`;
     if (p === '/help') return html`<gtd-help></gtd-help>`;
     if (p === '/board') return html`<gtd-board></gtd-board>`;
     if (p === '/areas') return html`<gtd-areas></gtd-areas>`;
@@ -186,7 +187,7 @@ class App extends LitElement {
       </a>`;
     return html`
       <nav>
-        <a class="brand" href="/">gtd</a>
+        <a class="brand" href="/"><img src="/ui/logo.svg" alt="" width="26" height="26">gtd</a>
         ${NAV.slice(0, 4).map(item)}
         <div class="nav-more ${this.menu ? 'open' : ''}">
           ${NAV.slice(4).map(item)}
@@ -203,6 +204,8 @@ class App extends LitElement {
         </button>
       </nav>
       ${this.menu ? html`<div class="scrim" @click=${() => { this.menu = false; }}></div>` : nothing}
+      ${(store.me.review?.due || store.me.review?.started) && this.path !== '/review' ? html`
+        <a class="banner" href="/review">${t(store.me.review.started ? 'review.banner_continue' : 'review.banner')}</a>` : nothing}
       <main>${this.view()}</main>
       ${this.toastMsg ? html`<div class="toast ${this.toastMsg.isError ? 'error' : ''}" role="status">${this.toastMsg.message}
         ${this.toastMsg.action ? html`<button @click=${() => this.toastAction()}>${this.toastMsg.action.label}</button>` : nothing}</div>` : nothing}
@@ -243,7 +246,7 @@ class Login extends LitElement {
   render() {
     return html`
       <form class="login" @submit=${(e) => this.submit(e)}>
-        <h1>gtd</h1>
+        <h1><img src="/ui/logo.svg" alt="" width="40" height="40">gtd</h1>
         <label>${t('login.user')}<input name="user" autocomplete="username" autocapitalize="none" required autofocus></label>
         <label>${t('login.password')}<input name="password" type="password" autocomplete="current-password" required></label>
         ${this.error ? html`<p class="error">${this.error}</p>` : nothing}

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 
@@ -127,4 +128,50 @@ func (s *Store) PutPDFText(sha, text string) error {
 		}
 	}
 	return nil
+}
+
+// Tickle resurfaces deferred items in every space (SPEC §5.6): it applies
+// core.Tickle as the system actor. It returns the number of items resurfaced.
+func (s *Store) Tickle(today string) (int, error) {
+	s.mu.RLock()
+	spaces := make(map[string]*space, len(s.spaces))
+	for id, sp := range s.spaces {
+		spaces[id] = sp
+	}
+	s.mu.RUnlock()
+	n := 0
+	for id, sp := range spaces {
+		s.mu.RLock()
+		st := &core.State{Space: sp.rec, Items: maps.Clone(sp.items)}
+		s.mu.RUnlock()
+		ops := core.Tickle(st, today)
+		if len(ops) == 0 {
+			continue
+		}
+		if _, err := s.apply(sp, id, core.System, ops); err != nil {
+			return n, fmt.Errorf("tickler in space %q: %w", id, err)
+		}
+		n += len(ops)
+	}
+	return n, nil
+}
+
+// Per-user state (u/<user>/st/<key>): review progress and the like. It is not
+// content: it is neither an op nor exported.
+
+func userStateKey(user, key string) []byte { return []byte("u/" + user + "/st/" + key) }
+
+// PutUserState stores a JSON value under a key of the user.
+func (s *Store) PutUserState(user, key string, v any) error {
+	return s.db.Set(userStateKey(user, key), mustJSON(v), pebble.Sync)
+}
+
+// GetUserState reads a value stored by PutUserState. ok is false if there is none.
+func (s *Store) GetUserState(user, key string, v any) (ok bool) {
+	return getJSON(s.db, userStateKey(user, key), v) == nil
+}
+
+// DeleteUserState removes a value.
+func (s *Store) DeleteUserState(user, key string) error {
+	return s.db.Delete(userStateKey(user, key), pebble.Sync)
 }

@@ -77,7 +77,9 @@ func TestCatalogs(t *testing.T) {
 		"note.":          {"saving", "saved", "unsaved"},
 		"ai.state.":      {"off", "ok", "offline", "building"},
 		"ai.note.":       {"offline", "building"},
-		"wizard.title.":  {"clarify", "note"},
+		"wizard.title.":  {"clarify", "note", "review"},
+		"review.":        {"clear", "unsorted", "projects", "stale", "waiting", "dates", "someday", "areas"},
+		"review.opt.":    {"continue", "keep", "someday", "done", "drop", "defer", "nudge", "resolved", "activate"},
 		"clarify.":       {"what", "actionable", "someday", "reference", "multi", "project", "action", "two_minutes", "do_now", "who", "person", "when", "after"},
 	}
 	for _, file := range js {
@@ -99,7 +101,7 @@ func TestCatalogs(t *testing.T) {
 		}
 	}
 	// Keys in Go: the wizards' questions, labels and errors, and the server's own texts.
-	reGo := regexp.MustCompile(`"((?:clarify|note|field|option|answer|hint|date|err|login|capture|format|item)\.[a-z_0-9.+]+)"`)
+	reGo := regexp.MustCompile(`"((?:clarify|note|field|option|answer|hint|date|err|login|capture|format|item|review|warning)\.[a-z_0-9.+]+)"`)
 	var gofiles []string
 	for _, pattern := range []string{"*.go", filepath.Join("..", "wizard", "*.go")} {
 		m, _ := filepath.Glob(pattern)
@@ -111,11 +113,18 @@ func TestCatalogs(t *testing.T) {
 		}
 		src, _ := os.ReadFile(file)
 		for _, m := range reGo.FindAllStringSubmatch(string(src), -1) {
-			used[m[1]] = true
+			if !strings.HasSuffix(m[1], ".") { // a prefix, completed in code
+				used[m[1]] = true
+			}
 		}
 	}
 	for _, x := range families["clarify."] { // "clarify." + c.At in wizard/clarify.go
 		used["clarify."+x] = true
+	}
+	for _, p := range []string{"review.", "review.opt."} { // "review." + phase, opt(…) in wizard/review.go
+		for _, x := range families[p] {
+			used[p+x] = true
+		}
 	}
 	for _, p := range []string{"energy.", "time.", "context."} { // labels(prefix, …) in the wizards
 		for _, x := range families[p] {

@@ -154,6 +154,8 @@ func TestNoBuildNoThirdParty(t *testing.T) {
 	for _, f := range files {
 		switch filepath.Ext(f) {
 		case ".js", ".css", ".html", ".json":
+		case ".svg":
+			continue // an image; its xmlns is a name, not a request
 		default:
 			t.Errorf("%s: unexpected file type in the UI (no build artefacts, no TypeScript)", f)
 		}

@@ -20,6 +20,7 @@ type world struct {
 	t  *testing.T
 	st *core.State
 	n  int
+	ts time.Time // when set, the time of the ops applied (to make old items)
 }
 
 func (w *world) newID() string { w.n++; return fmt.Sprintf("n%d", w.n) }
@@ -32,6 +33,9 @@ func (w *world) apply(ops []core.Op) error {
 		op.ID = fmt.Sprintf("op%d-%d", w.n, i)
 		op.Space, op.Actor = w.st.Space.ID, "sven"
 		op.TS = time.Date(2026, 11, 19, 9, 0, i, 0, time.UTC)
+		if !w.ts.IsZero() {
+			op.TS = w.ts.Add(time.Duration(i) * time.Second)
+		}
 		res, err := core.Apply(st, op, w.newID)
 		if err != nil {
 			return fmt.Errorf("op %d (%s on %s): %w", i, op.Type, op.Item, err)

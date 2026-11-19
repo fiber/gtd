@@ -846,3 +846,51 @@ func TestPruneSnapshots(t *testing.T) {
 		t.Fatalf("left %+v", left)
 	}
 }
+
+// TestTickler: deferred items resurface on the right day, by a system op in
+// the log (M2 acceptance, with an injected clock).
+func TestTickler(t *testing.T) {
+	s := fixture(t, t.TempDir())
+	defer s.Close()
+	sven := must(s.View("sven"))
+	a := s.NewID()
+	must(sven.Apply("nis", createOp(core.Item{ID: a, Kind: core.KindAction, Title: "Deferred", Owner: "sven", DeferUntil: "2026-12-24"})))
+	personal := s.NewID()
+	must(sven.Apply("sven", createOp(core.Item{ID: personal, Kind: core.KindAction, Title: "Also deferred", DeferUntil: "2026-12-24"})))
+
+	// The fixture has an action deferred until 2026-12-03, but it was dropped.
+	for _, day := range []string{"2026-12-02", "2026-12-23"} {
+		if n := must(s.Tickle(day)); n != 0 {
+			t.Fatalf("%s: %d items resurfaced too early", day, n)
+		}
+	}
+	seq := s.spaces["nis"].seq
+	if n := must(s.Tickle("2026-12-24")); n != 2 {
+		t.Fatalf("on the day: %d items resurfaced, want 2", n)
+	}
+	it := must(sven.Item("nis", a))
+	if it.DeferUntil != "" || it.UpdatedBy != core.System {
+		t.Errorf("after the tickler: %+v", it)
+	}
+	ops := must(sven.Ops("nis", 1))
+	if s.spaces["nis"].seq != seq+1 || ops[0].Actor != core.System || ops[0].Type != core.OpPatch || ops[0].Item != a {
+		t.Errorf("the tickler's op: %+v", ops[0])
+	}
+	if n := must(s.Tickle("2026-12-25")); n != 0 {
+		t.Errorf("the day after: %d more", n)
+	}
+	for _, p := range check(s) {
+		t.Error(p)
+	}
+
+	// Per-user state survives a restart and is separate per user.
+	check0(s.PutUserState("sven", "review", map[string]string{"phase": "projects"}))
+	var got map[string]string
+	if !s.GetUserState("sven", "review", &got) || got["phase"] != "projects" || s.GetUserState("eric", "review", &got) {
+		t.Errorf("user state: %v", got)
+	}
+	check0(s.DeleteUserState("sven", "review"))
+	if s.GetUserState("sven", "review", &got) {
+		t.Error("user state survived its deletion")
+	}
+}

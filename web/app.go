@@ -160,7 +160,7 @@ type asset struct {
 
 func loadAssets() map[string]asset {
 	types := map[string]string{".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
-		".json": "application/json", ".html": "text/html; charset=utf-8"}
+		".json": "application/json", ".html": "text/html; charset=utf-8", ".svg": "image/svg+xml"}
 	assets := map[string]asset{}
 	err := fs.WalkDir(uiFS, "ui", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -378,6 +378,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, a actor) error {
 		"lang":    s.lang(r, a.user),
 		"spaces":  v.Spaces(),
 		"today":   s.today(),
+		"review":  s.reviewInfo(a.user),
 		"presets": wizard.DatePresets(s.today()),
 		"server":  s.st.Server().Name,
 	})
@@ -387,6 +388,7 @@ func (s *Server) setMe(w http.ResponseWriter, r *http.Request, a actor) error {
 	var in struct {
 		Lang             *string   `json:"lang"`
 		PersonalContexts *[]string `json:"personal_contexts"`
+		ReviewWeekday    *int      `json:"review_weekday"` // 1 Monday … 7 Sunday, 0 none
 	}
 	if err := body(r, &in); err != nil {
 		return err
@@ -397,6 +399,12 @@ func (s *Server) setMe(w http.ResponseWriter, r *http.Request, a actor) error {
 				return fmt.Errorf("%w: language %q", core.ErrInvalid, *in.Lang)
 			}
 			u.Lang = *in.Lang
+		}
+		if in.ReviewWeekday != nil {
+			if *in.ReviewWeekday < 0 || *in.ReviewWeekday > 7 {
+				return fmt.Errorf("%w: review_weekday %d (1 Monday to 7 Sunday, 0 none)", core.ErrInvalid, *in.ReviewWeekday)
+			}
+			u.ReviewWeekday = *in.ReviewWeekday
 		}
 		if in.PersonalContexts != nil {
 			u.PersonalContexts = nil
@@ -1064,6 +1072,9 @@ func (s *Server) wizardStart(w http.ResponseWriter, r *http.Request, a actor) er
 	if err != nil {
 		return err
 	}
+	if r.PathValue("kind") == "review" {
+		return s.reviewStart(w, r, v)
+	}
 	ws := &wizardSession{user: a.user, kind: r.PathValue("kind"), started: s.st.Now()}
 	var it *core.Item
 	switch ws.kind {
@@ -1153,6 +1164,13 @@ func (s *Server) wizardStep(w http.ResponseWriter, r *http.Request, a actor) err
 	if err := body(r, &in); err != nil {
 		return err
 	}
+	if r.PathValue("kind") == "review" {
+		v, err := s.st.View(a.user)
+		if err != nil {
+			return err
+		}
+		return s.reviewStep(w, r, v, in)
+	}
 	ap := s.app
 	id := r.PathValue("session")
 	ap.mu.Lock()
@@ -1203,4 +1221,150 @@ func (s *Server) wizardStep(w http.ResponseWriter, r *http.Request, a actor) err
 		}
 	}
 	return reply(w, map[string]any{"done": true, "ops": logged})
+}
+
+// ---- weekly review (SPEC §5.4) ----
+//
+// The review's progress is stored per user (u/<user>/st/review), not in the
+// daemon's memory: it can be continued on another device or after a restart.
+
+// reviewMeta is what the server remembers between reviews.
+type reviewMeta struct {
+	LastDone string            `json:"last_done,omitempty"` // date of the last finished review
+	Someday  map[string]string `json:"someday,omitempty"`   // someday item → date it was last looked at
+}
+
+func (s *Server) reviewMeta(user string) reviewMeta {
+	var m reviewMeta
+	s.st.GetUserState(user, "review-meta", &m)
+	if m.Someday == nil {
+		m.Someday = map[string]string{}
+	}
+	return m
+}
+
+// reviewInfo is what the client needs for the banner: is a review due today
+// (the user's weekday, and none finished today), or in progress?
+func (s *Server) reviewInfo(user string) map[string]any {
+	u := s.st.User(user)
+	meta := s.reviewMeta(user)
+	var r wizard.Review
+	started := s.st.GetUserState(user, "review", &r)
+	weekday := int(s.st.Now().Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	return map[string]any{"weekday": u.ReviewWeekday, "last_done": meta.LastDone, "started": started,
+		"due": u.ReviewWeekday == weekday && meta.LastDone != s.today()}
+}
+
+func (s *Server) reviewEnv(r *http.Request, v *store.View) (wizard.ReviewEnv, error) {
+	lang := s.lang(r, v.User())
+	env := wizard.ReviewEnv{User: v.User(), Today: s.today(), SomedayReviewed: s.reviewMeta(v.User()).Someday,
+		FollowUp: s.t(lang, "review.follow_up"), Nudge: s.t(lang, "review.nudge")}
+	for _, sp := range v.Spaces() {
+		st, err := v.State(sp.ID)
+		if err != nil {
+			return env, err
+		}
+		env.Spaces = append(env.Spaces, st)
+		if sp.ID == v.User() {
+			st.Each(func(it *core.Item) {
+				if it.Kind == core.KindCapture && it.State == core.StInbox {
+					env.Inbox++
+				}
+			})
+		}
+	}
+	notes, err := v.Notifications()
+	if err != nil {
+		return env, err
+	}
+	for _, n := range notes {
+		if !n.Dismissed {
+			env.FromOthers++
+		}
+	}
+	return env, nil
+}
+
+// reviewAnswer sends the current step, or closes the review when no step is left.
+func (s *Server) reviewAnswer(w http.ResponseWriter, v *store.View, rev wizard.Review, env wizard.ReviewEnv, ops []core.Op) error {
+	if ops == nil {
+		ops = []core.Op{}
+	}
+	at, done := rev.At(env)
+	if done {
+		meta := s.reviewMeta(v.User())
+		meta.LastDone = s.today()
+		if err := s.st.PutUserState(v.User(), "review-meta", meta); err != nil {
+			return err
+		}
+		if err := s.st.DeleteUserState(v.User(), "review"); err != nil {
+			return err
+		}
+		return reply(w, map[string]any{"done": true, "ops": ops, "summary": rev.Stats})
+	}
+	if err := s.st.PutUserState(v.User(), "review", at); err != nil {
+		return err
+	}
+	return reply(w, map[string]any{"session": "review", "step": at.Step(env), "ops": ops})
+}
+
+// reviewStart continues the user's review, or begins one.
+func (s *Server) reviewStart(w http.ResponseWriter, r *http.Request, v *store.View) error {
+	env, err := s.reviewEnv(r, v)
+	if err != nil {
+		return err
+	}
+	var rev wizard.Review
+	if !s.st.GetUserState(v.User(), "review", &rev) {
+		rev = wizard.StartReview(s.today())
+	}
+	return s.reviewAnswer(w, v, rev, env, nil)
+}
+
+// reviewStep takes one answer. Its ops are applied at once, and the progress
+// is stored before the next step is sent.
+func (s *Server) reviewStep(w http.ResponseWriter, r *http.Request, v *store.View, in wizard.Input) error {
+	env, err := s.reviewEnv(r, v)
+	if err != nil {
+		return err
+	}
+	var rev wizard.Review
+	if !s.st.GetUserState(v.User(), "review", &rev) {
+		return fmt.Errorf("%w: no review in progress (start one)", core.ErrNotFound)
+	}
+	at, done := rev.At(env)
+	if done {
+		return s.reviewAnswer(w, v, rev, env, nil)
+	}
+	next, space, ops, _, err := at.Next(env, in, s.st.NewID)
+	var ie *wizard.InputError
+	if errors.As(err, &ie) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		return json.NewEncoder(w).Encode(map[string]string{"error": ie.Key, "field": ie.Field})
+	}
+	if err != nil {
+		return err
+	}
+	var logged []core.Op
+	if len(ops) > 0 {
+		if logged, err = v.Apply(space, ops...); err != nil {
+			return err
+		}
+	}
+	if at.Phase == wizard.PhaseSomeday && len(next.Seen) > len(at.Seen) {
+		// Remember when this someday item was looked at: next week others come first.
+		meta := s.reviewMeta(v.User())
+		meta.Someday[next.Seen[len(next.Seen)-1]] = s.today()
+		if err := s.st.PutUserState(v.User(), "review-meta", meta); err != nil {
+			return err
+		}
+	}
+	if env, err = s.reviewEnv(r, v); err != nil { // the world after the ops
+		return err
+	}
+	return s.reviewAnswer(w, v, next, env, logged)
 }

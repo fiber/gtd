@@ -272,13 +272,18 @@ type opRef struct {
 // either everything is stored or nothing is. An op whose ID was applied before
 // is skipped, which makes replay idempotent. It returns the ops as logged.
 func (v *View) Apply(spaceID string, ops ...core.Op) ([]core.Op, error) {
-	s := v.s
-	s.mu.RLock()
+	v.s.mu.RLock()
 	sp, err := v.space(spaceID)
-	s.mu.RUnlock()
+	v.s.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
+	return v.s.apply(sp, spaceID, v.user, ops)
+}
+
+// apply is the one write path (invariant 3). actor is a member, or the system
+// for rule-driven ops such as the tickler.
+func (s *Store) apply(sp *space, spaceID, actor string, ops []core.Op) ([]core.Op, error) {
 	sp.wmu.Lock()
 	defer sp.wmu.Unlock()
 
@@ -313,7 +318,7 @@ func (v *View) Apply(spaceID string, ops ...core.Op) ([]core.Op, error) {
 		} else if !errors.Is(err, pebble.ErrNotFound) {
 			return nil, err
 		}
-		op.Space, op.Actor = spaceID, v.user
+		op.Space, op.Actor = spaceID, actor
 		if op.TS.IsZero() {
 			op.TS = s.Now()
 		}

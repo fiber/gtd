@@ -123,6 +123,11 @@ class Settings extends View {
           <button @click=${() => store.logout()}>${t('settings.logout')}</button></p>
         <div class="field"><label>${t('settings.language')}</label>
           ${select([{ id: 'en', title: 'English' }, { id: 'de', title: 'Deutsch' }], me.lang, (v) => this.setLang(v))}</div>
+        <div class="field"><label>${t('settings.review_weekday')}</label>
+          ${select([1, 2, 3, 4, 5, 6, 7].map((d) => ({ id: String(d), title: new Intl.DateTimeFormat(me.lang, { weekday: 'long' }).format(new Date(2024, 0, d)) })),
+            String(me.review.weekday || ''), async (v) => { await this.run(() => store.setMe({ review_weekday: Number(v) })); this.requestUpdate(); document.querySelector('gtd-app').requestUpdate(); },
+            t('option.none'))}
+          <small>${t('settings.review_hint')}</small></div>
         <div class="field"><label>${t('nav.theme')}</label>
           ${select([{ id: 'light', title: t('theme.light') }, { id: 'dark', title: t('theme.dark') }, { id: 'system', title: t('theme.system') }],
             window.gtdTheme(), (v) => { window.gtdTheme(v); document.querySelector('gtd-app').theme = v; })}</div>

@@ -2,7 +2,7 @@
 // (wizard/ in Go). Each step says what to ask: this file draws it by step
 // type and posts the answer. It knows nothing about any particular wizard.
 import { store } from './store.js';
-import { t, label } from './i18n.js';
+import { t, label, fmtDate } from './i18n.js';
 import { View, html, nothing, chips, dateField, select, go } from './widgets.js';
 
 class Wizard extends View {
@@ -124,6 +124,22 @@ class Wizard extends View {
       ${(d.attachments || []).map((a) => (a.mime || '').startsWith('image/')
         ? html`<img class="att" src=${'/api/v1/att/' + a.sha256} alt=${a.name}>`
         : html`<a class="chip file" href=${'/api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}
+      ${d.inbox !== undefined ? html`<p class="facts">${t('review.inbox_count', { inbox: d.inbox, others: d.from_others })}</p>` : nothing}
+      ${d.count !== undefined ? html`<p class="facts">${t('review.unsorted_count', { n: d.count })}</p>` : nothing}
+      ${d.alive !== undefined ? html`<p class="facts">
+        <span class="chip">${d.rollup.done}/${d.rollup.total}</span>
+        ${d.alive ? nothing : html`<span class="chip stuck">${t('project.stuck')}</span>`}
+        ${(d.actions || []).map((x) => html`<span class="chip s-active">${x}</span>`)}</p>` : nothing}
+      ${d.since ? html`<p class="facts">${t('review.since', { date: fmtDate(d.since) })}${d.waiting_on ? ' · ' + t('item.waiting_on', { name: d.waiting_on }) : ''}</p>` : nothing}
+      ${d.items ? html`<div class="facts">${d.items.map((x) => html`
+        <a class="row" href=${'/i/' + x.id} target="_blank" rel="noopener"><span class="title">${x.title}</span>
+          <span class="meta"><span class="chip ${x.note.startsWith('warning') ? 'slipping' : 'target'}">${t(x.note)}</span>
+            ${x.date ? html`<span class="chip">${fmtDate(x.date)}</span>` : nothing}</span></a>`)}</div>` : nothing}
+      ${d.areas ? html`<div class="facts">${d.areas.map((x) => html`
+        <a class="row" href=${'/i/' + x.id} target="_blank" rel="noopener"><span class="title">${x.title}</span>
+          <span class="meta"><span class="chip">${t('areas.projects', { n: x.projects })}</span>
+            ${x.projects ? nothing : html`<span class="chip stuck">${t('areas.no_projects')}</span>`}</span></a>`)}</div>` : nothing}
+      ${d.links ? html`<p class="facts">${d.links.map((l) => html`<a class="button" href=${l.href}>${t(l.label)}</a> `)}</p>` : nothing}
       ${d.timer ? html`<p class="timer ${this.left === 0 ? 'over' : ''}">${clock}</p>` : nothing}
       ${d.done ? html`<ul class="donelist">${d.done.map((x) => html`<li>✓ ${x}</li>`)}</ul>` : nothing}
       ${d.after ? html`<ol class="afterlist">${d.after.map((x) => html`<li>${x}</li>`)}</ol>` : nothing}
@@ -135,10 +151,14 @@ class Wizard extends View {
     if (!s) return nothing;
     return html`
       <form class="wizard step-${s.type}" data-step=${s.key} @submit=${(e) => { e.preventDefault(); this.answer(s.options[0].value); }}>
-        <div class="frame-head"><span>${t('wizard.title.' + this.kind)}</span><span>${s.data?.total ? t('wizard.progress', { index: s.data.index, total: s.data.total }) : ''}</span></div>
+        <div class="frame-head"><span>${t('wizard.title.' + this.kind)}</span><span>${s.data?.total ? t('wizard.progress', { index: s.data.index, total: s.data.total })
+          : s.data?.phases ? t('wizard.progress', { index: s.data.phase, total: s.data.phases }) : ''}</span></div>
+        ${s.data?.phases ? html`<div class="progressbar"><span style=${`width:${Math.round((100 * (s.data.phase - 1)) / s.data.phases)}%`}></span></div>` : nothing}
         <div class="frame-body">
         <h1>${t(s.question)}</h1>
-        ${s.subject ? html`<p class="subject">${s.subject}</p>` : nothing}
+        ${s.subject ? html`<p class="subject">${s.data?.item
+          ? html`<a href=${'/i/' + s.data.item} target="_blank" rel="noopener">${s.subject}</a>` : s.subject}
+          ${s.data?.left > 1 ? html`<small> · ${t('review.left', { n: s.data.left - 1 })}</small>` : nothing}</p>` : nothing}
         ${this.data(s.data)}
         ${(s.fields || []).map((f) => this.field(f))}
         ${this.error && !s.fields?.some((f) => f.key === this.error.field) ? html`<p class="error">${this.error.text}</p>` : nothing}
@@ -175,6 +195,27 @@ class Clarify extends View {
   }
 }
 customElements.define('gtd-clarify', Clarify);
+
+// The weekly review (SPEC §5.4). Its progress lives on the server, so opening
+// this page on another device continues where the last one stopped.
+class Review extends View {
+  static properties = { summary: { state: true } };
+  async finished(e) {
+    this.summary = e.detail.summary || {};
+    await store.loadMe(); // the banner goes away
+    document.querySelector('gtd-app').requestUpdate();
+  }
+  render() {
+    if (this.summary) {
+      const n = Object.values(this.summary).reduce((a, b) => a + b, 0);
+      return html`<section class="done"><h1>${t('review.done')}</h1>
+        <p class="subject">${t('review.decisions', { n })}</p>
+        <a class="button primary" href="/engage">${t('nav.engage')}</a></section>`;
+    }
+    return html`<gtd-wizard kind="review" @finished=${(e) => this.finished(e)}></gtd-wizard>`;
+  }
+}
+customElements.define('gtd-review', Review);
 
 // Process note: turn a note's open task lines into actions.
 class Process extends View {

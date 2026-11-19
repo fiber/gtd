@@ -127,6 +127,31 @@ The tabs **Waiting for** and **Due and targets** are for a quick look, not for w
 Keys: `c` capture, `e` Engage, `n` new note, `/` search, `j`/`k` move, `x` done,
 `f` full screen, and number keys to answer a wizard question.
 
+## The weekly review
+
+The review is what keeps the rest honest. Without it, lists fill with things that are
+no longer true and you stop trusting them. Once a week, **Review** walks you through
+everything, one decision per screen:
+
+1. **Get clear.** The review does not start until the inbox is empty. Process it first.
+2. **Unsorted notes.** File what has piled up.
+3. **Projects**, one at a time: still alive? Keep, someday, done or drop. A project you
+   keep must have a next action. If it has none, you add one right there, or you decide
+   it is not a project you are doing.
+4. **Stale actions**: "next" for two weeks without moving. Keep, defer, someday or drop.
+5. **Waiting for** longer than a week: nudge (creates a follow-up action), keep or resolved.
+6. **Dates**: what has slipped, what is implausible, what is coming up in two weeks.
+7. **Someday / maybe**: ten of them each week, the ones you have not looked at longest.
+   Activate, keep or drop.
+8. **Areas**: an area with no active project is a part of your life you are not moving.
+
+Each answer takes effect at once. You can stop anywhere and continue later, on any
+device: the review remembers where you were. Set your review day in Settings, and a
+banner reminds you on that day.
+
+Items you deferred come back by themselves on their date, marked "back today" for
+three days.
+
 ## Projects
 
 A project is an outcome: "Collector survives BGP session resets", not "Collector".
@@ -264,7 +289,8 @@ you never see it again.
    write those as task lines, press **Process open tasks**, and set the project to
    Active. From then on it lives in Engage like everything else.
 
-7. **Look at Notes → Ideas once a week.** It shows your themes with their notes and your
+7. **Do the weekly review.** Its Someday step brings ideas back to you ten at a time, and
+   you can also look at Notes → Ideas whenever you like. It shows your themes with their notes and your
    someday actions in one place. Activate, keep or drop. Ideas that survive three
    looks without growing can go. Then open the Unsorted tab and file what is there.
 
@@ -275,7 +301,6 @@ you never see it again.
 - With embeddings switched on (M4, see "Similarity" below) the tool notices that a new
   idea resembles older ones. It does not yet group loose notes (M5) or draft the
   summary (M7).
-- The weekly review is not guided yet (M2). Step 7 above is the manual version.
 
 ## Similarity
 
