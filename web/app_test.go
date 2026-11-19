@@ -258,7 +258,7 @@ func TestLoginAndSessions(t *testing.T) {
 	}
 
 	c.ok("PUT", "/api/v1/me", map[string]any{"lang": "de", "personal_contexts": []string{"boat", " Garage "}}, nil)
-	if u := s.st.User("robin"); u.Lang != "de" || strings.Join(u.PersonalContexts, ",") != "boat,garage" {
+	if u := s.st.User("robin"); u.Lang != "de" || strings.Join(u.PersonalContexts, ",") != "boat,Garage" /* names keep their capitals */ {
 		t.Errorf("user after PUT /me: %+v", u)
 	}
 	if code, _ := c.do("PUT", "/api/v1/me", map[string]any{"lang": "fr"}, nil); code != 400 {
@@ -866,11 +866,17 @@ func TestSpaceContexts(t *testing.T) {
 	put := func(c *client, space string, list ...string) (int, string) {
 		return c.do("PUT", "/api/v1/spaces/"+space+"/contexts", map[string]any{"contexts": list}, nil)
 	}
-	if code, body := put(robin, "net", " Calls-US ", "calls-us", "", "lab"); code != 200 || !strings.Contains(body, `["calls-us","lab"]`) {
+	if code, body := put(robin, "net", " Calls   US ", "calls us", "", "lab"); code != 200 || !strings.Contains(body, `["Calls US","lab"]`) {
 		t.Fatalf("set: %d %s", code, body)
 	}
-	if code, _ := put(robin, "net", "not ok"); code != 400 {
+	if code, _ := put(robin, "net", "not:ok"); code != 400 {
 		t.Errorf("a bad key: %d", code)
+	}
+	if code, _ := put(robin, "net", "CALLS"); code != 400 {
+		t.Errorf("a name that repeats a built-in context: %d", code)
+	}
+	if code, _ := put(robin, "net", "Calls US", "lab"); code != 200 {
+		t.Errorf("setting the same list again: %d", code)
 	}
 	if code, _ := put(robin, "robin", "x"); code != 400 {
 		t.Errorf("contexts on a personal space: %d", code)
@@ -880,8 +886,8 @@ func TestSpaceContexts(t *testing.T) {
 	}
 	// Dana, the other member, can use it on an action in the space; in her
 	// personal space it does not exist.
-	id := dana.create("net", map[string]any{"kind": "action", "title": "Call the US office", "context": "calls-us", "owner": "dana"})
-	if code, _ := dana.do("POST", "/api/v1/ops", map[string]any{"space": "dana", "ops": []map[string]any{{"type": "create", "payload": map[string]any{"kind": "action", "title": "x", "context": "calls-us"}}}}, nil); code != 400 {
+	id := dana.create("net", map[string]any{"kind": "action", "title": "Call the US office", "context": "Calls US", "owner": "dana"})
+	if code, _ := dana.do("POST", "/api/v1/ops", map[string]any{"space": "dana", "ops": []map[string]any{{"type": "create", "payload": map[string]any{"kind": "action", "title": "x", "context": "Calls US"}}}}, nil); code != 400 {
 		t.Errorf("the space's context used in a personal space: %d", code)
 	}
 	// Engage offers it as a place, and filters by it.
@@ -889,10 +895,10 @@ func TestSpaceContexts(t *testing.T) {
 		Items    []Brief
 		Contexts []struct{ Value string }
 	}
-	dana.ok("GET", "/api/v1/engage?context=calls-us", nil, &e)
+	dana.ok("GET", "/api/v1/engage?context=Calls+US", nil, &e)
 	offered := false
 	for _, c := range e.Contexts {
-		offered = offered || c.Value == "calls-us"
+		offered = offered || c.Value == "Calls US"
 	}
 	if !offered || len(e.Items) != 1 || e.Items[0].ID != id {
 		t.Errorf("engage by the space's context: offered %v, items %+v", offered, e.Items)
@@ -910,7 +916,7 @@ func TestSpaceContexts(t *testing.T) {
 	}
 	robin.ok("GET", "/api/v1/me", nil, &me)
 	for _, sp := range me.Spaces {
-		if sp.ID == "net" && !slices.Equal(sp.Contexts, []string{"calls-us", "lab"}) {
+		if sp.ID == "net" && !slices.Equal(sp.Contexts, []string{"Calls US", "lab"}) {
 			t.Errorf("/me: %+v", sp)
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // State is what Apply needs to know about one space. Items is the committed
@@ -575,6 +576,37 @@ func dependents(ws *State, id string) []string {
 }
 
 var canonicalContexts = []string{"errands", "calls", "computer", "home", "office", "anywhere"}
+
+// CleanContexts checks a user's or a space's own contexts and returns them
+// tidied. They are names, shown as written ("Calls US"): letters, digits,
+// spaces and - _ . + & /, at most 30 characters. A name may not repeat a
+// canonical context or another name, whatever the capitals, and may not use
+// the "agenda:" form, which belongs to people.
+func CleanContexts(in []string) ([]string, error) {
+	out := []string{}
+	for _, c := range in {
+		c = strings.Join(strings.Fields(c), " ")
+		if c == "" {
+			continue
+		}
+		if len([]rune(c)) > 30 {
+			return nil, fmt.Errorf("%w: context %q is longer than 30 characters", ErrInvalid, c)
+		}
+		for _, r := range c {
+			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune(" -_.+&/", r) {
+				return nil, fmt.Errorf("%w: context %q: %q is not allowed (letters, digits, spaces and - _ . + & /)", ErrInvalid, c, r)
+			}
+		}
+		same := func(x string) bool { return strings.EqualFold(x, c) }
+		if slices.ContainsFunc(canonicalContexts, same) {
+			return nil, fmt.Errorf("%w: context %q exists already: it is one of the built-in ones", ErrInvalid, c)
+		}
+		if !slices.ContainsFunc(out, same) {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
 
 func validContext(ws *State, key string) bool {
 	if slices.Contains(canonicalContexts, key) {

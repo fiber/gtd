@@ -145,7 +145,7 @@ For someone who is not a user here, choose **Someone else** and type the name: t
 is simply something you are waiting for.
 
 **Places that only make sense for one group**, such as calls to another time zone:
-in Settings, give the shared space its own contexts (for example `calls-us`). They
+in Settings, give the shared space its own contexts (for example "Calls US"). They
 appear next to the usual ones for actions in that space, and under "Where are you?"
 in Engage.
 

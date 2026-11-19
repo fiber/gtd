@@ -118,3 +118,18 @@ func TestSpaceContexts(t *testing.T) {
 		t.Error("a personal space took a space context")
 	}
 }
+
+func TestCleanContexts(t *testing.T) {
+	got, err := CleanContexts([]string{"  Calls   US ", "calls us", "", "Boot", "R&D / Lab", "Büro-2", "boot"})
+	if err != nil || !slices.Equal(got, []string{"Calls US", "Boot", "R&D / Lab", "Büro-2"}) {
+		t.Errorf("clean: %q, %v", got, err)
+	}
+	for _, bad := range []string{"Calls", "ERRANDS", "agenda:Lee", "a,b", "x\ty\x00", "semi;colon", "this name is far too long for a context chip"} {
+		if _, err := CleanContexts([]string{bad}); err == nil {
+			t.Errorf("%q was accepted", bad)
+		}
+	}
+	if got, err := CleanContexts(nil); err != nil || len(got) != 0 {
+		t.Errorf("empty: %v %v", got, err)
+	}
+}

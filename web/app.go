@@ -478,7 +478,7 @@ func (s *Server) setMe(w http.ResponseWriter, r *http.Request, a actor) error {
 			u.ReviewWeekday = *in.ReviewWeekday
 		}
 		if in.PersonalContexts != nil {
-			list, err := cleanContexts(*in.PersonalContexts)
+			list, err := core.CleanContexts(*in.PersonalContexts)
 			if err != nil {
 				return err
 			}
@@ -1120,7 +1120,7 @@ func (s *Server) putContexts(w http.ResponseWriter, r *http.Request, a actor) er
 	if st.Space.Kind != core.SpaceShared {
 		return fmt.Errorf("%w: space %q is personal: its contexts are the user's own (settings)", core.ErrInvalid, id)
 	}
-	contexts, err := cleanContexts(in.Contexts)
+	contexts, err := core.CleanContexts(in.Contexts)
 	if err != nil {
 		return err
 	}
@@ -1128,22 +1128,6 @@ func (s *Server) putContexts(w http.ResponseWriter, r *http.Request, a actor) er
 		return err
 	}
 	return reply(w, map[string]any{"contexts": contexts})
-}
-
-// cleanContexts normalizes a list of context keys typed by a user.
-func cleanContexts(in []string) ([]string, error) {
-	out := []string{}
-	for _, c := range in {
-		c = strings.ToLower(strings.TrimSpace(c))
-		if c == "" || slices.Contains(out, c) {
-			continue
-		}
-		if !core.ValidID(c) {
-			return nil, fmt.Errorf("%w: context %q (want lowercase letters, digits and -)", core.ErrInvalid, c)
-		}
-		out = append(out, c)
-	}
-	return out, nil
 }
 
 // ---- templates (SPEC §7): a YAML textarea with validation ----
