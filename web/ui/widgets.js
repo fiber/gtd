@@ -2,7 +2,7 @@
 // date field and the toast. Presentation only.
 import { LitElement, html, svg, nothing } from 'lit';
 import { t, label, fmtDate } from './i18n.js';
-import { store } from './store.js';
+import { store, BASE } from './store.js';
 
 export { html, nothing };
 
@@ -54,12 +54,19 @@ export class View extends LitElement {
   }
 }
 
+// go navigates to an app path such as "/inbox" or "/i/<id>".
 export function go(path) {
-  history.pushState({}, '', path);
+  history.pushState({}, '', BASE + path);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 // toast shows a short message. action adds one button, e.g. Undo.
+// rel turns an app path into a link relative to the page's <base href>.
+export const rel = (path) => path.replace(/^\//, '') || './';
+
+// appPath is the current location as an app path, without the base.
+export const appPath = () => location.pathname.slice(BASE.length) || '/';
+
 export function toast(message, isError, action) {
   window.dispatchEvent(new CustomEvent('gtd-toast', { detail: { message, isError, action } }));
 }
@@ -103,7 +110,7 @@ export function row(b, opts = {}) {
   return html`
     <div class="row kind-${b.kind}" data-id=${b.id} tabindex="0">
       <span class="mark" data-kind=${b.kind} data-state=${b.state}></span>
-      <a class="row-main" href=${opts.href || '/i/' + b.id}>
+      <a class="row-main" href=${rel(opts.href || '/i/' + b.id)}>
         <span class="title">${b.title}</span>
         <span class="meta">${meta(b, opts)}</span>
       </a>

@@ -61,7 +61,7 @@ class Notes extends View {
         ${select(d.projects, this.project, (v) => this.set('project', v), t('board.all_projects'))}
       </div>
       ${d.notes.map((n) => html`
-        <a class="note-card" href=${'/i/' + n.id}>
+        <a class="note-card" href=${'i/' + n.id}>
           <span class="title">${n.title}</span>
           ${n.excerpt ? html`<span class="excerpt">${n.excerpt}</span>` : nothing}
           <span class="meta">

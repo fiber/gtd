@@ -40,7 +40,7 @@ go build -o gtd ./cmd/gtd
 export GTD_DATA=/var/lib/gtd            # keep the path short: the daemon's Unix socket lives in it
 ./gtd user add -admin -name Sven -ssh-key ~/.ssh/id_ed25519.pub sven   # creates the database
 ./gtd user passwd sven                  # web password
-./gtd serve                             # CLI socket, and the web UI on http://127.0.0.1:8640
+./gtd serve                             # CLI socket, and the web UI on http://127.0.0.1:8640/gtd/
 ```
 
 `config.yaml` in the data directory sets `server.name`, `server.listen`, `server.base_url`,
@@ -50,6 +50,17 @@ export GTD_DATA=/var/lib/gtd            # keep the path short: the daemon's Unix
 embed: { provider: internal, model_dir: /home/sven/models/embeddinggemma-300m }
 # or: embed: { provider: ollama, url: "http://127.0.0.1:11434", model: embeddinggemma }
 ``` Put nginx with TLS in front for anything but localhost.
+
+gtd lives entirely under `/gtd/`, so it can share a host with other things. The proxy
+forwards that one path unchanged:
+
+```nginx
+location /gtd/ {
+    proxy_pass http://127.0.0.1:8640;
+    proxy_set_header Host $host;
+    client_max_body_size 30m;    # attachments are up to 25 MB
+}
+```
 
 Tests: `go test -race ./...`. `go test ./store -update` rewrites the golden export after an
 intended format change.

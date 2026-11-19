@@ -16,14 +16,14 @@ class Inbox extends View {
     return html`
       <header class="bar">
         <h1>${t('nav.inbox')}</h1>
-        ${d.captures.length ? html`<a class="button primary" href="/clarify">${t('inbox.process', { n: d.captures.length })}</a>` : nothing}
+        ${d.captures.length ? html`<a class="button primary" href="clarify">${t('inbox.process', { n: d.captures.length })}</a>` : nothing}
       </header>
       <h2>${t('inbox.captures')}</h2>
       ${d.captures.length ? d.captures.map((c) => row(c)) : html`<p class="empty">${t('inbox.zero')}</p>`}
       <h2>${t('inbox.from_others')}</h2>
       ${d.notifications.length ? d.notifications.map((n) => html`
         <div class="row">
-          <a class="row-main" href=${'/i/' + n.item}>
+          <a class="row-main" href=${'i/' + n.item}>
             <span class="title">${n.title}</span>
             <span class="meta"><span class="chip unblocked">${t('notification.' + n.type)}</span>
               <span class="chip">${n.from}</span><span class="chip">${fmtTime(n.ts)}</span></span>

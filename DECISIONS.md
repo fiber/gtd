@@ -217,3 +217,9 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 - 2026-11-19 — Review progress and "last reviewed" dates are per-user state under `u/<user>/st/`. They are not ops and not exported: after a restore a review starts from the beginning.
 - 2026-11-19 — Review ops span spaces: each decision's ops go to the space of the item it is about.
 - 2026-11-19 — Owner asked for "a cute little logo": a violet rounded tile with two eyes and a check mark for a smile (`web/ui/logo.svg`), used as favicon, in the bar and on the login page.
+
+### Path prefix
+
+- 2026-11-19 — Owner: the whole web side lives under `/gtd/` (UI routes, `/gtd/ui/`, `/gtd/api/v1/`), "so I can home this on different servers". The prefix is the constant `web.Prefix`, not a setting: the shell carries `<base href="/gtd/">`, every link written by the client or the server is relative to it, the client reads the base from the page, and the session cookie is scoped to `/gtd/`. Outside the prefix the HTTP listener answers only a redirect from `/`. The CLI's Unix socket serves the bare API, so CLI paths did not change. The CSP's `base-uri` is `'self'` (it was `'none'`, which blocked the base tag).
+- 2026-11-19 — A link a user writes in Markdown as `[x](/i/…)` is left as written and now points outside the app. Links belong in `[[…]]` tokens, which follow the prefix.
+- 2026-11-19 — Owner said yes to repeating actions (Q-8) and to per-passage embeddings; both are next, then M5.

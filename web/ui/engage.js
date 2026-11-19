@@ -144,8 +144,8 @@ class Focus extends View {
         ${it.project_title ? html`<p class="subject">${it.project_title}</p>` : nothing}
         <div class="body" .innerHTML=${it.body_html}></div>
         <div class="atts">${(it.attachments || []).map((a) => (a.mime || '').startsWith('image/')
-          ? html`<img class="att" src=${'/api/v1/att/' + a.sha256} alt=${a.name}>`
-          : html`<a class="chip file" href=${'/api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}</div>
+          ? html`<img class="att" src=${'api/v1/att/' + a.sha256} alt=${a.name}>`
+          : html`<a class="chip file" href=${'api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}</div>
         <div class="buttons">
           <button class="primary" @click=${() => this.done()}>${t('action.done')}</button>
           <button @click=${() => this.exit()}>${t('action.exit')}</button>

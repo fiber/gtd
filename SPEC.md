@@ -354,18 +354,27 @@ templates:
 - Lit web components, buildless (D-22), in `web/ui/`: one component per screen
   (`gtd-capture`, `gtd-clarify`, `gtd-engage`, `gtd-plan`, `gtd-note`, `gtd-review`,
   `gtd-board`) plus small shared widgets. One CSS file with custom properties.
-- The server returns the same app shell for every UI route (`/i/<id>` etc.). Routing
-  is client-side.
+- **Everything is served under the path `/gtd/`**: the UI routes, the files in
+  `/gtd/ui/` and the API in `/gtd/api/v1/`. A reverse proxy forwards that one path, so
+  gtd can share a host name with other applications, and the same build runs on any
+  server. `/` redirects to `/gtd/`. The session cookie is scoped to `/gtd/`.
+- The server returns the same app shell for every UI route (`/gtd/i/<id>` etc.), with
+  `<base href="/gtd/">`. Routing is client-side. All links the client or the server
+  writes are relative to that base.
 - Components read and write only through `store.js`, the single data layer: from the
   API when online, from IndexedDB when offline (OFFLINE.md).
 - Mobile-first. Bottom nav: **Capture · Inbox (n) · Engage · Projects · More**
   (Review, Board, Search, Areas, Settings). Desktop: the same as a left rail.
 - Language per user (D-09): JSON catalogs `web/ui/i18n/{de,en}.json`. All dates are
   formatted via `Intl` in the user's locale.
-- Every item has a stable URL `/i/<id>`.
+- Every item has a stable URL `/gtd/i/<id>`.
 - Keyboard on desktop: `c` capture, `/` search, `e` engage, `j/k` lists, `x` done.
 
-## 9. HTTP API (JSON, `/api/v1`, stable)
+## 9. HTTP API (JSON, `/gtd/api/v1` over HTTP, stable)
+
+The paths below are relative to that. On the daemon's Unix socket, where only the CLI
+connects, the same routes are served without the `/gtd` prefix.
+
 - `POST /capture` (JSON `{text, source?}` or multipart with files) → `{id}`
 - `GET /items/{id}` (`ETag: rev`) · `GET /items?space=&kind=&state=&project=&owner=&context=`
 - `POST /ops` — submit one or more ops (web, offline replay and CLI all use this).

@@ -32,7 +32,7 @@ class Areas extends View {
       </form>
       ${this.list.map((a) => html`
         <div class="row ${a.state === 'retired' ? 'finished' : ''}" tabindex="0">
-          <a class="row-main" href=${'/i/' + a.id}>
+          <a class="row-main" href=${'i/' + a.id}>
             <span class="title">${a.title}</span>
             <span class="meta">
               <span class="chip">${t('areas.projects', { n: a.projects })}</span>

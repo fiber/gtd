@@ -4,7 +4,8 @@
 import { LitElement, html, nothing } from 'lit';
 import { store } from './store.js';
 import { loadLanguage, t } from './i18n.js';
-import { go, toast, icon } from './widgets.js';
+import { go, toast, icon, rel, appPath } from './widgets.js';
+import { BASE } from './store.js';
 import './capture.js';
 import './inbox.js';
 import './wizard.js';
@@ -31,7 +32,7 @@ class App extends LitElement {
 
   constructor() {
     super();
-    this.path = location.pathname;
+    this.path = appPath();
     this.ready = false;
     this.inbox = 0;
     this.theme = window.gtdTheme();
@@ -39,7 +40,7 @@ class App extends LitElement {
 
   async connectedCallback() {
     super.connectedCallback();
-    window.addEventListener('popstate', () => { this.path = location.pathname; this.menu = false; });
+    window.addEventListener('popstate', () => { this.path = appPath(); this.menu = false; });
     window.addEventListener('gtd-auth', () => this.requestUpdate());
     document.addEventListener('fullscreenchange', () => { this.zen = !!document.fullscreenElement; });
     window.addEventListener('gtd-changed', (e) => this.onChanged(e.detail));
@@ -59,10 +60,12 @@ class App extends LitElement {
   onClick(e) {
     const a = e.target.closest?.('a[href]');
     if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || a.target || a.hasAttribute('download')) return;
-    const href = a.getAttribute('href');
-    if (!href.startsWith('/') || href.startsWith('/api/') || href.startsWith('/ui/')) return;
+    // Only links into the app itself, below its base path.
+    if (a.origin !== location.origin || !a.pathname.startsWith(BASE + '/')) return;
+    const path = a.pathname.slice(BASE.length);
+    if (path.startsWith('/api/') || path.startsWith('/ui/')) return;
     e.preventDefault();
-    go(href);
+    go(path + a.search);
   }
 
   onKey(e) {
@@ -181,18 +184,18 @@ class App extends LitElement {
     if (!store.me) return html`<gtd-login @login=${() => this.onLogin()}></gtd-login>`;
     const active = (href) => (href === '/' ? this.path === '/' : this.path.startsWith(href));
     const item = ([href, key, name]) => html`
-      <a href=${href} class="nav-item ${active(href) ? 'on' : ''}">
+      <a href=${rel(href)} class="nav-item ${active(href) ? 'on' : ''}">
         ${icon[name]}<span class="text">${t(key)}</span>
         ${href === '/inbox' && this.inbox ? html`<span class="count">${this.inbox}</span>` : nothing}
       </a>`;
     return html`
       <nav>
-        <a class="brand" href="/"><img src="/ui/logo.svg" alt="" width="26" height="26">gtd</a>
+        <a class="brand" href="./"><img src="ui/logo.svg" alt="" width="26" height="26">gtd</a>
         ${NAV.slice(0, 4).map(item)}
         <div class="nav-more ${this.menu ? 'open' : ''}">
           ${NAV.slice(4).map(item)}
           <span class="nav-gap"></span>
-          <a class="nav-item tool ${active('/help') ? 'on' : ''}" href="/help" title=${t('nav.help')}>${icon.help}<span class="text">${t('nav.help')}</span></a>
+          <a class="nav-item tool ${active('/help') ? 'on' : ''}" href="help" title=${t('nav.help')}>${icon.help}<span class="text">${t('nav.help')}</span></a>
           <button class="nav-item tool" title=${t('nav.theme')} @click=${() => this.cycleTheme()}>
             ${this.theme === 'dark' ? icon.moon : icon.sun}<span class="text">${t('nav.theme')}: ${t('theme.' + this.theme)}</span></button>
           <button class="nav-item tool ${this.zen ? 'on' : ''}" title=${t('nav.fullscreen')} @click=${() => this.toggleZen()}>
@@ -205,7 +208,7 @@ class App extends LitElement {
       </nav>
       ${this.menu ? html`<div class="scrim" @click=${() => { this.menu = false; }}></div>` : nothing}
       ${(store.me.review?.due || store.me.review?.started) && this.path !== '/review' ? html`
-        <a class="banner" href="/review">${t(store.me.review.started ? 'review.banner_continue' : 'review.banner')}</a>` : nothing}
+        <a class="banner" href="review">${t(store.me.review.started ? 'review.banner_continue' : 'review.banner')}</a>` : nothing}
       <main>${this.view()}</main>
       ${this.toastMsg ? html`<div class="toast ${this.toastMsg.isError ? 'error' : ''}" role="status">${this.toastMsg.message}
         ${this.toastMsg.action ? html`<button @click=${() => this.toastAction()}>${this.toastMsg.action.label}</button>` : nothing}</div>` : nothing}
@@ -246,7 +249,7 @@ class Login extends LitElement {
   render() {
     return html`
       <form class="login" @submit=${(e) => this.submit(e)}>
-        <h1><img src="/ui/logo.svg" alt="" width="40" height="40">gtd</h1>
+        <h1><img src="ui/logo.svg" alt="" width="40" height="40">gtd</h1>
         <label>${t('login.user')}<input name="user" autocomplete="username" autocapitalize="none" required autofocus></label>
         <label>${t('login.password')}<input name="password" type="password" autocomplete="current-password" required></label>
         ${this.error ? html`<p class="error">${this.error}</p>` : nothing}

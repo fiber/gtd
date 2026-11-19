@@ -93,6 +93,9 @@ func (s *Server) initApp() {
 	if a.shell, err = uiFS.ReadFile("ui/index.html"); err != nil {
 		panic(err)
 	}
+	if !bytes.Contains(a.shell, []byte(`<base href="`+Prefix+`/">`)) {
+		panic("ui/index.html: <base href> does not match web.Prefix " + Prefix)
+	}
 	// The import map is the one inline script. The CSP allows exactly it.
 	script := "'self'"
 	if m := reImportMap.FindSubmatch(a.shell); m != nil {
@@ -100,7 +103,7 @@ func (s *Server) initApp() {
 		script += " 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
 	}
 	a.csp = "default-src 'self'; script-src " + script + "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
-		"object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+		"object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 	s.app = a
 
 	m := s.mux
@@ -268,7 +271,7 @@ func (s *Server) sessionUser(r *http.Request) (string, bool) {
 }
 
 func (s *Server) setCookie(w http.ResponseWriter, value string, maxAge int) {
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: value, Path: "/", MaxAge: maxAge,
+	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: value, Path: Prefix + "/", MaxAge: maxAge,
 		HttpOnly: true, Secure: s.SecureCookies, SameSite: http.SameSiteLaxMode})
 }
 

@@ -16,6 +16,9 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
+// Links and images that point into gtd are written relative to the page's
+// <base href> (the app's path prefix), so the HTML works wherever gtd is mounted.
+//
 // Markdown is rendered on the server with goldmark: CommonMark plus GFM
 // tables, task lists, strikethrough and autolinks (SPEC §3.1). Raw HTML in
 // the source is dropped and dangerous URLs are emptied (goldmark's safe
@@ -100,9 +103,9 @@ func (tokenParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) 
 		case !ok:
 			out = unavailable
 		case len(m[1]) > 0 && strings.HasPrefix(mime, "image/") && mime != "image/heic" && mime != "image/heif":
-			out = `<img class="att" src="/api/v1/att/` + sha + `" alt="` + esc(name) + `" loading="lazy">`
+			out = `<img class="att" src="api/v1/att/` + sha + `" alt="` + esc(name) + `" loading="lazy">`
 		default:
-			out = `<a class="chip file" href="/api/v1/att/` + sha + `" download="` + esc(name) + `">` + esc(name) + `</a>`
+			out = `<a class="chip file" href="api/v1/att/` + sha + `" download="` + esc(name) + `">` + esc(name) + `</a>`
 		}
 	case len(m[3]) > 0: // item link
 		id := string(m[3])
@@ -117,7 +120,7 @@ func (tokenParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) 
 		if len(m[4]) > 0 {
 			title = string(m[4])
 		}
-		out = `<a class="chip link" data-state="` + esc(state) + `" href="/i/` + esc(id) + `">` + esc(title) + `</a>`
+		out = `<a class="chip link" data-state="` + esc(state) + `" href="i/` + esc(id) + `">` + esc(title) + `</a>`
 	default: // mention
 		if tk.user == nil {
 			return nil

@@ -294,10 +294,10 @@ func (r Review) Step(env ReviewEnv) Step {
 	switch r.Phase {
 	case PhaseClear:
 		s.Data["inbox"], s.Data["from_others"] = env.Inbox, env.FromOthers
-		s.Data["links"] = []map[string]string{{"href": "/clarify", "label": "review.link.clarify"}, {"href": "/inbox", "label": "review.link.inbox"}}
+		s.Data["links"] = []map[string]string{{"href": "clarify", "label": "review.link.clarify"}, {"href": "inbox", "label": "review.link.inbox"}}
 	case PhaseUnsorted:
 		s.Data["count"] = unsorted(env)
-		s.Data["links"] = []map[string]string{{"href": "/notes", "label": "review.link.unsorted"}}
+		s.Data["links"] = []map[string]string{{"href": "notes", "label": "review.link.unsorted"}}
 	case PhaseProjects:
 		roll := core.Rollups(c.st, env.Today)[c.it.ID]
 		var open []string

@@ -49,7 +49,7 @@ func newSite(t *testing.T) *site {
 	app := New(st)
 	srv := httptest.NewServer(app.Handler())
 	t.Cleanup(func() { srv.Close(); st.Close() })
-	return &site{t, st, app, srv.URL}
+	return &site{t, st, app, srv.URL + Prefix}
 }
 
 // client is one browser: a cookie jar.
@@ -116,6 +116,20 @@ func (c *client) create(space string, fields map[string]any) string {
 func TestShellAndStatic(t *testing.T) {
 	s := newSite(t)
 	c := s.anon()
+	// Outside the prefix there is nothing but a redirect into it.
+	bare := strings.TrimSuffix(s.url, Prefix)
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if res, err := noFollow.Get(bare + "/"); err != nil || res.StatusCode != 302 || res.Header.Get("Location") != Prefix+"/" {
+		t.Errorf("GET /: %v %v", res.StatusCode, res.Header.Get("Location"))
+	}
+	if res, err := noFollow.Get(bare + Prefix); err != nil || (res.StatusCode != 301 && res.StatusCode != 307) || res.Header.Get("Location") != Prefix+"/" {
+		t.Errorf("GET %s: %v %v", Prefix, res.StatusCode, res.Header.Get("Location"))
+	}
+	for _, path := range []string{"/api/v1/me", "/ui/app.js", "/inbox", "/i/01ABC"} {
+		if res, _ := noFollow.Get(bare + path); res.StatusCode != 404 {
+			t.Errorf("GET %s outside the prefix: %d, want 404", path, res.StatusCode)
+		}
+	}
 	for _, path := range []string{"/", "/inbox", "/i/01ABC", "/p/x", "/settings", "/anything/else"} {
 		res, err := c.http.Get(s.url + path)
 		if err != nil {
@@ -124,7 +138,8 @@ func TestShellAndStatic(t *testing.T) {
 		body, _ := io.ReadAll(res.Body)
 		res.Body.Close()
 		csp := res.Header.Get("Content-Security-Policy")
-		if res.StatusCode != 200 || !strings.Contains(string(body), "<gtd-app>") || !strings.Contains(csp, "script-src 'self' 'sha256-") || strings.Contains(csp, "unsafe-eval") {
+		if res.StatusCode != 200 || !strings.Contains(string(body), "<gtd-app>") || !strings.Contains(string(body), `<base href="/gtd/">`) || !strings.Contains(csp, "script-src 'self' 'sha256-") || strings.Contains(csp, "unsafe-eval") ||
+			!strings.Contains(csp, "base-uri 'self'") /* the shell's <base href> must be allowed */ {
 			t.Errorf("%s: %d, csp %q", path, res.StatusCode, csp)
 		}
 	}
@@ -210,6 +225,9 @@ func TestLoginAndSessions(t *testing.T) {
 	}
 	res.Body.Close()
 	ck := res.Cookies()[0]
+	if ck.Path != "/gtd/" {
+		t.Errorf("session cookie path %q: it must not be sent to other applications on the host", ck.Path)
+	}
 	if ck.Name != cookieName || !ck.HttpOnly || ck.SameSite != http.SameSiteLaxMode || ck.MaxAge < 89*24*3600 || len(ck.Value) != 64 {
 		t.Errorf("session cookie: %+v", ck)
 	}
@@ -475,7 +493,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	note := c.create("sven", map[string]any{"kind": "note", "title": "N", "body": "# T\n<script>alert(1)</script>\n- [ ] task\n[[" + cap.ID + "]]"})
 	var iv ItemView
 	c.ok("GET", "/api/v1/items/"+note, nil, &iv)
-	if strings.Contains(iv.BodyHTML, "<script") || !strings.Contains(iv.BodyHTML, `href="/i/`+cap.ID+`"`) || iv.Tasks != 1 ||
+	if strings.Contains(iv.BodyHTML, "<script") || !strings.Contains(iv.BodyHTML, `href="i/`+cap.ID+`"`) || iv.Tasks != 1 ||
 		!strings.Contains(iv.BodyEdit, "[[Collector survives resets]]") || len(iv.Refs) != 1 || iv.Refs[0].Token != "[["+cap.ID+"]]" {
 		t.Errorf("note view: html %q edit %q refs %+v tasks %d", iv.BodyHTML, iv.BodyEdit, iv.Refs, iv.Tasks)
 	}

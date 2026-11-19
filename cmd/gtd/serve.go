@@ -134,22 +134,26 @@ func serve(g globals, stdout, stderr io.Writer) error {
 		fmt.Fprintf(stdout, "gtd: embeddings: %s\n", cfg.Embed.Provider)
 	}
 	app.SecureCookies = strings.HasPrefix(cfg.Server.BaseURL, "https://")
+	// The CLI talks to the bare API on the socket; browsers get everything
+	// under web.Prefix over HTTP.
+	sockSrv := &http.Server{Handler: app.API(), ReadHeaderTimeout: 10 * time.Second}
 	srv := &http.Server{Handler: app.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shut, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		sockSrv.Shutdown(shut)
 		srv.Shutdown(shut)
 	}()
 	fmt.Fprintf(stdout, "gtd: server %q (%s) listening on %s\n", st.Server().Name, st.Server().ID, sock)
 	errs := make(chan error, 2)
-	go func() { errs <- srv.Serve(ln) }()
+	go func() { errs <- sockSrv.Serve(ln) }()
 	if cfg.Server.Listen != "off" {
 		tcp, err := net.Listen("tcp", cfg.Server.Listen)
 		if err != nil {
 			return fmt.Errorf("listen on %s: %w", cfg.Server.Listen, err)
 		}
-		fmt.Fprintf(stdout, "gtd: web UI on http://%s\n", tcp.Addr())
+		fmt.Fprintf(stdout, "gtd: web UI on http://%s%s/\n", tcp.Addr(), web.Prefix)
 		go func() { errs <- srv.Serve(tcp) }()
 	}
 	if err := <-errs; !errors.Is(err, http.ErrServerClosed) {

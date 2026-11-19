@@ -186,7 +186,7 @@ class Plan extends View {
         <div class="plan-head" draggable="true" @dragstart=${(e) => this.drag(e, 'project', p.id)}>
           <button class="toggle" aria-expanded=${!closed}
             @click=${() => { this.closed = closed ? this.closed.filter((x) => x !== p.id) : [...this.closed, p.id]; }}>${closed ? '▸' : '▾'}</button>
-          <a class="title" href=${'/i/' + p.id}>${p.title}</a>
+          <a class="title" href=${'i/' + p.id}>${p.title}</a>
           <span class="meta">${meta(p, { state: p.state !== 'active', area: true })}</span>
         </div>
         ${closed ? nothing : html`
@@ -213,8 +213,8 @@ class Plan extends View {
     if (!pl) return nothing;
     return html`
       <header class="bar">
-        <a class="back" href="/projects">‹ ${t('nav.projects')}</a>
-        <a class="button" href=${'/i/' + this.root.id}>${t('plan.details')}</a>
+        <a class="back" href="projects">‹ ${t('nav.projects')}</a>
+        <a class="button" href=${'i/' + this.root.id}>${t('plan.details')}</a>
       </header>
       ${pl.warnings.length ? html`<ul class="warnings">${pl.warnings.map((w) => html`
         <li>${t('warning.' + w.Type, { item: this.title(w.Item), other: this.title(w.Other) })}</li>`)}</ul>` : nothing}

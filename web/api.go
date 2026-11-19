@@ -84,9 +84,26 @@ func New(st *store.Store) *Server {
 	return s
 }
 
-// Handler serves the API and the web UI to authenticated clients: CLI session
-// tokens from the SSH-key challenge, and web session cookies.
-func (s *Server) Handler() http.Handler { return s.mux }
+// Prefix is the path everything is served under over HTTP: the web UI, its
+// files and the API (/gtd/api/v1/…). A reverse proxy forwards this one path,
+// so gtd can share a host name with other things. The shell's <base href> and
+// the session cookie's path carry the same value.
+const Prefix = "/gtd"
+
+// Handler serves the web UI and the API under Prefix, to browsers (session
+// cookies) and API clients (bearer tokens). "/" redirects to the app.
+func (s *Server) Handler() http.Handler {
+	h := http.NewServeMux()
+	h.Handle(Prefix+"/", http.StripPrefix(Prefix, s.mux))
+	h.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, Prefix+"/", http.StatusFound)
+	})
+	return h
+}
+
+// API serves the same routes without the prefix. It is for the daemon's Unix
+// socket, where only the CLI connects.
+func (s *Server) API() http.Handler { return s.mux }
 
 // ---- authentication and authorization ----
 

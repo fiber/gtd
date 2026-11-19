@@ -329,7 +329,7 @@ class Note extends View {
       out.push(html`<div class="field"><label>${t('field.blocked_by')}</label>
         <div class="chips">${it.blockers.map((b) => html`
           <span class="chip ${['done', 'dropped', 'trashed'].includes(b.state) ? 'finished' : 'waits'}">
-            <a href=${'/i/' + b.id}>${b.title}</a>${b.owner ? ` (${b.owner})` : ''}
+            <a href=${'i/' + b.id}>${b.title}</a>${b.owner ? ` (${b.owner})` : ''}
             <button class="x" aria-label=${t('action.remove')}
               @click=${() => this.set('blocked_by', it.blocked_by.filter((x) => x !== b.id))}>×</button></span>`)}</div>
         ${select(candidates, '', (v) => v && this.set('blocked_by', [...(it.blocked_by || []), v]), t('option.add_blocker'))}</div>`);
@@ -357,7 +357,7 @@ class Note extends View {
         <div class="body" .innerHTML=${it.body_html}></div>
         <div class="buttons">
           <button @click=${() => this.startEdit()}>${t(it.body ? 'action.edit' : 'note.write')}</button>
-          ${it.tasks ? html`<a class="button primary" href=${'/process/' + it.id}>${t('note.process', { n: it.tasks })}</a>` : nothing}
+          ${it.tasks ? html`<a class="button primary" href=${'process/' + it.id}>${t('note.process', { n: it.tasks })}</a>` : nothing}
           <label class="button">${icon.clip} ${t('note.attach')}<input type="file" multiple hidden @change=${(e) => this.attach(e)}></label>
         </div>`;
     }
@@ -389,7 +389,7 @@ class Note extends View {
   related(key, list) {
     if (!list.length) return nothing;
     return html`<div class="related"><label>${t(key)}</label>
-      ${list.map((x) => html`<a class="chip link" data-state=${x.state} href=${'/i/' + x.id}>${x.title}</a>`)}</div>`;
+      ${list.map((x) => html`<a class="chip link" data-state=${x.state} href=${'i/' + x.id}>${x.title}</a>`)}</div>`;
   }
 
   render() {
@@ -408,8 +408,8 @@ class Note extends View {
           <input class="title" type="text" .value=${it.title} aria-label=${t('field.title')}
             @change=${(e) => e.target.value.trim() && this.set('title', e.target.value.trim())}>
           <div class="buttons">
-            ${it.kind === 'capture' && it.state === 'inbox' ? html`<a class="button primary" href=${'/clarify?item=' + it.id}>${t('inbox.clarify')}</a>` : nothing}
-            ${it.kind === 'project' ? html`<a class="button primary" href=${'/p/' + it.id}>${t('plan.open')}</a>` : nothing}
+            ${it.kind === 'capture' && it.state === 'inbox' ? html`<a class="button primary" href=${'clarify?item=' + it.id}>${t('inbox.clarify')}</a>` : nothing}
+            ${it.kind === 'project' ? html`<a class="button primary" href=${'p/' + it.id}>${t('plan.open')}</a>` : nothing}
             ${it.transitions.map((s) => html`
               <button @click=${() => this.move(s)}>${this.moveLabel(s)}</button>`)}
             ${editable && it.state !== 'trashed' ? html`<button @click=${() => this.fork()}>${t('note.fork')}</button>` : nothing}
@@ -423,13 +423,13 @@ class Note extends View {
         ${this.body()}
 
         ${(it.attachments || []).length ? html`<div class="related"><label>${t('item.attachments')}</label>
-          ${it.attachments.map((a) => html`<a class="chip file" href=${'/api/v1/att/' + a.sha256} target="_blank" rel="noopener">${a.name}</a>`)}</div>` : nothing}
+          ${it.attachments.map((a) => html`<a class="chip file" href=${'api/v1/att/' + a.sha256} target="_blank" rel="noopener">${a.name}</a>`)}</div>` : nothing}
         ${this.related('item.sources', it.sources)}
         ${this.related('item.derived', it.derived)}
         ${this.related('item.dependents', it.dependents)}
         ${this.related('item.backlinks', it.backlinks)}
         ${it.related.length ? html`<div class="related"><label>${t('item.related')}</label>
-          ${it.related.map((x) => html`<a class="chip link" data-state=${x.state} href=${'/i/' + x.id}
+          ${it.related.map((x) => html`<a class="chip link" data-state=${x.state} href=${'i/' + x.id}
             title=${`${x.space_name} · ${Math.round(x.score * 100)}%`}>${x.title}</a>`)}</div>` : nothing}
         ${it.related_state === 'building' || it.related_state === 'offline' ? html`<small>${t('ai.note.' + it.related_state)}</small>` : nothing}
 

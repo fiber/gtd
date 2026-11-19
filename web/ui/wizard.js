@@ -119,11 +119,11 @@ class Wizard extends View {
     return html`
       ${d.original ? html`<pre class="original">${d.original}</pre>` : nothing}
       ${d.similar ? html`<div class="similar"><label>${t('wizard.similar')}</label>
-        ${d.similar.map((x) => html`<a class="chip link" data-state=${x.state} href=${'/i/' + x.id} target="_blank" rel="noopener">
+        ${d.similar.map((x) => html`<a class="chip link" data-state=${x.state} href=${'i/' + x.id} target="_blank" rel="noopener">
           ${x.title} · ${Math.round(x.score * 100)}%${x.duplicate ? ' · ' + t('wizard.duplicate') : ''}</a>`)}</div>` : nothing}
       ${(d.attachments || []).map((a) => (a.mime || '').startsWith('image/')
-        ? html`<img class="att" src=${'/api/v1/att/' + a.sha256} alt=${a.name}>`
-        : html`<a class="chip file" href=${'/api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}
+        ? html`<img class="att" src=${'api/v1/att/' + a.sha256} alt=${a.name}>`
+        : html`<a class="chip file" href=${'api/v1/att/' + a.sha256} download=${a.name}>${a.name}</a>`)}
       ${d.inbox !== undefined ? html`<p class="facts">${t('review.inbox_count', { inbox: d.inbox, others: d.from_others })}</p>` : nothing}
       ${d.count !== undefined ? html`<p class="facts">${t('review.unsorted_count', { n: d.count })}</p>` : nothing}
       ${d.alive !== undefined ? html`<p class="facts">
@@ -132,11 +132,11 @@ class Wizard extends View {
         ${(d.actions || []).map((x) => html`<span class="chip s-active">${x}</span>`)}</p>` : nothing}
       ${d.since ? html`<p class="facts">${t('review.since', { date: fmtDate(d.since) })}${d.waiting_on ? ' · ' + t('item.waiting_on', { name: d.waiting_on }) : ''}</p>` : nothing}
       ${d.items ? html`<div class="facts">${d.items.map((x) => html`
-        <a class="row" href=${'/i/' + x.id} target="_blank" rel="noopener"><span class="title">${x.title}</span>
+        <a class="row" href=${'i/' + x.id} target="_blank" rel="noopener"><span class="title">${x.title}</span>
           <span class="meta"><span class="chip ${x.note.startsWith('warning') ? 'slipping' : 'target'}">${t(x.note)}</span>
             ${x.date ? html`<span class="chip">${fmtDate(x.date)}</span>` : nothing}</span></a>`)}</div>` : nothing}
       ${d.areas ? html`<div class="facts">${d.areas.map((x) => html`
-        <a class="row" href=${'/i/' + x.id} target="_blank" rel="noopener"><span class="title">${x.title}</span>
+        <a class="row" href=${'i/' + x.id} target="_blank" rel="noopener"><span class="title">${x.title}</span>
           <span class="meta"><span class="chip">${t('areas.projects', { n: x.projects })}</span>
             ${x.projects ? nothing : html`<span class="chip stuck">${t('areas.no_projects')}</span>`}</span></a>`)}</div>` : nothing}
       ${d.links ? html`<p class="facts">${d.links.map((l) => html`<a class="button" href=${l.href}>${t(l.label)}</a> `)}</p>` : nothing}
@@ -157,7 +157,7 @@ class Wizard extends View {
         <div class="frame-body">
         <h1>${t(s.question)}</h1>
         ${s.subject ? html`<p class="subject">${s.data?.item
-          ? html`<a href=${'/i/' + s.data.item} target="_blank" rel="noopener">${s.subject}</a>` : s.subject}
+          ? html`<a href=${'i/' + s.data.item} target="_blank" rel="noopener">${s.subject}</a>` : s.subject}
           ${s.data?.left > 1 ? html`<small> · ${t('review.left', { n: s.data.left - 1 })}</small>` : nothing}</p>` : nothing}
         ${this.data(s.data)}
         ${(s.fields || []).map((f) => this.field(f))}
@@ -189,7 +189,7 @@ class Clarify extends View {
   render() {
     if (this.empty) {
       return html`<section class="done"><h1>${t('clarify.inbox_zero')}</h1>
-        <a class="button primary" href="/engage">${t('nav.engage')}</a></section>`;
+        <a class="button primary" href="engage">${t('nav.engage')}</a></section>`;
     }
     return html`<gtd-wizard kind="clarify" .item=${this.item} @finished=${(e) => this.next(e)}></gtd-wizard>`;
   }
@@ -210,7 +210,7 @@ class Review extends View {
       const n = Object.values(this.summary).reduce((a, b) => a + b, 0);
       return html`<section class="done"><h1>${t('review.done')}</h1>
         <p class="subject">${t('review.decisions', { n })}</p>
-        <a class="button primary" href="/engage">${t('nav.engage')}</a></section>`;
+        <a class="button primary" href="engage">${t('nav.engage')}</a></section>`;
     }
     return html`<gtd-wizard kind="review" @finished=${(e) => this.finished(e)}></gtd-wizard>`;
   }

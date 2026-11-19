@@ -152,7 +152,7 @@ class Capture extends View {
           ${this.similar.map((h) => html`
             <div class="row">
               <span class="mark" data-kind=${h.kind} data-state=${h.state}></span>
-              <a class="row-main" href=${'/i/' + h.id}><span class="title">${h.title}</span>
+              <a class="row-main" href=${'i/' + h.id}><span class="title">${h.title}</span>
                 <span class="meta">${stateChip(h.state)}</span></a>
               <span class="row-actions"><button @click=${() => this.addTo(h)}>${t('capture.add_to')}</button></span>
             </div>`)}

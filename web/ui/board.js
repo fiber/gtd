@@ -83,7 +83,7 @@ class Board extends View {
             <h2>${t('board.' + c.key)} <span class="count">${c.items.length}</span></h2>
             ${c.items.map((b) => html`
               <div class="card row" tabindex="0" draggable="true" @dragstart=${(e) => e.dataTransfer.setData('text/plain', b.id)}>
-                <a class="title" href=${'/i/' + b.id}>${b.title}</a>
+                <a class="title" href=${'i/' + b.id}>${b.title}</a>
                 <span class="meta">${meta({ ...b, badges: [] })}
                   ${(b.badges || []).map((x) => html`
                     <button class="chip badge" title=${t('board.filter_badge')} @click=${() => this.filter('field', x)}>${x.split(':').slice(1).join(':')}</button>`)}</span>

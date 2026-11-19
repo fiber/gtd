@@ -5,7 +5,7 @@ let fallback = {};
 let locale = 'en';
 
 export async function loadLanguage(lang) {
-  const load = async (l) => (await fetch(`/ui/i18n/${l}.json`)).json();
+  const load = async (l) => (await fetch(`ui/i18n/${l}.json`)).json();
   fallback = await load('en');
   catalog = lang === 'en' ? fallback : await load(lang);
   locale = lang;

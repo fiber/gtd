@@ -52,18 +52,18 @@ func TestRenderMarkdown(t *testing.T) {
 		{"external image becomes a link", "![alt](https://example.org/i.png)", `<p><a href="https://example.org/i.png" target="_blank" rel="noopener noreferrer">alt</a></p>` + "\n"},
 		{"raw html is dropped", "<b>x</b> y", "<p><!-- raw HTML omitted -->x<!-- raw HTML omitted --> y</p>\n"},
 
-		{"item link", "see [[01ITEM]]", `<p>see <a class="chip link" data-state="next" href="/i/01ITEM">Call &lt;Brent&gt; &amp; &#34;Co&#34;</a></p>` + "\n"},
-		{"item link with label", "[[01ITEM|the call]]", `<p><a class="chip link" data-state="next" href="/i/01ITEM">the call</a></p>` + "\n"},
+		{"item link", "see [[01ITEM]]", `<p>see <a class="chip link" data-state="next" href="i/01ITEM">Call &lt;Brent&gt; &amp; &#34;Co&#34;</a></p>` + "\n"},
+		{"item link with label", "[[01ITEM|the call]]", `<p><a class="chip link" data-state="next" href="i/01ITEM">the call</a></p>` + "\n"},
 		{"unavailable item", "[[01NOPE]]", `<p><span class="chip unavailable">unavailable item</span></p>` + "\n"},
 		{"plain brackets stay text", "[[Some Title]]", "<p>[[Some Title]]</p>\n"},
-		{"image", "![[att:" + sha + "]]", `<p><img class="att" src="/api/v1/att/` + sha + `" alt="board &#34;1&#34;.png" loading="lazy"></p>` + "\n"},
-		{"file chip", "[[att:" + b64 + "]]", `<p><a class="chip file" href="/api/v1/att/` + b64 + `" download="report.pdf">report.pdf</a></p>` + "\n"},
-		{"heic has no preview", "![[att:" + strings.Repeat("c", 64) + "]]", `<p><a class="chip file" href="/api/v1/att/` + strings.Repeat("c", 64) + `" download="photo.heic">photo.heic</a></p>` + "\n"},
+		{"image", "![[att:" + sha + "]]", `<p><img class="att" src="api/v1/att/` + sha + `" alt="board &#34;1&#34;.png" loading="lazy"></p>` + "\n"},
+		{"file chip", "[[att:" + b64 + "]]", `<p><a class="chip file" href="api/v1/att/` + b64 + `" download="report.pdf">report.pdf</a></p>` + "\n"},
+		{"heic has no preview", "![[att:" + strings.Repeat("c", 64) + "]]", `<p><a class="chip file" href="api/v1/att/` + strings.Repeat("c", 64) + `" download="photo.heic">photo.heic</a></p>` + "\n"},
 		{"attachment of another item", "![[att:" + strings.Repeat("d", 64) + "]]", `<p><span class="chip unavailable">unavailable item</span></p>` + "\n"},
 		{"mention", "ask @[user:eric] and @[user:nobody] and @foo", `<p>ask <span class="chip mention">Eric &lt;E&gt;</span> and @[user:nobody] and @foo</p>` + "\n"},
 		{"tokens in a heading and a task", "# [[01ITEM|x]]\n- [ ] [[01ITEM|y]]",
-			`<h1><a class="chip link" data-state="next" href="/i/01ITEM">x</a></h1>` + "\n<ul>\n" +
-				`<li><input disabled="" type="checkbox"> <a class="chip link" data-state="next" href="/i/01ITEM">y</a></li>` + "\n</ul>\n"},
+			`<h1><a class="chip link" data-state="next" href="i/01ITEM">x</a></h1>` + "\n<ul>\n" +
+				`<li><input disabled="" type="checkbox"> <a class="chip link" data-state="next" href="i/01ITEM">y</a></li>` + "\n</ul>\n"},
 		{"a token in code is code", "`[[01ITEM]]`", "<p><code>[[01ITEM]]</code></p>\n"},
 		{"empty", "", ""},
 	} {

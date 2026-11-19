@@ -123,9 +123,9 @@ nav {
   .nav-item.tool svg { display: block; width: 18px; height: 18px; }
   .nav-item.tool .text { display: none; }
   /* Capture is the one call to action: a violet pill at the right end. */
-  nav > a.nav-item[href="/"] { order: 9; margin-left: 10px; padding: 0 16px 0 12px; background: var(--accent); color: #fff; font-weight: 700; }
-  nav > a.nav-item[href="/"]:hover { background: var(--accent-strong); }
-  nav > a.nav-item[href="/"] svg { display: block; width: 17px; height: 17px; color: #fff; }
+  nav > a.nav-item[href="./"] { order: 9; margin-left: 10px; padding: 0 16px 0 12px; background: var(--accent); color: #fff; font-weight: 700; }
+  nav > a.nav-item[href="./"]:hover { background: var(--accent-strong); }
+  nav > a.nav-item[href="./"] svg { display: block; width: 17px; height: 17px; color: #fff; }
   .nav-item.more, .scrim { display: none; }
   main { padding: calc(var(--top) + 22px) 28px 40px; max-width: 1240px; }
 }

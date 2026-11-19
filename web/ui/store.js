@@ -2,6 +2,11 @@
 // Online it reads from the API. The offline source (IndexedDB) arrives with M3.
 // It holds no GTD rules: it asks the server and passes on what the user did.
 
+// BASE is the path the app is served under ("/gtd"), taken from the page's
+// <base href>. Everything the app addresses is below it, so the same build
+// runs under any server that forwards that path.
+export const BASE = new URL(document.baseURI).pathname.replace(/\/$/, '');
+
 export class ApiError extends Error {
   constructor(status, body) {
     super(body.error || `HTTP ${status}`);
@@ -18,7 +23,7 @@ async function request(method, path, body, raw) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
-  const res = await fetch('/api/v1' + path, init);
+  const res = await fetch(BASE + '/api/v1' + path, init);
   let data = {};
   try { data = await res.json(); } catch { /* no JSON body */ }
   if (res.status === 401 && path !== '/login') {
