@@ -106,5 +106,36 @@ gtd export /backup/gtd-$(date +%F)      # a full, lossless export; `gtd import -
 
 To upgrade, replace the binary and restart the service.
 
+### Capturing from outside the app
+
+A capture-only token can put things into your inbox and can do nothing else: it
+cannot read, search or change anything.
+
+```sh
+gtd token add -label phone > ~/.gtd-token     # prints the token once
+gtd token list                                # ids, labels, last use
+gtd token rm <id>                             # revoke
+```
+
+From a script, or an Apple Shortcut ("Get contents of URL": POST, header
+`Authorization: Bearer <token>`, JSON body with `text`):
+
+```sh
+curl -H "Authorization: Bearer $(cat ~/.gtd-token)" -H 'Content-Type: application/json' \
+     -d '{"text":"call the plumber about the quote"}' https://example.org/gtd/api/v1/capture
+```
+
+**Mail in.** `gtd capture-mail` reads one message on stdin and captures it: the
+subject becomes the title, then sender, date and text, with the attachments attached.
+gtd runs no mail service; your mail server hands the message over. With Postfix, an
+address that pipes into it (`/etc/aliases`, then `newaliases`):
+
+```
+gtd-robin: "|/usr/local/bin/gtd capture-mail -server http://127.0.0.1:8640 -token-file /etc/gtd/robin.token"
+```
+
+Forward a mail to that address and it is in your inbox. The token file must be
+readable by the user the mail server runs the pipe as, and by nobody else.
+
 Tests: `go test -race ./...`. `go test ./store -update` rewrites the golden export after an
 intended format change.

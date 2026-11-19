@@ -915,3 +915,75 @@ func TestSpaceContexts(t *testing.T) {
 		}
 	}
 }
+
+// TestCaptureToken: a token of scope capture can capture into its owner's
+// inbox and can do nothing else (M8 acceptance: it cannot read anything).
+func TestCaptureToken(t *testing.T) {
+	s := newSite(t)
+	robin := s.login("robin")
+	var tok struct {
+		ID, Token string
+		Scopes    []string
+	}
+	robin.ok("POST", "/api/v1/me/tokens", map[string]any{"label": "phone", "scopes": []string{"capture"}}, &tok)
+	if !strings.HasPrefix(tok.Token, "gtd_"+tok.ID+"_") || len(tok.Token) < 40 {
+		t.Fatalf("token: %+v", tok)
+	}
+	if code, _ := robin.do("POST", "/api/v1/me/tokens", map[string]any{"scopes": []string{"read"}}, nil); code != 400 {
+		t.Errorf("a scope that does not exist yet: %d", code)
+	}
+	// The list never shows the secret.
+	var list []map[string]any
+	robin.ok("GET", "/api/v1/me/tokens", nil, &list)
+	if len(list) != 1 || list[0]["token"] != nil || list[0]["hash"] != nil || list[0]["label"] != "phone" {
+		t.Errorf("token list: %+v", list)
+	}
+	call := func(token, method, path, body string) int {
+		req, _ := http.NewRequest(method, s.url+path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	if code := call(tok.Token, "POST", "/api/v1/capture", `{"text":"from the phone"}`); code != 200 {
+		t.Fatalf("capture with the token: %d", code)
+	}
+	var inbox struct{ Captures []Brief }
+	robin.ok("GET", "/api/v1/inbox", nil, &inbox)
+	if len(inbox.Captures) != 1 || inbox.Captures[0].Title != "from the phone" {
+		t.Errorf("inbox: %+v", inbox.Captures)
+	}
+	// Everything else is refused: every GET route and every other write.
+	for _, c := range []struct{ method, path, body string }{
+		{"GET", "/api/v1/me", ""}, {"GET", "/api/v1/inbox", ""}, {"GET", "/api/v1/engage", ""}, {"GET", "/api/v1/search?q=phone", ""},
+		{"GET", "/api/v1/items/" + inbox.Captures[0].ID, ""}, {"GET", "/api/v1/notes", ""}, {"GET", "/api/v1/ops?n=5", ""},
+		{"GET", "/api/v1/export?space=robin", ""}, {"GET", "/api/v1/me/tokens", ""}, {"GET", "/api/v1/import?space=robin", ""},
+		{"POST", "/api/v1/ops", `{"space":"robin","ops":[{"type":"create","payload":{"kind":"note","title":"x"}}]}`},
+		{"POST", "/api/v1/me/tokens", `{"scopes":["capture"]}`}, {"PUT", "/api/v1/me/password", `{"current":"x","password":"yyyyyyyy"}`},
+		{"POST", "/api/v1/wizard/clarify/start", `{}`}, {"POST", "/api/v1/attachments", ""}, {"POST", "/api/v1/admin/users", `{"id":"m"}`},
+	} {
+		if code := call(tok.Token, c.method, c.path, c.body); code != 403 {
+			t.Errorf("%s %s with a capture token: %d, want 403", c.method, c.path, code)
+		}
+	}
+	// Wrong, malformed and revoked tokens are unknown.
+	for _, bad := range []string{tok.Token + "0", "gtd_" + tok.ID + "_", "gtd_nope_nope", "gtd_"} {
+		if code := call(bad, "POST", "/api/v1/capture", `{"text":"x"}`); code != 401 {
+			t.Errorf("token %q: %d, want 401", bad, code)
+		}
+	}
+	// Another user cannot revoke it; its owner can.
+	if code, _ := s.login("dana").do("DELETE", "/api/v1/me/tokens/"+tok.ID, nil, nil); code != 404 {
+		t.Errorf("revoking someone else's token: %d", code)
+	}
+	robin.ok("DELETE", "/api/v1/me/tokens/"+tok.ID, nil, nil)
+	if code := call(tok.Token, "POST", "/api/v1/capture", `{"text":"x"}`); code != 401 {
+		t.Errorf("a revoked token: %d", code)
+	}
+}

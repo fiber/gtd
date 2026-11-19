@@ -35,6 +35,9 @@ const usage = `usage: gtd [-data dir] [-user id] [-key pubkey-file] <command>
   ops tail [-space id] [-n 20]              show the last ops of a space
   export [-space id]... [-from snapshot] <dir>
   import -restore <dir>                     rebuild an empty data dir from a full export
+  token add [-label text] | list | rm <id>  your own capture-only API tokens (add prints the token once)
+  capture-mail [-server url] [-token-file f]
+                                            capture one mail message from stdin (token from the file or $GTD_TOKEN)
   calibrate [-space id]                     similarity score distributions and cluster statistics
   import obsidian [-space id] [-dry-run] <vault>
                                             import an Obsidian vault as unsorted notes
@@ -78,6 +81,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
 		fs.Usage()
 		return errors.New("no command")
+	}
+	if args[0] == "capture-mail" {
+		// It talks to a server with a token: no data directory, no SSH key.
+		return cmdCaptureMail(args[1:], stdin, stdout)
 	}
 	if g.data == "" {
 		return errors.New("no data directory: set -data or GTD_DATA")
@@ -151,6 +158,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 			return err
 		}
 		return cmdUser(g, s, rest, stdin, stdout)
+	case "token":
+		s, rest, err := sub()
+		if err != nil {
+			return err
+		}
+		return cmdToken(g, s, rest, stdout)
 	case "space":
 		s, rest, err := sub()
 		if err != nil {

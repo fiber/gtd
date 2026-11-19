@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fiber/gtd/auth"
 	"github.com/fiber/gtd/core"
@@ -60,6 +61,7 @@ var errLog io.Writer = os.Stderr
 var (
 	errDenied    = errors.New("authentication required")
 	errForbidden = errors.New("this needs an admin")
+	errScope     = errors.New("this token may only capture (POST /capture)")
 )
 
 func New(st *store.Store) *Server {
@@ -73,6 +75,9 @@ func New(st *store.Store) *Server {
 	s.mux.HandleFunc("POST /api/v1/auth/ssh/challenge", s.challenge)
 	s.mux.HandleFunc("POST /api/v1/auth/ssh/verify", s.verify)
 	s.mux.HandleFunc("POST /api/v1/capture", s.user(s.capture))
+	s.mux.HandleFunc("GET /api/v1/me/tokens", s.user(s.tokens))
+	s.mux.HandleFunc("POST /api/v1/me/tokens", s.user(s.tokens))
+	s.mux.HandleFunc("DELETE /api/v1/me/tokens/{id}", s.user(s.tokens))
 	s.mux.HandleFunc("GET /api/v1/search", s.user(s.search))
 	s.mux.HandleFunc("GET /api/v1/ops", s.user(s.ops))
 	s.mux.HandleFunc("GET /api/v1/export", s.any(s.export))
@@ -122,6 +127,16 @@ func (s *Server) any(h handler) http.HandlerFunc {
 		if !ok {
 			token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 			user, valid := s.ssh.Session(token)
+			var scopes []string
+			if bearer && strings.HasPrefix(token, "gtd_") {
+				// An API token (COLLAB §6). It may do what its scopes say and
+				// nothing else: here, capture.
+				if user, scopes, valid = s.st.TokenUser(token); valid &&
+					!(r.Method == "POST" && r.URL.Path == "/api/v1/capture" && slices.Contains(scopes, store.ScopeCapture)) {
+					fail(w, errScope)
+					return
+				}
+			}
 			if !bearer {
 				user, valid = s.sessionUser(r)
 				// A browser says where a request comes from. Cookies only count for
@@ -183,7 +198,7 @@ func fail(w http.ResponseWriter, err error) {
 		code = http.StatusBadRequest
 	case errors.Is(err, errDenied), errors.Is(err, auth.ErrDenied):
 		code = http.StatusUnauthorized
-	case errors.Is(err, errForbidden):
+	case errors.Is(err, errForbidden), errors.Is(err, errScope):
 		code = http.StatusForbidden
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -583,4 +598,46 @@ func (w *pipeWriter) start(status int) {
 func (w *pipeWriter) Write(p []byte) (int, error) {
 	w.start(http.StatusOK)
 	return w.pw.Write(p)
+}
+
+// tokens lists, creates and revokes the acting user's own API tokens. A new
+// token is shown once, in the answer to its creation.
+func (s *Server) tokens(w http.ResponseWriter, r *http.Request, a actor) error {
+	type view struct {
+		ID       string    `json:"id"`
+		Label    string    `json:"label"`
+		Scopes   []string  `json:"scopes"`
+		Created  time.Time `json:"created"`
+		LastUsed time.Time `json:"last_used,omitzero"`
+		Token    string    `json:"token,omitempty"`
+	}
+	switch r.Method {
+	case "POST":
+		var in struct {
+			Label  string   `json:"label"`
+			Scopes []string `json:"scopes"`
+		}
+		if err := body(r, &in); err != nil {
+			return err
+		}
+		plain, t, err := s.st.AddToken(a.user, in.Label, in.Scopes)
+		if err != nil {
+			return err
+		}
+		return reply(w, view{t.ID, t.Label, t.Scopes, t.Created, t.LastUsed, plain})
+	case "DELETE":
+		if err := s.st.DeleteToken(a.user, r.PathValue("id")); err != nil {
+			return err
+		}
+		return reply(w, map[string]bool{"ok": true})
+	}
+	list, err := s.st.Tokens(a.user)
+	if err != nil {
+		return err
+	}
+	out := []view{}
+	for _, t := range list {
+		out = append(out, view{t.ID, t.Label, t.Scopes, t.Created, t.LastUsed, ""})
+	}
+	return reply(w, out)
 }
