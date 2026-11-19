@@ -108,8 +108,8 @@ class Plan extends View {
     });
   }
 
-  // Thread quick-add: a line into the project's thread, e.g. "call Brent
-  // about Equinix API", and one tap to turn a thread entry into an action.
+  // Thread quick-add: a line into the project's thread, e.g. "call the
+  // plumber about the quote", and one tap to turn a thread entry into an action.
   async addComment(e) {
     e.preventDefault();
     const input = e.target.querySelector('input');

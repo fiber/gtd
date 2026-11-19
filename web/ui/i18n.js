@@ -20,7 +20,7 @@ export function t(key, vars) {
 }
 
 // label renders a wizard option or chip: literal text, an i18n label, or both
-// ("Agenda · Eric").
+// ("Agenda · Dana").
 export function label(o) {
   if (o.label && o.text) return `${t(o.label)} · ${o.text}`;
   return o.text || (o.label ? t(o.label) : o.value);

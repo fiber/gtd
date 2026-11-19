@@ -23,12 +23,12 @@ gtd uses a small vocabulary. Each word means one thing.
 
 | Word | What it is | Example |
 |---|---|---|
-| **Capture** | A raw thought you got out of your head. It sits in the inbox until you decide what it is. | "bgp collector reset thing ask eric" |
-| **Action** | One physical thing you can do in one go. It starts with a verb. | "Call Brent about the Equinix API keys" |
-| **Project** | An outcome that needs more than one action. It is phrased as the finished result, and it is done when that result is true. Projects can contain sub-projects. | "Collector survives BGP session resets" |
-| **Area** | A part of your life or work that you look after for as long as you have it. An area is never finished; it is where projects and actions belong. | "Collectors", "Home", "Trading" |
-| **Note** | Something worth keeping: an idea, call notes, a design, a reference. Written in Markdown, with images and files. | "Call with Brent, 19 Nov" |
-| **Space** | Who can see it. You have one personal space; a shared space has members (for example a team or you and Grit). | "NIS", "Sven & Grit" |
+| **Capture** | A raw thought you got out of your head. It sits in the inbox until you decide what it is. | "tap in kitchen drips ask landlord" |
+| **Action** | One physical thing you can do in one go. It starts with a verb. | "Call the plumber about the quote" |
+| **Project** | An outcome that needs more than one action. It is phrased as the finished result, and it is done when that result is true. Projects can contain sub-projects. | "Kitchen renovated" |
+| **Area** | A part of your life or work that you look after for as long as you have it. An area is never finished; it is where projects and actions belong. | "Home", "Health", "Finances" |
+| **Note** | Something worth keeping: an idea, call notes, a design, a reference. Written in Markdown, with images and files. | "Call with the plumber, 19 Nov" |
+| **Space** | Who can see it. You have one personal space; a shared space has members (for example a team, or you and your partner). | "Team", "Family" |
 
 The difference between a project and an area: "Kitchen renovated" is a project, because
 one day it is done. "Home" is an area, because it never is.
@@ -70,7 +70,7 @@ or area, then **Filed**, later perhaps **Archived**.
 Open gtd, type, press Enter. The field is empty again and nothing else happens. That
 is deliberate: no counts, no suggestions, nothing to pull you in.
 
-- One thought per capture. Half a sentence is enough: "bgp collector reset thing ask eric".
+- One thought per capture. Half a sentence is enough: "tap in kitchen drips ask landlord".
 - Shift+Enter adds a line. Pasting several lines asks whether that is one item or one per line.
 - The camera and paperclip buttons attach a photo or file, with or without text.
 - `c` jumps to Capture from anywhere on a keyboard.
@@ -99,7 +99,7 @@ series of questions. Each answer is one tap, or a number key (1 for the first op
 | What is it? | Fix the title so that it will make sense in a month. |
 | Is it actionable? | **Yes**, or one of three ways out: reference, someday, trash. |
 | More than one step? | Yes makes it a project (a new one, or added to an existing one). |
-| Next physical action? | One sentence, starting with a verb. "Call Brent about the API", not "API". |
+| Next physical action? | One sentence, starting with a verb. "Call the plumber about the quote", not "Plumber". |
 | Under 2 minutes? | Then do it now. A timer runs; press Done. |
 | Who? | You, or someone you are waiting for. |
 | When and where? | Context (Calls, Errands, …), not before, target, due, energy, time. All optional. |
@@ -154,7 +154,7 @@ three days.
 
 ## Projects
 
-A project is an outcome: "Collector survives BGP session resets", not "Collector".
+A project is an outcome: "Kitchen renovated", not "Kitchen".
 **Projects** lists them as a tree. Opening one shows its **plan**:
 
 - its sub-projects, nested, each with done/total and a stuck or slipping flag;
@@ -166,14 +166,13 @@ Dependencies: drag action A onto action B and A waits for B. On a phone, open A 
 use "Waits for" in its details. A waiting action is "planned" and never appears in
 Engage until what it waits for is done.
 
-The **thread** is for the running commentary of a project. Type "Brent says the API
-is REST, 100 requests a minute" and press Add. Each entry has **Make this an action**.
+The **thread** is for the running commentary of a project. Type "The plumber says the pipe has to be replaced, two days of work" and press Add. Each entry has **Make this an action**.
 Use the thread instead of a new capture when you already know which project a thought
 belongs to.
 
 **Board** shows the same actions as columns (Inbox, Next, Planned, Waiting, Deferred,
 Someday, Done) and can be narrowed to an area or a project. It is for an overview and
-quick fixes. **Areas** are your areas of focus (Collectors, Home, Trading); an area
+quick fixes. **Areas** are your areas of focus (Home, Health, Finances); an area
 with no active project is flagged.
 
 ## Notes
@@ -197,9 +196,9 @@ Archived; the filter box takes words; the project list narrows to one project.
   onto the text, or use the paperclip. Images appear inline.
 - **New note from this** starts a note that links back to the one you are reading,
   for an idea that grows out of another.
-- **Task lines**: any line written as `- [ ] call Brent` is a candidate action.
+- **Task lines**: any line written as `- [ ] call the plumber` is a candidate action.
 - **Templates**: if the space has templates for notes, choosing one in Details on an
-  empty note fills in its skeleton (for example "Thesis / Invalidation").
+  empty note fills in its skeleton (for example "Agenda / Decisions").
 
 The **Ideas** tab on the same screen shows what is parked: your themes (someday
 projects) with the number of notes in each, and your someday actions, with Activate
@@ -240,7 +239,7 @@ in Clarify. Most of the time the answer is a next action or the trash, and that 
 
 1. Before the call, open the project and press **New note**. Type freely during the call.
 2. Whenever someone (including you) commits to something, write it as a task line:
-   `- [ ] send Brent the port list`.
+   `- [ ] send the plumber the photos`.
 3. After the call, press **Process open tasks** on the note. Each task line comes up
    once: adjust the wording, choose the project (it can be a different one for each
    line), a context and dates, and press Create action, or Skip.
@@ -263,9 +262,9 @@ you never see it again.
 
 2. **In Clarify, be honest at "Is it actionable?"** For an immature idea the answer
    is No. Then choose:
-   - **Someday** if it is a possible thing to do ("try gap-fill trades on earnings days").
-   - **Reference** if it is a thought, an observation or a question ("collectors keep
-     failing the same way: is the session state the real problem?").
+   - **Someday** if it is a possible thing to do ("learn to bake sourdough").
+   - **Reference** if it is a thought, an observation or a question ("the heating bill keeps
+     rising: is the insulation the real problem?").
    - **Trash** more often than feels comfortable. Most ideas are noise, and the good
      ones come back.
 
@@ -325,7 +324,7 @@ faster than that, you get no suggestions for it.
 
 Language, theme (Light, Dark, System), your own contexts (usable in your personal
 space), and templates. A template adds structured fields to notes, projects or
-actions of a space, for example a "stage" on trading hypotheses that then shows as a
+actions of a space, for example a "stage" on job applications that then shows as a
 badge and can filter the board.
 
 ## Backups

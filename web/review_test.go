@@ -12,11 +12,11 @@ import (
 // applied one by one (M2: resumable on any device).
 func TestReviewOverHTTP(t *testing.T) {
 	s := newSite(t)
-	phone, laptop, eric := s.login("sven"), s.login("sven"), s.login("eric")
-	stuck := phone.create("sven", map[string]any{"kind": "project", "title": "Garden gate fixed"})
-	alive := phone.create("nis", map[string]any{"kind": "project", "title": "Collector survives resets"})
-	phone.create("nis", map[string]any{"kind": "action", "title": "Ask Eric", "project": alive, "owner": "sven"})
-	maybe := phone.create("sven", map[string]any{"kind": "action", "title": "Learn to sail", "state": "someday"})
+	phone, laptop, dana := s.login("robin"), s.login("robin"), s.login("dana")
+	stuck := phone.create("robin", map[string]any{"kind": "project", "title": "Garden gate fixed"})
+	alive := phone.create("net", map[string]any{"kind": "project", "title": "Collector survives resets"})
+	phone.create("net", map[string]any{"kind": "action", "title": "Ask Dana", "project": alive, "owner": "robin"})
+	maybe := phone.create("robin", map[string]any{"kind": "action", "title": "Learn to sail", "state": "someday"})
 	var cap struct{ ID string }
 	phone.ok("POST", "/api/v1/capture", map[string]any{"text": "a thought in the inbox"}, &cap)
 
@@ -51,7 +51,7 @@ func TestReviewOverHTTP(t *testing.T) {
 		t.Fatalf("gate: %d %s", code, body)
 	}
 	// Trash the capture; then the review goes on to the projects.
-	phone.ok("POST", "/api/v1/ops", map[string]any{"space": "sven", "ops": []map[string]any{{"type": "transition", "item": cap.ID, "base_rev": 1,
+	phone.ok("POST", "/api/v1/ops", map[string]any{"space": "robin", "ops": []map[string]any{{"type": "transition", "item": cap.ID, "base_rev": 1,
 		"changes": []map[string]any{{"field": "state", "new": "trashed"}}}}}, nil)
 	r, code, body := step(phone, "continue")
 	if code != 200 || r.Step.Key != "projects" {
@@ -70,7 +70,7 @@ func TestReviewOverHTTP(t *testing.T) {
 	if me.Review["started"] != true {
 		t.Errorf("me.review = %v", me.Review)
 	}
-	// Answer on the laptop: projects of both of sven's spaces come up, the
+	// Answer on the laptop: projects of both of robin's spaces come up, the
 	// stuck one cannot be kept without a next action.
 	seen := map[string]bool{}
 	for r = onLaptop; r.Step.Key == "projects"; {
@@ -126,17 +126,17 @@ func TestReviewOverHTTP(t *testing.T) {
 		t.Errorf("answering a finished review: %d", code)
 	}
 
-	// Eric's review is his own: sven's personal project never comes up.
+	// Dana's review is his own: robin's personal project never comes up.
 	var er res
-	eric.ok("POST", "/api/v1/wizard/review/start", map[string]string{}, &er)
+	dana.ok("POST", "/api/v1/wizard/review/start", map[string]string{}, &er)
 	for !er.Done {
 		if strings.Contains(er.Step.Subject, "Garden") || strings.Contains(er.Step.Subject, "sail") {
-			t.Fatalf("eric's review shows %q", er.Step.Subject)
+			t.Fatalf("dana's review shows %q", er.Step.Subject)
 		}
 		choice := er.Step.Options[0].Value
 		var code int
-		if er, code, body = step(eric, choice); code != 200 {
-			t.Fatalf("eric %s: %d %s", choice, code, body)
+		if er, code, body = step(dana, choice); code != 200 {
+			t.Fatalf("dana %s: %d %s", choice, code, body)
 		}
 	}
 
@@ -145,18 +145,18 @@ func TestReviewOverHTTP(t *testing.T) {
 	if weekday == 0 {
 		weekday = 7
 	}
-	grit := s.login("grit")
-	grit.ok("PUT", "/api/v1/me", map[string]any{"review_weekday": weekday}, nil)
-	grit.ok("GET", "/api/v1/me", nil, &me)
+	jo := s.login("jo")
+	jo.ok("PUT", "/api/v1/me", map[string]any{"review_weekday": weekday}, nil)
+	jo.ok("GET", "/api/v1/me", nil, &me)
 	if me.Review["due"] != true {
 		t.Errorf("review day: %v", me.Review)
 	}
-	grit.ok("PUT", "/api/v1/me", map[string]any{"review_weekday": weekday%7 + 1}, nil)
-	grit.ok("GET", "/api/v1/me", nil, &me)
+	jo.ok("PUT", "/api/v1/me", map[string]any{"review_weekday": weekday%7 + 1}, nil)
+	jo.ok("GET", "/api/v1/me", nil, &me)
 	if me.Review["due"] != false {
 		t.Errorf("not review day: %v", me.Review)
 	}
-	if code, _ := grit.do("PUT", "/api/v1/me", map[string]any{"review_weekday": 9}, nil); code != 400 {
+	if code, _ := jo.do("PUT", "/api/v1/me", map[string]any{"review_weekday": 9}, nil); code != 400 {
 		t.Errorf("weekday 9: %d", code)
 	}
 }

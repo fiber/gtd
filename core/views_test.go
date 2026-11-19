@@ -18,23 +18,23 @@ func TestEngage(t *testing.T) {
 	w := shared(t)
 	add := func(it Item) {
 		it.Kind = KindAction
-		w.must(w.create("sven", it))
+		w.must(w.create("robin", it))
 	}
-	add(Item{ID: "old", Owner: "sven"})
-	add(Item{ID: "target", Owner: "sven", Target: "2026-12-01"})
-	add(Item{ID: "due", Owner: "sven", Due: "2026-12-24", Target: "2026-11-20"})
-	add(Item{ID: "duesoon", Owner: "sven", Due: "2026-11-25"})
+	add(Item{ID: "old", Owner: "robin"})
+	add(Item{ID: "target", Owner: "robin", Target: "2026-12-01"})
+	add(Item{ID: "due", Owner: "robin", Due: "2026-12-24", Target: "2026-11-20"})
+	add(Item{ID: "duesoon", Owner: "robin", Due: "2026-11-25"})
 	add(Item{ID: "unassigned"})
-	add(Item{ID: "erics", Owner: "eric"})
-	add(Item{ID: "deferred", Owner: "sven", DeferUntil: "2026-11-20"})
-	add(Item{ID: "resurfaced", Owner: "sven", DeferUntil: "2026-11-19"})
-	add(Item{ID: "someday", Owner: "sven", State: StSomeday})
-	add(Item{ID: "calls", Owner: "sven", Context: "calls", Time: "5m", Energy: "low"})
-	add(Item{ID: "office", Owner: "sven", Context: "office", Time: "2h+", Energy: "high"})
-	add(Item{ID: "anywhere", Owner: "sven", Context: "anywhere", Time: "30m", Energy: "med"})
-	add(Item{ID: "blocker", Owner: "eric"})
-	add(Item{ID: "unblocked", Owner: "sven", BlockedBy: []string{"blocker"}})
-	w.must(w.move("eric", "blocker", StDone)) // the system moves "unblocked" to next
+	add(Item{ID: "erics", Owner: "dana"})
+	add(Item{ID: "deferred", Owner: "robin", DeferUntil: "2026-11-20"})
+	add(Item{ID: "resurfaced", Owner: "robin", DeferUntil: "2026-11-19"})
+	add(Item{ID: "someday", Owner: "robin", State: StSomeday})
+	add(Item{ID: "calls", Owner: "robin", Context: "calls", Time: "5m", Energy: "low"})
+	add(Item{ID: "office", Owner: "robin", Context: "office", Time: "2h+", Energy: "high"})
+	add(Item{ID: "anywhere", Owner: "robin", Context: "anywhere", Time: "30m", Energy: "med"})
+	add(Item{ID: "blocker", Owner: "dana"})
+	add(Item{ID: "unblocked", Owner: "robin", BlockedBy: []string{"blocker"}})
+	w.must(w.move("dana", "blocker", StDone)) // the system moves "unblocked" to next
 
 	const today = "2026-11-19"
 	for _, c := range []struct {
@@ -43,18 +43,18 @@ func TestEngage(t *testing.T) {
 		f    EngageFilter
 		want []string
 	}{
-		{"no filter: due, target, unblocked, age", "sven", EngageFilter{},
+		{"no filter: due, target, unblocked, age", "robin", EngageFilter{},
 			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls", "office", "anywhere"}},
-		{"eric sees his and the unassigned", "eric", EngageFilter{}, []string{"unassigned", "erics"}},
-		{"context: only that place, plus 'anywhere'; actions without a context are left out", "sven", EngageFilter{Contexts: []string{"calls"}},
+		{"dana sees his and the unassigned", "dana", EngageFilter{}, []string{"unassigned", "erics"}},
+		{"context: only that place, plus 'anywhere'; actions without a context are left out", "robin", EngageFilter{Contexts: []string{"calls"}},
 			[]string{"calls", "anywhere"}},
-		{"two contexts", "sven", EngageFilter{Contexts: []string{"calls", "office"}}, []string{"calls", "office", "anywhere"}},
-		{"a place with nothing but 'anywhere'", "sven", EngageFilter{Contexts: []string{"errands"}}, []string{"anywhere"}},
-		{"15 minutes", "sven", EngageFilter{Time: "15m"},
+		{"two contexts", "robin", EngageFilter{Contexts: []string{"calls", "office"}}, []string{"calls", "office", "anywhere"}},
+		{"a place with nothing but 'anywhere'", "robin", EngageFilter{Contexts: []string{"errands"}}, []string{"anywhere"}},
+		{"15 minutes", "robin", EngageFilter{Time: "15m"},
 			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls"}},
-		{"low energy", "sven", EngageFilter{Energy: "low"},
+		{"low energy", "robin", EngageFilter{Energy: "low"},
 			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls"}},
-		{"medium energy, one hour", "sven", EngageFilter{Energy: "med", Time: "1h"},
+		{"medium energy, one hour", "robin", EngageFilter{Energy: "med", Time: "1h"},
 			[]string{"duesoon", "due", "target", "unblocked", "old", "unassigned", "resurfaced", "calls", "anywhere"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -65,8 +65,8 @@ func TestEngage(t *testing.T) {
 	}
 	t.Run("personal space: no unassigned rule needed", func(t *testing.T) {
 		p := personal(t)
-		p.must(p.create("sven", Item{ID: "a", Kind: KindAction}))
-		if got := ids(Engage(p.st, "sven", today, EngageFilter{})); !slices.Equal(got, []string{"a"}) {
+		p.must(p.create("robin", Item{ID: "a", Kind: KindAction}))
+		if got := ids(Engage(p.st, "robin", today, EngageFilter{})); !slices.Equal(got, []string{"a"}) {
 			t.Fatalf("got %v", got)
 		}
 	})
@@ -74,22 +74,22 @@ func TestEngage(t *testing.T) {
 
 func TestWaitingForAndDated(t *testing.T) {
 	w := shared(t)
-	w.must(w.create("sven", Item{ID: "delegated", Kind: KindAction, Owner: "eric", DelegatedBy: "sven"}))
-	w.must(w.create("sven", Item{ID: "person", Kind: KindAction, Owner: "sven", State: StWaiting, WaitingOn: "Kim", Due: "2026-11-21"}))
-	w.must(w.create("sven", Item{ID: "ericsblocker", Kind: KindAction, Owner: "eric", Target: "2026-11-30"}))
-	w.must(w.create("sven", Item{ID: "blockedonEric", Kind: KindAction, Owner: "sven", BlockedBy: []string{"ericsblocker"}}))
-	w.must(w.create("sven", Item{ID: "myblocker", Kind: KindAction, Owner: "sven"}))
-	w.must(w.create("sven", Item{ID: "blockedonme", Kind: KindAction, Owner: "sven", BlockedBy: []string{"myblocker"}}))
-	w.must(w.create("sven", Item{ID: "delegateddone", Kind: KindAction, Owner: "eric", DelegatedBy: "sven"}))
-	w.must(w.move("eric", "delegateddone", StDone))
-	w.must(w.create("sven", Item{ID: "proj", Kind: KindProject, Target: "2026-12-03"}))
-	w.must(w.create("sven", Item{ID: "far", Kind: KindAction, Target: "2027-06-01"}))
+	w.must(w.create("robin", Item{ID: "delegated", Kind: KindAction, Owner: "dana", DelegatedBy: "robin"}))
+	w.must(w.create("robin", Item{ID: "person", Kind: KindAction, Owner: "robin", State: StWaiting, WaitingOn: "Kim", Due: "2026-11-21"}))
+	w.must(w.create("robin", Item{ID: "ericsblocker", Kind: KindAction, Owner: "dana", Target: "2026-11-30"}))
+	w.must(w.create("robin", Item{ID: "blockedonEric", Kind: KindAction, Owner: "robin", BlockedBy: []string{"ericsblocker"}}))
+	w.must(w.create("robin", Item{ID: "myblocker", Kind: KindAction, Owner: "robin"}))
+	w.must(w.create("robin", Item{ID: "blockedonme", Kind: KindAction, Owner: "robin", BlockedBy: []string{"myblocker"}}))
+	w.must(w.create("robin", Item{ID: "delegateddone", Kind: KindAction, Owner: "dana", DelegatedBy: "robin"}))
+	w.must(w.move("dana", "delegateddone", StDone))
+	w.must(w.create("robin", Item{ID: "proj", Kind: KindProject, Target: "2026-12-03"}))
+	w.must(w.create("robin", Item{ID: "far", Kind: KindAction, Target: "2027-06-01"}))
 
-	if got, want := ids(WaitingFor(w.st, "sven")), []string{"delegated", "person", "blockedonEric"}; !slices.Equal(got, want) {
-		t.Errorf("waiting for sven = %v, want %v", got, want)
+	if got, want := ids(WaitingFor(w.st, "robin")), []string{"delegated", "person", "blockedonEric"}; !slices.Equal(got, want) {
+		t.Errorf("waiting for robin = %v, want %v", got, want)
 	}
-	if got := ids(WaitingFor(w.st, "eric")); len(got) != 0 {
-		t.Errorf("waiting for eric = %v", got)
+	if got := ids(WaitingFor(w.st, "dana")); len(got) != 0 {
+		t.Errorf("waiting for dana = %v", got)
 	}
 	if got, want := ids(Dated(w.st, "2026-12-03")), []string{"person", "ericsblocker", "proj"}; !slices.Equal(got, want) {
 		t.Errorf("dated = %v, want %v", got, want)
@@ -101,15 +101,15 @@ func TestWaitingForAndDated(t *testing.T) {
 
 func TestRollups(t *testing.T) {
 	w := shared(t)
-	w.must(w.create("sven", Item{ID: "p", Kind: KindProject, Target: "2027-01-31"}))
-	w.must(w.create("sven", Item{ID: "c", Kind: KindProject, Parent: "p"}))
-	w.must(w.create("sven", Item{ID: "gone", Kind: KindProject, Parent: "p"}))
-	w.must(w.create("sven", Item{ID: "empty", Kind: KindProject}))
+	w.must(w.create("robin", Item{ID: "p", Kind: KindProject, Target: "2027-01-31"}))
+	w.must(w.create("robin", Item{ID: "c", Kind: KindProject, Parent: "p"}))
+	w.must(w.create("robin", Item{ID: "gone", Kind: KindProject, Parent: "p"}))
+	w.must(w.create("robin", Item{ID: "empty", Kind: KindProject}))
 	act := func(id, project, state string, it Item) {
-		it.ID, it.Kind, it.Project, it.Owner = id, KindAction, project, "sven"
-		w.must(w.create("sven", it))
+		it.ID, it.Kind, it.Project, it.Owner = id, KindAction, project, "robin"
+		w.must(w.create("robin", it))
 		if state != "" {
-			w.must(w.move("sven", id, state))
+			w.must(w.move("robin", id, state))
 		}
 	}
 	act("a1", "p", "", Item{Target: "2026-12-10"})
@@ -119,7 +119,7 @@ func TestRollups(t *testing.T) {
 	act("b1", "c", "", Item{Target: "2026-11-01"}) // slipping
 	act("b2", "c", "", Item{BlockedBy: []string{"b1"}})
 	act("g1", "gone", "", Item{})
-	w.must(w.move("sven", "gone", StDropped))
+	w.must(w.move("robin", "gone", StDropped))
 
 	r := Rollups(w.st, "2026-11-19")
 	if got, want := r["p"], (Rollup{Done: 1, Total: 5, Blocked: 1, Waiting: 1, EarliestTarget: "2026-11-01", Slipping: true, Alive: true}); got != want {
@@ -142,7 +142,7 @@ func TestTemplatesAndTickler(t *testing.T) {
 		t.Fatal(err)
 	}
 	note := func(id string, fields map[string]string) error {
-		return w.create("sven", Item{ID: id, Kind: KindNote, Template: "trade_setup", Fields: fields})
+		return w.create("robin", Item{ID: id, Kind: KindNote, Template: "trade_setup", Fields: fields})
 	}
 	for name, c := range map[string]struct {
 		fields map[string]string
@@ -159,10 +159,10 @@ func TestTemplatesAndTickler(t *testing.T) {
 			t.Errorf("%s: %v, want %v", name, err, c.err)
 		}
 	}
-	if err := w.create("sven", Item{ID: "x", Kind: KindNote, Template: "nope"}); !errors.Is(err, ErrInvalid) {
+	if err := w.create("robin", Item{ID: "x", Kind: KindNote, Template: "nope"}); !errors.Is(err, ErrInvalid) {
 		t.Errorf("unknown template: %v", err)
 	}
-	if err := w.create("sven", Item{ID: "y", Kind: KindProject, Template: "trade_setup"}); !errors.Is(err, ErrInvalid) {
+	if err := w.create("robin", Item{ID: "y", Kind: KindProject, Template: "trade_setup"}); !errors.Is(err, ErrInvalid) {
 		t.Errorf("template of another kind: %v", err)
 	}
 
@@ -171,7 +171,7 @@ func TestTemplatesAndTickler(t *testing.T) {
 	if got := w.st.Items["tick"].DeferUntil; got != "2026-12-19" {
 		t.Errorf("defer_until after create = %q", got)
 	}
-	w.must(w.patch("sven", "tick", "fields", map[string]string{"expires": "2027-01-15"}))
+	w.must(w.patch("robin", "tick", "fields", map[string]string{"expires": "2027-01-15"}))
 	if got := w.st.Items["tick"].DeferUntil; got != "2027-01-15" {
 		t.Errorf("defer_until after patch = %q", got)
 	}
@@ -179,7 +179,7 @@ func TestTemplatesAndTickler(t *testing.T) {
 	if len(last.Changes) != 2 || last.Changes[1].Field != "defer_until" || string(last.Changes[1].Old) != `"2026-12-19"` {
 		t.Errorf("the patch op should record the defer_until change: %+v", last.Changes)
 	}
-	w.must(w.patch("sven", "tick", "title", "renamed")) // unrelated patch: defer_until untouched
+	w.must(w.patch("robin", "tick", "title", "renamed")) // unrelated patch: defer_until untouched
 	if got := len(w.log[len(w.log)-1].Changes); got != 1 {
 		t.Errorf("unrelated patch has %d changes", got)
 	}
@@ -202,11 +202,11 @@ func TestTemplatesAndTickler(t *testing.T) {
 
 func TestContextsAndTransitions(t *testing.T) {
 	w := shared(t)
-	if got, want := Contexts(w.st, "sven"), []string{"errands", "calls", "computer", "home", "office", "anywhere", "agenda:eric", "agenda:Kim"}; !slices.Equal(got, want) {
+	if got, want := Contexts(w.st, "robin"), []string{"errands", "calls", "computer", "home", "office", "anywhere", "agenda:dana", "agenda:Kim"}; !slices.Equal(got, want) {
 		t.Errorf("shared contexts = %v", got)
 	}
 	p := personal(t)
-	if got, want := Contexts(p.st, "sven"), []string{"errands", "calls", "computer", "home", "office", "anywhere", "boat"}; !slices.Equal(got, want) {
+	if got, want := Contexts(p.st, "robin"), []string{"errands", "calls", "computer", "home", "office", "anywhere", "boat"}; !slices.Equal(got, want) {
 		t.Errorf("personal contexts = %v", got)
 	}
 	if got := Transitions(&Item{Kind: KindArea, State: StActive}); !slices.Equal(got, []string{StRetired}) {

@@ -31,7 +31,7 @@ func (w *world) apply(ops []core.Op) error {
 	st := &core.State{Space: w.st.Space, Items: w.st.Items, Pending: pending, PersonalContexts: w.st.PersonalContexts}
 	for i, op := range ops {
 		op.ID = fmt.Sprintf("op%d-%d", w.n, i)
-		op.Space, op.Actor = w.st.Space.ID, "sven"
+		op.Space, op.Actor = w.st.Space.ID, "robin"
 		op.TS = time.Date(2026, 11, 19, 9, 0, i, 0, time.UTC)
 		if !w.ts.IsZero() {
 			op.TS = w.ts.Add(time.Duration(i) * time.Second)
@@ -52,7 +52,7 @@ func (w *world) apply(ops []core.Op) error {
 
 func newWorld(t *testing.T) *world {
 	w := &world{t: t, st: &core.State{
-		Space: &core.Space{ID: "sven", Kind: core.SpacePersonal, Members: []string{"sven"}, People: []string{"Brent"},
+		Space: &core.Space{ID: "robin", Kind: core.SpacePersonal, Members: []string{"robin"}, People: []string{"Lee"},
 			Templates: []core.Template{{Key: "trade_setup", Kind: core.KindNote}, {Key: "meeting", Kind: core.KindNote}}},
 		Items:            map[string]*core.Item{},
 		PersonalContexts: []string{"boat"},
@@ -61,7 +61,7 @@ func newWorld(t *testing.T) *world {
 	err := w.apply([]core.Op{
 		create(core.Item{ID: "area", Kind: core.KindArea, Title: "Collectors"}),
 		create(core.Item{ID: "p1", Kind: core.KindProject, Title: "BGP collector handles resets", Area: "area"}),
-		create(core.Item{ID: "p2", Kind: core.KindProject, Title: "Equinix API integrated"}),
+		create(core.Item{ID: "p2", Kind: core.KindProject, Title: "Example API integrated"}),
 		create(core.Item{ID: "pdone", Kind: core.KindProject, Title: "Old project"}),
 		create(core.Item{ID: "c", Kind: core.KindCapture, Title: "bgp collector reset thing", Original: "bgp collector reset thing"}),
 		{Via: "cli", Type: core.OpTransition, Item: "pdone", BaseRev: 1, Changes: []core.FieldChange{{Field: "state", New: quote(core.StDone)}}},
@@ -127,9 +127,9 @@ func TestClarifyPaths(t *testing.T) {
 			[]string{`c: capture/trashed "bgp collector reset thing"`}},
 
 		{"someday", []Input{what, in("someday"), in("continue")}, "what actionable someday",
-			[]string{`c: action/someday "BGP collector: clarify reset semantics" owner=sven`}},
+			[]string{`c: action/someday "BGP collector: clarify reset semantics" owner=robin`}},
 		{"someday, not before next week", []Input{what, in("someday"), in("continue", "defer_until", "2026-11-23")}, "what actionable someday",
-			[]string{`c: action/someday "BGP collector: clarify reset semantics" owner=sven defer=2026-11-23`}},
+			[]string{`c: action/someday "BGP collector: clarify reset semantics" owner=robin defer=2026-11-23`}},
 
 		{"reference, unsorted", []Input{what, in("reference"), in("continue")}, "what actionable reference",
 			[]string{`c: note/unsorted "BGP collector: clarify reset semantics"`}},
@@ -141,68 +141,68 @@ func TestClarifyPaths(t *testing.T) {
 		{"reference into a new project", []Input{what, in("reference"), in("continue", "new_project", "Collector docs written", "area", "area")}, "what actionable reference",
 			[]string{`c: note/filed "BGP collector: clarify reset semantics" project=n1 area=area`, `n1: project/active "Collector docs written" area=area from=c`}},
 
-		{"single action, me, no details", []Input{what, in("yes"), in("no"), in("continue", "action", "Ask Eric about session resets"), in("no"), in("me"), when},
+		{"single action, me, no details", []Input{what, in("yes"), in("no"), in("continue", "action", "Ask Dana about session resets"), in("no"), in("me"), when},
 			"what actionable multi action two_minutes who when",
-			[]string{`c: action/next "Ask Eric about session resets" owner=sven`}},
-		{"single action with every detail", []Input{what, in("yes"), in("no"), in("continue", "action", "Call Brent about the Equinix API", "area", "area"), in("no"), in("me"),
+			[]string{`c: action/next "Ask Dana about session resets" owner=robin`}},
+		{"single action with every detail", []Input{what, in("yes"), in("no"), in("continue", "action", "Call Lee about the Example API", "area", "area"), in("no"), in("me"),
 			in("continue", "context", "calls", "defer_until", "2026-11-20", "target", "2026-12-03", "due", "2026-12-19", "energy", "low", "time", "15m")},
 			"what actionable multi action two_minutes who when",
-			[]string{`c: action/next "Call Brent about the Equinix API" area=area owner=sven context=calls defer=2026-11-20 target=2026-12-03 due=2026-12-19 energy=low time=15m`}},
+			[]string{`c: action/next "Call Lee about the Example API" area=area owner=robin context=calls defer=2026-11-20 target=2026-12-03 due=2026-12-19 energy=low time=15m`}},
 		{"single action with a personal context and an agenda", []Input{what, in("yes"), in("no"), in("continue", "action", "Check the mooring"), in("no"), in("me"), in("continue", "context", "boat")},
 			"what actionable multi action two_minutes who when",
-			[]string{`c: action/next "Check the mooring" owner=sven context=boat`}},
-		{"agenda context for a person", []Input{what, in("yes"), in("no"), in("continue", "action", "Discuss API limits"), in("no"), in("me"), in("continue", "context", "agenda:Brent")},
+			[]string{`c: action/next "Check the mooring" owner=robin context=boat`}},
+		{"agenda context for a person", []Input{what, in("yes"), in("no"), in("continue", "action", "Discuss API limits"), in("no"), in("me"), in("continue", "context", "agenda:Lee")},
 			"what actionable multi action two_minutes who when",
-			[]string{`c: action/next "Discuss API limits" owner=sven context=agenda:Brent`}},
-		{"delegated to a person: waiting", []Input{what, in("yes"), in("no"), in("continue", "action", "Get the API key"), in("no"), in("person"), in("continue", "waiting_on", "Brent"), in("continue", "target", "2026-11-26")},
+			[]string{`c: action/next "Discuss API limits" owner=robin context=agenda:Lee`}},
+		{"delegated to a person: waiting", []Input{what, in("yes"), in("no"), in("continue", "action", "Get the API key"), in("no"), in("person"), in("continue", "waiting_on", "Lee"), in("continue", "target", "2026-11-26")},
 			"what actionable multi action two_minutes who person when",
-			[]string{`c: action/waiting "Get the API key" owner=sven waiting_on=Brent target=2026-11-26`}},
-		{"two minutes, done", []Input{what, in("yes"), in("no"), in("continue", "action", "Reply to Eric"), in("yes"), in("done")},
+			[]string{`c: action/waiting "Get the API key" owner=robin waiting_on=Lee target=2026-11-26`}},
+		{"two minutes, done", []Input{what, in("yes"), in("no"), in("continue", "action", "Reply to Dana"), in("yes"), in("done")},
 			"what actionable multi action two_minutes do_now",
-			[]string{`c: action/done "Reply to Eric" owner=sven`}},
-		{"two minutes, took longer", []Input{what, in("yes"), in("no"), in("continue", "action", "Reply to Eric"), in("yes"), in("longer"), in("me"), when},
+			[]string{`c: action/done "Reply to Dana" owner=robin`}},
+		{"two minutes, took longer", []Input{what, in("yes"), in("no"), in("continue", "action", "Reply to Dana"), in("yes"), in("longer"), in("me"), when},
 			"what actionable multi action two_minutes do_now who when",
-			[]string{`c: action/next "Reply to Eric" owner=sven`}},
+			[]string{`c: action/next "Reply to Dana" owner=robin`}},
 
 		{"existing project: the capture becomes its next action", []Input{what, in("yes"), in("yes"), in("continue", "project", "p1"), in("continue", "action", "Read RFC 4271 section 6", "area", "area"), in("no"), in("me"), when, in("finish")},
 			"what actionable multi project action two_minutes who when after",
-			[]string{`c: action/next "Read RFC 4271 section 6" project=p1 area=area owner=sven`}},
-		{"existing project with follow-ups", []Input{what, in("yes"), in("yes"), in("continue", "project", "p2"), in("continue", "action", "Call Brent"), in("no"), in("me"), when,
+			[]string{`c: action/next "Read RFC 4271 section 6" project=p1 area=area owner=robin`}},
+		{"existing project with follow-ups", []Input{what, in("yes"), in("yes"), in("continue", "project", "p2"), in("continue", "action", "Call Lee"), in("no"), in("me"), when,
 			in("add", "title", "Write the client", "target", "2026-12-10"), in("add", "title", "Test against sandbox"), in("finish", "title", "Go live")},
 			"what actionable multi project action two_minutes who when after after after",
-			[]string{`c: action/next "Call Brent" project=p2 owner=sven`,
-				`n1: action/planned "Write the client" project=p2 owner=sven target=2026-12-10 blocked_by=c from=c`,
-				`n2: action/planned "Test against sandbox" project=p2 owner=sven blocked_by=n1 from=c`,
-				`n3: action/planned "Go live" project=p2 owner=sven blocked_by=n2 from=c`}},
+			[]string{`c: action/next "Call Lee" project=p2 owner=robin`,
+				`n1: action/planned "Write the client" project=p2 owner=robin target=2026-12-10 blocked_by=c from=c`,
+				`n2: action/planned "Test against sandbox" project=p2 owner=robin blocked_by=n1 from=c`,
+				`n3: action/planned "Go live" project=p2 owner=robin blocked_by=n2 from=c`}},
 		{"new project: the capture becomes the project", []Input{what, in("yes"), in("yes"),
 			in("continue", "project", "", "title", "Collector survives session resets", "parent", "p1", "area", "area", "target", "2027-01-15"),
-			in("continue", "action", "Ask Eric about reset semantics", "area", "area"), in("no"), in("me"), in("continue", "context", "agenda:Brent"), in("finish")},
+			in("continue", "action", "Ask Dana about reset semantics", "area", "area"), in("no"), in("me"), in("continue", "context", "agenda:Lee"), in("finish")},
 			"what actionable multi project action two_minutes who when after",
 			[]string{`c: project/active "Collector survives session resets" parent=p1 area=area target=2027-01-15`,
-				`n1: action/next "Ask Eric about reset semantics" project=c area=area owner=sven context=agenda:Brent from=c`}},
-		{"new project, first action waits for a person, one follow-up", []Input{what, in("yes"), in("yes"), in("continue", "title", "Equinix ports ordered"),
-			in("continue", "action", "Get a quote"), in("no"), in("person"), in("continue", "waiting_on", "Brent"), when, in("finish", "title", "Sign the order")},
+				`n1: action/next "Ask Dana about reset semantics" project=c area=area owner=robin context=agenda:Lee from=c`}},
+		{"new project, first action waits for a person, one follow-up", []Input{what, in("yes"), in("yes"), in("continue", "title", "Example ports ordered"),
+			in("continue", "action", "Get a quote"), in("no"), in("person"), in("continue", "waiting_on", "Lee"), when, in("finish", "title", "Sign the order")},
 			"what actionable multi project action two_minutes who person when after",
-			[]string{`c: project/active "Equinix ports ordered"`,
-				`n1: action/waiting "Get a quote" project=c owner=sven waiting_on=Brent from=c`,
-				`n2: action/planned "Sign the order" project=c owner=sven blocked_by=n1 from=c`}},
+			[]string{`c: project/active "Example ports ordered"`,
+				`n1: action/waiting "Get a quote" project=c owner=robin waiting_on=Lee from=c`,
+				`n2: action/planned "Sign the order" project=c owner=robin blocked_by=n1 from=c`}},
 		{"project, first action done in two minutes: asks for the next one", []Input{what, in("yes"), in("yes"), in("continue", "project", "p1"),
-			in("continue", "action", "Reply to Eric"), in("yes"), in("done"), in("continue", "action", "Read his answer"), in("no"), in("me"), when, in("finish")},
+			in("continue", "action", "Reply to Dana"), in("yes"), in("done"), in("continue", "action", "Read his answer"), in("no"), in("me"), when, in("finish")},
 			"what actionable multi project action two_minutes do_now action two_minutes who when after",
-			[]string{`c: action/done "Reply to Eric" project=p1 owner=sven`,
-				`n1: action/next "Read his answer" project=p1 owner=sven from=c`}},
+			[]string{`c: action/done "Reply to Dana" project=p1 owner=robin`,
+				`n1: action/next "Read his answer" project=p1 owner=robin from=c`}},
 		{"existing project complete after a two-minute action", []Input{what, in("yes"), in("yes"), in("continue", "project", "p2"),
 			in("continue", "action", "Send the signed form"), in("yes"), in("done"), in("complete")},
 			"what actionable multi project action two_minutes do_now action",
-			[]string{`c: action/done "Send the signed form" project=p2 owner=sven`, `p2: project/done "Equinix API integrated"`}},
+			[]string{`c: action/done "Send the signed form" project=p2 owner=robin`, `p2: project/done "Example API integrated"`}},
 		{"new project complete after two two-minute actions", []Input{what, in("yes"), in("yes"), in("continue", "title", "Form sent"),
 			in("continue", "action", "Fill in the form"), in("yes"), in("done"), in("continue", "action", "Send it"), in("yes"), in("done"), in("complete")},
 			"what actionable multi project action two_minutes do_now action two_minutes do_now action",
-			[]string{`c: project/done "Form sent"`, `n1: action/done "Fill in the form" project=c owner=sven from=c`, `n2: action/done "Send it" project=c owner=sven from=c`}},
+			[]string{`c: project/done "Form sent"`, `n1: action/done "Fill in the form" project=c owner=robin from=c`, `n2: action/done "Send it" project=c owner=robin from=c`}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := newWorld(t)
-			env := NewEnv(w.st, "sven", today)
+			env := NewEnv(w.st, "robin", today)
 			cl := StartClarify(w.st.Items["c"])
 			var visited []string
 			var ops []core.Op
@@ -275,7 +275,7 @@ func TestClarifyRejectsBadAnswers(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := newWorld(t)
-			env := NewEnv(w.st, "sven", today)
+			env := NewEnv(w.st, "robin", today)
 			cl := StartClarify(w.st.Items["c"])
 			for _, a := range c.path {
 				var err error
@@ -297,7 +297,7 @@ func TestClarifyRejectsBadAnswers(t *testing.T) {
 
 func TestClarifySteps(t *testing.T) {
 	w := newWorld(t)
-	env := NewEnv(w.st, "sven", today)
+	env := NewEnv(w.st, "robin", today)
 	cl := StartClarify(w.st.Items["c"])
 
 	s := cl.Step(env)
@@ -316,7 +316,7 @@ func TestClarifySteps(t *testing.T) {
 		projects = append(projects, o.Value+"="+o.Text+o.Label)
 	}
 	// Open projects only, by title, led by "new project".
-	if want := []string{"=option.new_project", "p1=BGP collector handles resets", "p2=Equinix API integrated"}; !slices.Equal(projects, want) {
+	if want := []string{"=option.new_project", "p1=BGP collector handles resets", "p2=Example API integrated"}; !slices.Equal(projects, want) {
 		t.Errorf("project options = %v", projects)
 	}
 	cl, _, _, _ = cl.Next(env, in("continue", "project", "p1"), w.newID)
@@ -339,7 +339,7 @@ func TestClarifySteps(t *testing.T) {
 	for _, o := range s.Fields[1].Options {
 		presets = append(presets, o.Label+"="+o.Value)
 	}
-	if want := []string{"errands", "calls", "computer", "home", "office", "anywhere", "boat", "agenda:Brent"}; !slices.Equal(contexts, want) {
+	if want := []string{"errands", "calls", "computer", "home", "office", "anywhere", "boat", "agenda:Lee"}; !slices.Equal(contexts, want) {
 		t.Errorf("contexts = %v", contexts)
 	}
 	// Today is Thursday 2026-11-19: next week starts Monday the 23rd.
@@ -353,12 +353,12 @@ func TestClarifySteps(t *testing.T) {
 }
 
 func TestProcessNote(t *testing.T) {
-	const body = "# Call with Brent\r\n\r\n- [ ] call Brent about Equinix API\r\n- [x] already done\n" +
+	const body = "# Call with Lee\r\n\r\n- [ ] call Lee about Example API\r\n- [x] already done\n" +
 		"  * [ ] order the cross-connect\n- [ ]   \n- [ ] write up the notes\n```\n- [ ] not a task, code\n```\nplain line\n- [[n9]]\n"
 	setup := func(t *testing.T) (*world, Env, Note) {
 		w := newWorld(t)
 		err := w.apply([]core.Op{{Via: "cli", Type: core.OpCreate, Payload: mustJSON(core.Item{
-			ID: "note", Kind: core.KindNote, Title: "Call with Brent", Body: body, Project: "p2"})}})
+			ID: "note", Kind: core.KindNote, Title: "Call with Lee", Body: body, Project: "p2"})}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -366,7 +366,7 @@ func TestProcessNote(t *testing.T) {
 		if !ok {
 			t.Fatal("no task lines found")
 		}
-		return w, NewEnv(w.st, "sven", today), n
+		return w, NewEnv(w.st, "robin", today), n
 	}
 
 	t.Run("task lines", func(t *testing.T) {
@@ -375,7 +375,7 @@ func TestProcessNote(t *testing.T) {
 		for _, l := range n.Lines {
 			got = append(got, fmt.Sprintf("%d|%s|%s", l.Line, l.Prefix, l.Text))
 		}
-		want := []string{"2|- |call Brent about Equinix API", "4|  * |order the cross-connect", "6|- |write up the notes"}
+		want := []string{"2|- |call Lee about Example API", "4|  * |order the cross-connect", "6|- |write up the notes"}
 		if !slices.Equal(got, want) {
 			t.Fatalf("lines = %q", got)
 		}
@@ -387,10 +387,10 @@ func TestProcessNote(t *testing.T) {
 	t.Run("create, skip, create", func(t *testing.T) {
 		w, env, n := setup(t)
 		s := n.Step(env)
-		if s.Fields[0].Value != "call Brent about Equinix API" || s.Fields[1].Value != "p2" || s.Data["total"] != 3 {
+		if s.Fields[0].Value != "call Lee about Example API" || s.Fields[1].Value != "p2" || s.Data["total"] != 3 {
 			t.Fatalf("first step: %+v", s)
 		}
-		n, _, _, err := n.Next(env, in("create", "action", "Call Brent about the Equinix API", "project", "p2", "context", "calls", "target", "2026-11-26"), w.newID)
+		n, _, _, err := n.Next(env, in("create", "action", "Call Lee about the Example API", "project", "p2", "context", "calls", "target", "2026-11-26"), w.newID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -407,15 +407,15 @@ func TestProcessNote(t *testing.T) {
 			t.Fatalf("ops rejected: %v", err)
 		}
 		a, b := w.st.Items["n1"], w.st.Items["n2"]
-		if a.Title != "Call Brent about the Equinix API" || a.Project != "p2" || a.Context != "calls" || a.Target != "2026-11-26" ||
-			a.State != core.StNext || a.Owner != "sven" || !slices.Equal(a.DerivedFrom, []string{"note"}) {
+		if a.Title != "Call Lee about the Example API" || a.Project != "p2" || a.Context != "calls" || a.Target != "2026-11-26" ||
+			a.State != core.StNext || a.Owner != "robin" || !slices.Equal(a.DerivedFrom, []string{"note"}) {
 			t.Errorf("first action: %+v", a)
 		}
 		// p1 has an area: the action inherits it.
 		if b.Project != "p1" || b.Area != "area" || b.DeferUntil != "2026-11-20" {
 			t.Errorf("second action: %+v", b)
 		}
-		want := strings.NewReplacer("- [ ] call Brent about Equinix API", "- [[n1]]", "- [ ] write up the notes", "- [[n2]]").Replace(body)
+		want := strings.NewReplacer("- [ ] call Lee about Example API", "- [[n1]]", "- [ ] write up the notes", "- [[n2]]").Replace(body)
 		if got := w.st.Items["note"].Body; got != want {
 			t.Errorf("note body:\n%q\nwant:\n%q", got, want)
 		}
@@ -427,7 +427,7 @@ func TestProcessNote(t *testing.T) {
 
 	t.Run("stop keeps what was confirmed", func(t *testing.T) {
 		w, env, n := setup(t)
-		n, _, _, _ = n.Next(env, in("create", "action", "Call Brent", "project", ""), w.newID)
+		n, _, _, _ = n.Next(env, in("create", "action", "Call Lee", "project", ""), w.newID)
 		_, ops, done, _ := n.Next(env, in("stop"), w.newID)
 		if !done || len(ops) != 2 {
 			t.Fatalf("done = %v, %d ops", done, len(ops))
@@ -435,7 +435,7 @@ func TestProcessNote(t *testing.T) {
 		if err := w.apply(ops); err != nil {
 			t.Fatal(err)
 		}
-		if it := w.st.Items["n1"]; it.Project != "" || it.Title != "Call Brent" {
+		if it := w.st.Items["n1"]; it.Project != "" || it.Title != "Call Lee" {
 			t.Errorf("action: %+v", it)
 		}
 	})
@@ -465,10 +465,10 @@ func TestProcessNote(t *testing.T) {
 
 func TestClarifyWithSimilarItems(t *testing.T) {
 	w := newWorld(t)
-	env := NewEnv(w.st, "sven", today)
+	env := NewEnv(w.st, "robin", today)
 	env.Similar = []Similar{
-		{ID: "p1", Space: "sven", Title: "BGP collector handles resets", Kind: core.KindProject, State: core.StActive, Score: 0.95, Duplicate: true},
-		{ID: "far", Space: "nis", Title: "In another space", Kind: core.KindNote, Score: 0.7},
+		{ID: "p1", Space: "robin", Title: "BGP collector handles resets", Kind: core.KindProject, State: core.StActive, Score: 0.95, Duplicate: true},
+		{ID: "far", Space: "net", Title: "In another space", Kind: core.KindNote, Score: 0.7},
 	}
 	env.SuggestProjects = []string{"p2", "gone", "p1"}
 	cl := StartClarify(w.st.Items["c"])
@@ -506,7 +506,7 @@ func TestClarifyWithSimilarItems(t *testing.T) {
 	// Suggested projects are offered on the project fields, in order, and only
 	// those that are real choices. Nothing is preselected by a suggestion.
 	w2 := newWorld(t)
-	env2 := NewEnv(w2.st, "sven", today)
+	env2 := NewEnv(w2.st, "robin", today)
 	env2.SuggestProjects = env.SuggestProjects
 	cl = StartClarify(w2.st.Items["c"])
 	cl, _, _, _ = cl.Next(env2, what, w2.newID)
@@ -516,7 +516,7 @@ func TestClarifyWithSimilarItems(t *testing.T) {
 		t.Errorf("suggestions = %+v, value %q", f.Suggest, f.Value)
 	}
 	// Without an index the wizard is unchanged.
-	if s := StartClarify(w2.st.Items["c"]).Step(NewEnv(w2.st, "sven", today)); len(s.Options) != 1 || s.Data["similar"] != nil {
+	if s := StartClarify(w2.st.Items["c"]).Step(NewEnv(w2.st, "robin", today)); len(s.Options) != 1 || s.Data["similar"] != nil {
 		t.Errorf("step without similarity: %+v", s)
 	}
 }

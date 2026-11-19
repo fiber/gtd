@@ -8,7 +8,7 @@ import (
 func TestTickle(t *testing.T) {
 	w := shared(t)
 	add := func(id, state, deferUntil string, blockedBy ...string) {
-		w.must(w.create("sven", Item{ID: id, Kind: KindAction, State: state, DeferUntil: deferUntil, BlockedBy: blockedBy, Owner: "sven"}))
+		w.must(w.create("robin", Item{ID: id, Kind: KindAction, State: state, DeferUntil: deferUntil, BlockedBy: blockedBy, Owner: "robin"}))
 	}
 	add("past", "", "2026-11-18")
 	add("today", "", "2026-11-19")
@@ -17,9 +17,9 @@ func TestTickle(t *testing.T) {
 	add("someday", StSomeday, "2026-11-01") // comes up in the Someday review instead
 	add("waiting", StWaiting, "2026-11-10")
 	add("finished", "", "2026-11-10")
-	w.must(w.move("sven", "finished", StDone))
-	w.must(w.create("sven", Item{ID: "note", Kind: KindNote, DeferUntil: "2026-11-19"}))
-	w.must(w.create("sven", Item{ID: "proj", Kind: KindProject, DeferUntil: "2026-11-01"}))
+	w.must(w.move("robin", "finished", StDone))
+	w.must(w.create("robin", Item{ID: "note", Kind: KindNote, DeferUntil: "2026-11-19"}))
+	w.must(w.create("robin", Item{ID: "proj", Kind: KindProject, DeferUntil: "2026-11-01"}))
 
 	ops := Tickle(w.st, "2026-11-19")
 	var got []string
@@ -57,7 +57,7 @@ func TestTickle(t *testing.T) {
 	}
 	add("blocker", "", "")
 	add("dep", "", "", "blocker")
-	w.must(w.move("sven", "blocker", StDone))
+	w.must(w.move("robin", "blocker", StDone))
 	if dep := w.st.Items["dep"]; !Unblocked(dep, "2026-11-16") || Resurfaced(dep, "2026-11-16") {
 		t.Error("an unblocked action should count as unblocked, not as resurfaced")
 	}

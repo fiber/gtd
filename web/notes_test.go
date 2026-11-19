@@ -9,18 +9,18 @@ import (
 // list, both limited to the user's spaces, and the in-app help.
 func TestNotesAndIdeas(t *testing.T) {
 	s := newSite(t)
-	sven, eric, grit := s.login("sven"), s.login("eric"), s.login("grit")
-	theme := sven.create("sven", map[string]any{"kind": "project", "title": "Gap fill trading", "state": "someday"})
-	active := sven.create("sven", map[string]any{"kind": "project", "title": "Collector survives resets"})
-	sven.create("sven", map[string]any{"kind": "note", "title": "Loose thought", "body": "# Heading\n\nSome **bold** idea about [[" + theme + "]] and `code`.\n- [ ] a task"})
-	sven.create("sven", map[string]any{"kind": "note", "title": "Backtest results", "state": "filed", "project": theme, "body": strings.Repeat("long text ", 60)})
-	sven.create("sven", map[string]any{"kind": "note", "title": "Second idea", "state": "filed", "project": theme})
-	sven.create("sven", map[string]any{"kind": "note", "title": "Reset design", "state": "filed", "project": active})
-	shared := sven.create("nis", map[string]any{"kind": "note", "title": "Shared NIS note"})
-	sven.create("sven", map[string]any{"kind": "action", "title": "Try options on earnings days", "state": "someday"})
-	sven.create("sven", map[string]any{"kind": "action", "title": "A real next action"})
-	grit.create("grit", map[string]any{"kind": "note", "title": "Grit's secret note"})
-	grit.create("grit", map[string]any{"kind": "project", "title": "Grit's secret theme", "state": "someday"})
+	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
+	theme := robin.create("robin", map[string]any{"kind": "project", "title": "Gap fill trading", "state": "someday"})
+	active := robin.create("robin", map[string]any{"kind": "project", "title": "Collector survives resets"})
+	robin.create("robin", map[string]any{"kind": "note", "title": "Loose thought", "body": "# Heading\n\nSome **bold** idea about [[" + theme + "]] and `code`.\n- [ ] a task"})
+	robin.create("robin", map[string]any{"kind": "note", "title": "Backtest results", "state": "filed", "project": theme, "body": strings.Repeat("long text ", 60)})
+	robin.create("robin", map[string]any{"kind": "note", "title": "Second idea", "state": "filed", "project": theme})
+	robin.create("robin", map[string]any{"kind": "note", "title": "Reset design", "state": "filed", "project": active})
+	shared := robin.create("net", map[string]any{"kind": "note", "title": "Shared NET note"})
+	robin.create("robin", map[string]any{"kind": "action", "title": "Try options on earnings days", "state": "someday"})
+	robin.create("robin", map[string]any{"kind": "action", "title": "A real next action"})
+	jo.create("jo", map[string]any{"kind": "note", "title": "Jo's secret note"})
+	jo.create("jo", map[string]any{"kind": "project", "title": "Jo's secret theme", "state": "someday"})
 
 	type notesRes struct {
 		Notes    []Brief
@@ -35,10 +35,10 @@ func TestNotesAndIdeas(t *testing.T) {
 		return strings.Join(out, " | ")
 	}
 	var n notesRes
-	sven.ok("GET", "/api/v1/notes", nil, &n)
-	// Newest first, across the personal and the shared space, nothing of Grit's.
-	if got := titles(n.Notes); got != "Shared NIS note | Reset design | Second idea | Backtest results | Loose thought" {
-		t.Errorf("sven's notes: %s", got)
+	robin.ok("GET", "/api/v1/notes", nil, &n)
+	// Newest first, across the personal and the shared space, nothing of Jo's.
+	if got := titles(n.Notes); got != "Shared NET note | Reset design | Second idea | Backtest results | Loose thought" {
+		t.Errorf("robin's notes: %s", got)
 	}
 	if n.Counts["unsorted"] != 2 || n.Counts["filed"] != 3 || len(n.Projects) != 2 {
 		t.Errorf("counts %v, %d projects", n.Counts, len(n.Projects))
@@ -51,7 +51,7 @@ func TestNotesAndIdeas(t *testing.T) {
 		t.Errorf("long excerpt: %q", e)
 	}
 	for query, want := range map[string]string{
-		"?state=unsorted":                   "Shared NIS note | Loose thought",
+		"?state=unsorted":                   "Shared NET note | Loose thought",
 		"?project=" + theme:                 "Second idea | Backtest results",
 		"?q=IDEA":                           "Second idea | Loose thought",
 		"?q=bold+idea":                      "Loose thought",
@@ -59,35 +59,35 @@ func TestNotesAndIdeas(t *testing.T) {
 		"?state=archived":                   "",
 		"?q=secret":                         "",
 	} {
-		sven.ok("GET", "/api/v1/notes"+query, nil, &n)
+		robin.ok("GET", "/api/v1/notes"+query, nil, &n)
 		if got := titles(n.Notes); got != want {
 			t.Errorf("notes%s: %q, want %q", query, got, want)
 		}
 	}
 	// The counts follow the other filters, not the state tab.
-	sven.ok("GET", "/api/v1/notes?state=unsorted&project="+theme, nil, &n)
+	robin.ok("GET", "/api/v1/notes?state=unsorted&project="+theme, nil, &n)
 	if len(n.Notes) != 0 || n.Counts["filed"] != 2 {
 		t.Errorf("counts under a project filter: %v", n.Counts)
 	}
-	// Eric shares only nis.
-	eric.ok("GET", "/api/v1/notes", nil, &n)
-	if got := titles(n.Notes); got != "Shared NIS note" || len(n.Projects) != 0 {
-		t.Errorf("eric's notes: %s, projects %v", got, n.Projects)
+	// Dana shares only net.
+	dana.ok("GET", "/api/v1/notes", nil, &n)
+	if got := titles(n.Notes); got != "Shared NET note" || len(n.Projects) != 0 {
+		t.Errorf("dana's notes: %s, projects %v", got, n.Projects)
 	}
 	_ = shared
 
 	var ideas struct{ Themes, Actions []Brief }
-	sven.ok("GET", "/api/v1/ideas", nil, &ideas)
+	robin.ok("GET", "/api/v1/ideas", nil, &ideas)
 	if titles(ideas.Themes) != "Gap fill trading" || ideas.Themes[0].Notes != 2 || titles(ideas.Actions) != "Try options on earnings days" {
 		t.Errorf("ideas: themes %s (%d notes), actions %s", titles(ideas.Themes), ideas.Themes[0].Notes, titles(ideas.Actions))
 	}
-	eric.ok("GET", "/api/v1/ideas", nil, &ideas)
+	dana.ok("GET", "/api/v1/ideas", nil, &ideas)
 	if len(ideas.Themes)+len(ideas.Actions) != 0 {
-		t.Errorf("eric sees ideas: %+v", ideas)
+		t.Errorf("dana sees ideas: %+v", ideas)
 	}
 
 	var help struct{ HTML string }
-	sven.ok("GET", "/api/v1/help", nil, &help)
+	robin.ok("GET", "/api/v1/help", nil, &help)
 	if !strings.Contains(help.HTML, "<h1>Using gtd</h1>") || !strings.Contains(help.HTML, "<table>") {
 		t.Errorf("help does not render the tutorial: %.200s", help.HTML)
 	}

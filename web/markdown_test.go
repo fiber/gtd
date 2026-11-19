@@ -10,7 +10,7 @@ const sha = "a02a057e737c31e8442a34db35f889a5013733b5e1adf7769bbc878ff36e0c3a"
 var testTokens = tokens{
 	link: func(id string) (string, string, bool) {
 		if id == "01ITEM" {
-			return `Call <Brent> & "Co"`, "next", true
+			return `Call <Lee> & "Co"`, "next", true
 		}
 		return "", "", false
 	},
@@ -25,7 +25,7 @@ var testTokens = tokens{
 		}
 		return "", "", false
 	},
-	user:        func(id string) (string, bool) { return "Eric <E>", id == "eric" },
+	user:        func(id string) (string, bool) { return "Dana <E>", id == "dana" },
 	unavailable: "unavailable item",
 }
 
@@ -52,7 +52,7 @@ func TestRenderMarkdown(t *testing.T) {
 		{"external image becomes a link", "![alt](https://example.org/i.png)", `<p><a href="https://example.org/i.png" target="_blank" rel="noopener noreferrer">alt</a></p>` + "\n"},
 		{"raw html is dropped", "<b>x</b> y", "<p><!-- raw HTML omitted -->x<!-- raw HTML omitted --> y</p>\n"},
 
-		{"item link", "see [[01ITEM]]", `<p>see <a class="chip link" data-state="next" href="i/01ITEM">Call &lt;Brent&gt; &amp; &#34;Co&#34;</a></p>` + "\n"},
+		{"item link", "see [[01ITEM]]", `<p>see <a class="chip link" data-state="next" href="i/01ITEM">Call &lt;Lee&gt; &amp; &#34;Co&#34;</a></p>` + "\n"},
 		{"item link with label", "[[01ITEM|the call]]", `<p><a class="chip link" data-state="next" href="i/01ITEM">the call</a></p>` + "\n"},
 		{"unavailable item", "[[01NOPE]]", `<p><span class="chip unavailable">unavailable item</span></p>` + "\n"},
 		{"plain brackets stay text", "[[Some Title]]", "<p>[[Some Title]]</p>\n"},
@@ -60,7 +60,7 @@ func TestRenderMarkdown(t *testing.T) {
 		{"file chip", "[[att:" + b64 + "]]", `<p><a class="chip file" href="api/v1/att/` + b64 + `" download="report.pdf">report.pdf</a></p>` + "\n"},
 		{"heic has no preview", "![[att:" + strings.Repeat("c", 64) + "]]", `<p><a class="chip file" href="api/v1/att/` + strings.Repeat("c", 64) + `" download="photo.heic">photo.heic</a></p>` + "\n"},
 		{"attachment of another item", "![[att:" + strings.Repeat("d", 64) + "]]", `<p><span class="chip unavailable">unavailable item</span></p>` + "\n"},
-		{"mention", "ask @[user:eric] and @[user:nobody] and @foo", `<p>ask <span class="chip mention">Eric &lt;E&gt;</span> and @[user:nobody] and @foo</p>` + "\n"},
+		{"mention", "ask @[user:dana] and @[user:nobody] and @foo", `<p>ask <span class="chip mention">Dana &lt;E&gt;</span> and @[user:nobody] and @foo</p>` + "\n"},
 		{"tokens in a heading and a task", "# [[01ITEM|x]]\n- [ ] [[01ITEM|y]]",
 			`<h1><a class="chip link" data-state="next" href="i/01ITEM">x</a></h1>` + "\n<ul>\n" +
 				`<li><input disabled="" type="checkbox"> <a class="chip link" data-state="next" href="i/01ITEM">y</a></li>` + "\n</ul>\n"},
@@ -100,7 +100,7 @@ func TestMarkdownIsSafe(t *testing.T) {
 		`[[01ITEM|" onmouseover="alert(1)]]`,
 		`**<script>alert(1)</script>**`,
 		`*<img src=x onerror=alert(1)>*`,
-		`@[user:eric]<script>`,
+		`@[user:dana]<script>`,
 		`&lt;script&gt; &#60;script&#62; <!-- --> <![CDATA[x]]>`,
 	}
 	allowed := map[string]bool{"p": true, "h1": true, "ul": true, "ol": true, "li": true, "table": true, "thead": true, "tbody": true,

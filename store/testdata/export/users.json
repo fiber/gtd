@@ -1,20 +1,20 @@
 [
   {
     "v": 1,
-    "id": "eric",
-    "name": "Eric",
-    "personal_space": "eric"
+    "id": "dana",
+    "name": "Dana",
+    "personal_space": "dana"
   },
   {
     "v": 1,
-    "id": "grit",
-    "name": "Grit",
-    "personal_space": "grit"
+    "id": "jo",
+    "name": "Jo",
+    "personal_space": "jo"
   },
   {
     "v": 1,
-    "id": "sven",
-    "name": "Sven",
+    "id": "robin",
+    "name": "Robin",
     "lang": "de",
     "admin": true,
     "ssh_keys": [
@@ -24,6 +24,6 @@
       "boat"
     ],
     "review_weekday": 5,
-    "personal_space": "sven"
+    "personal_space": "robin"
   }
 ]

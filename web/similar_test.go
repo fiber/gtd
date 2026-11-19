@@ -48,28 +48,28 @@ func (wordEmbedder) Embed(_ context.Context, texts []string, _ embed.Task) ([][]
 // (M4 acceptance: no similarity result from a non-member space).
 func TestSimilarityOverHTTP(t *testing.T) {
 	s := newSite(t)
-	sven, eric, grit := s.login("sven"), s.login("eric"), s.login("grit")
+	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
 
 	// Without an embedder everything answers, and says that similarity is off.
 	var res SearchResult
-	sven.ok("GET", "/api/v1/search?q=collector", nil, &res)
+	robin.ok("GET", "/api/v1/search?q=collector", nil, &res)
 	if res.Semantic != embed.StateOff || len(res.Hits) != 0 {
 		t.Fatalf("search without embeddings: %+v", res)
 	}
 	var status embed.Status
-	sven.ok("GET", "/api/v1/ai/status", nil, &status)
+	robin.ok("GET", "/api/v1/ai/status", nil, &status)
 	if status.State != embed.StateOff {
 		t.Fatalf("status = %+v", status)
 	}
 
-	project := sven.create("sven", map[string]any{"kind": "project", "title": "BGP collector survives session resets"})
-	sven.create("sven", map[string]any{"kind": "action", "title": "Ask about reset semantics of the BGP collector", "project": project})
-	loose := sven.create("sven", map[string]any{"kind": "note", "title": "The collector loses BGP session state on every reset"})
-	sven.create("sven", map[string]any{"kind": "note", "title": "Apple cake recipe"})
-	shared := sven.create("nis", map[string]any{"kind": "note", "title": "BGP collector reset design in NIS"})
-	grit.create("grit", map[string]any{"kind": "note", "title": "BGP collector reset, Grit's secret note"})
+	project := robin.create("robin", map[string]any{"kind": "project", "title": "BGP collector survives session resets"})
+	robin.create("robin", map[string]any{"kind": "action", "title": "Ask about reset semantics of the BGP collector", "project": project})
+	loose := robin.create("robin", map[string]any{"kind": "note", "title": "The collector loses BGP session state on every reset"})
+	robin.create("robin", map[string]any{"kind": "note", "title": "Apple cake recipe"})
+	shared := robin.create("net", map[string]any{"kind": "note", "title": "BGP collector reset design in NET"})
+	jo.create("jo", map[string]any{"kind": "note", "title": "BGP collector reset, Jo's secret note"})
 	var cap struct{ ID string }
-	sven.ok("POST", "/api/v1/capture", map[string]any{"text": "the bgp collector loses session state on reset"}, &cap)
+	robin.ok("POST", "/api/v1/capture", map[string]any{"text": "the bgp collector loses session state on reset"}, &cap)
 
 	svc := embed.New(s.st, wordEmbedder{})
 	svc.SuggestThreshold = 0.3
@@ -94,44 +94,44 @@ func TestSimilarityOverHTTP(t *testing.T) {
 		return strings.Join(out, " | ")
 	}
 	// Search by meaning: "router" is in no title, the neighbours of the words are.
-	sven.ok("GET", "/api/v1/search?q=session+state+lost", nil, &res)
-	if res.Semantic != embed.StateOK || !strings.Contains(titles(res.Hits), "loses BGP session state") || strings.Contains(titles(res.Hits), "Grit") {
-		t.Errorf("sven's search: %s (%s)", titles(res.Hits), res.Semantic)
+	robin.ok("GET", "/api/v1/search?q=session+state+lost", nil, &res)
+	if res.Semantic != embed.StateOK || !strings.Contains(titles(res.Hits), "loses BGP session state") || strings.Contains(titles(res.Hits), "Jo") {
+		t.Errorf("robin's search: %s (%s)", titles(res.Hits), res.Semantic)
 	}
 	for _, h := range res.Hits {
 		if !h.Similar && !strings.Contains(strings.ToLower(h.Title), "session") {
 			t.Errorf("hit %q is neither exact nor marked similar", h.Title)
 		}
 	}
-	// Eric shares nis with sven, nothing else. Grit shares nothing.
-	eric.ok("GET", "/api/v1/search?q=bgp+collector+reset", nil, &res)
-	if got := titles(res.Hits); got != "BGP collector reset design in NIS" {
-		t.Errorf("eric's search: %s", got)
+	// Dana shares net with robin, nothing else. Jo shares nothing.
+	dana.ok("GET", "/api/v1/search?q=bgp+collector+reset", nil, &res)
+	if got := titles(res.Hits); got != "BGP collector reset design in NET" {
+		t.Errorf("dana's search: %s", got)
 	}
-	grit.ok("GET", "/api/v1/search?q=bgp+collector+reset", nil, &res)
-	if got := titles(res.Hits); got != "BGP collector reset, Grit's secret note" {
-		t.Errorf("grit's search: %s", got)
+	jo.ok("GET", "/api/v1/search?q=bgp+collector+reset", nil, &res)
+	if got := titles(res.Hits); got != "BGP collector reset, Jo's secret note" {
+		t.Errorf("jo's search: %s", got)
 	}
 
 	// Related items on an item's page.
 	var iv ItemView
-	sven.ok("GET", "/api/v1/items/"+shared, nil, &iv)
+	robin.ok("GET", "/api/v1/items/"+shared, nil, &iv)
 	if iv.RelatedState != embed.StateOK || len(iv.Related) == 0 {
 		t.Fatalf("related: %+v (%s)", iv.Related, iv.RelatedState)
 	}
 	for _, r := range iv.Related {
-		if strings.Contains(r.Title, "Grit") || r.Kind == core.KindCapture {
+		if strings.Contains(r.Title, "Jo") || r.Kind == core.KindCapture {
 			t.Errorf("related shows %q", r.Title)
 		}
 	}
-	eric.ok("GET", "/api/v1/items/"+shared, nil, &iv)
+	dana.ok("GET", "/api/v1/items/"+shared, nil, &iv)
 	if len(iv.Related) != 0 {
-		t.Errorf("eric sees related items from sven's personal space: %+v", iv.Related)
+		t.Errorf("dana sees related items from robin's personal space: %+v", iv.Related)
 	}
 
 	// "Might belong here": the loose note, not the cake, not the filed action.
 	var pl Plan
-	sven.ok("GET", "/api/v1/plan/"+project, nil, &pl)
+	robin.ok("GET", "/api/v1/plan/"+project, nil, &pl)
 	if len(pl.Suggested) != 1 || pl.Suggested[0].ID != loose {
 		t.Errorf("suggested = %+v", pl.Suggested)
 	}
@@ -150,7 +150,7 @@ func TestSimilarityOverHTTP(t *testing.T) {
 			}
 		}
 	}
-	sven.ok("POST", "/api/v1/wizard/clarify/start", map[string]string{"item": cap.ID}, &w)
+	robin.ok("POST", "/api/v1/wizard/clarify/start", map[string]string{"item": cap.ID}, &w)
 	if len(w.Step.Data.Similar) == 0 || len(w.Step.Data.Similar) > 3 {
 		t.Fatalf("clarify shows %d similar items", len(w.Step.Data.Similar))
 	}
@@ -172,21 +172,21 @@ func TestSimilarityOverHTTP(t *testing.T) {
 		Done bool
 		Ops  []core.Op
 	}
-	sven.ok("POST", "/api/v1/wizard/clarify/"+w.Session+"/step", map[string]any{"choice": dup}, &done)
+	robin.ok("POST", "/api/v1/wizard/clarify/"+w.Session+"/step", map[string]any{"choice": dup}, &done)
 	if !done.Done || len(done.Ops) != 2 {
 		t.Fatalf("duplicate: %+v", done)
 	}
-	sven.ok("GET", "/api/v1/items/"+loose, nil, &iv)
+	robin.ok("GET", "/api/v1/items/"+loose, nil, &iv)
 	if iv.Comments != 1 {
 		t.Errorf("the capture's text was not appended to the item: %d comments", iv.Comments)
 	}
-	sven.ok("GET", "/api/v1/items/"+cap.ID, nil, &iv)
+	robin.ok("GET", "/api/v1/items/"+cap.ID, nil, &iv)
 	if iv.State != core.StTrashed || iv.Original != "the bgp collector loses session state on reset" {
 		t.Errorf("capture after duplicate: %s, original %q", iv.State, iv.Original)
 	}
 
 	// Reindex is an admin command: not with a web session.
-	if code, _ := sven.do("POST", "/api/v1/admin/reindex", nil, nil); code != 403 {
+	if code, _ := robin.do("POST", "/api/v1/admin/reindex", nil, nil); code != 403 {
 		t.Errorf("reindex with a web session: %d", code)
 	}
 }

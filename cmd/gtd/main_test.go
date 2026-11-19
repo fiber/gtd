@@ -92,7 +92,7 @@ func (e *env) cmd(user string, args ...string) *exec.Cmd {
 	cmd := exec.Command(gtdBin, append([]string{"-data", e.data, "-user", user}, args...)...)
 	sock := e.agents[user]
 	if sock == "" {
-		sock = e.agents["sven"] // users without a key of their own try sven's agent
+		sock = e.agents["robin"] // users without a key of their own try robin's agent
 	}
 	cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK="+sock)
 	return cmd
@@ -125,7 +125,7 @@ func (e *env) fail(user string, args ...string) string {
 // serve starts the daemon and returns a function that stops it with SIGTERM.
 func (e *env) serve() (stop func()) {
 	e.t.Helper()
-	cmd := e.cmd("sven", "serve")
+	cmd := e.cmd("robin", "serve")
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := cmd.Start(); err != nil {
@@ -195,26 +195,26 @@ func sameTree(t *testing.T, what, a, b string) {
 	}
 }
 
-// setup bootstraps sven (admin), eric and grit, the shared space nis, and a
+// setup bootstraps robin (admin), dana and jo, the shared space net, and a
 // few captures, all by direct database access.
 func setup(t *testing.T) *env {
-	e := newEnv(t, "sven", "eric", "grit")
-	if msg := e.fail("sven", "grep", "x"); !strings.Contains(msg, "no database") {
+	e := newEnv(t, "robin", "dana", "jo")
+	if msg := e.fail("robin", "grep", "x"); !strings.Contains(msg, "no database") {
 		t.Fatalf("grep without a database: %s", msg)
 	}
-	if msg := e.fail("sven", "user", "add", "sven"); !strings.Contains(msg, "no database") {
+	if msg := e.fail("robin", "user", "add", "robin"); !strings.Contains(msg, "no database") {
 		t.Fatalf("non-admin bootstrap: %s", msg)
 	}
-	e.run("sven", "user", "add", "-admin", "-name", "Sven", "-ssh-key", e.pubs["sven"], "sven")
-	e.run("sven", "user", "add", "-ssh-key", e.pubs["eric"], "eric")
-	e.run("sven", "user", "add", "grit")
-	e.run("sven", "user", "key-add", "grit", e.pubs["grit"])
-	e.run("sven", "space", "create", "-name", "NIS", "nis", "sven", "eric")
-	e.run("sven", "add", "bgp collector reset thing ask eric")
+	e.run("robin", "user", "add", "-admin", "-name", "Robin", "-ssh-key", e.pubs["robin"], "robin")
+	e.run("robin", "user", "add", "-ssh-key", e.pubs["dana"], "dana")
+	e.run("robin", "user", "add", "jo")
+	e.run("robin", "user", "key-add", "jo", e.pubs["jo"])
+	e.run("robin", "space", "create", "-name", "NET", "net", "robin", "dana")
+	e.run("robin", "add", "bgp collector reset thing ask dana")
 	att := filepath.Join(filepath.Dir(e.data), "whiteboard.png")
 	os.WriteFile(att, []byte("\x89PNG not really"), 0o644)
-	e.run("sven", "add", "-file", att, "design session whiteboard")
-	e.run("eric", "add", "eric's private capture about the collector")
+	e.run("robin", "add", "-file", att, "design session whiteboard")
+	e.run("dana", "add", "dana's private capture about the collector")
 	return e
 }
 
@@ -225,52 +225,52 @@ func TestExportWithAndWithoutDaemon(t *testing.T) {
 	out := filepath.Dir(e.data)
 	direct, viaDaemon := filepath.Join(out, "direct"), filepath.Join(out, "daemon")
 
-	msgDirect := e.run("sven", "export", direct)
-	grepDirect := e.run("sven", "grep", "collector")
-	opsDirect := e.run("sven", "ops", "tail")
+	msgDirect := e.run("robin", "export", direct)
+	grepDirect := e.run("robin", "grep", "collector")
+	opsDirect := e.run("robin", "ops", "tail")
 	partialDirect := filepath.Join(out, "pd")
-	e.run("eric", "export", "-space", "eric", partialDirect)
+	e.run("dana", "export", "-space", "dana", partialDirect)
 
 	stop := e.serve()
-	msgDaemon := e.run("sven", "export", viaDaemon)
+	msgDaemon := e.run("robin", "export", viaDaemon)
 	sameTree(t, "export direct vs daemon", direct, viaDaemon)
 	if a, b := strings.Replace(msgDirect, direct, "", 1), strings.Replace(msgDaemon, viaDaemon, "", 1); a != b {
 		t.Errorf("export message differs:\n%s%s", a, b)
 	}
-	if got := e.run("sven", "grep", "collector"); got != grepDirect || !strings.Contains(got, "bgp collector reset thing ask eric") {
+	if got := e.run("robin", "grep", "collector"); got != grepDirect || !strings.Contains(got, "bgp collector reset thing ask dana") {
 		t.Errorf("grep differs:\ndirect: %s\ndaemon: %s", grepDirect, got)
 	}
-	if strings.Contains(grepDirect, "eric's private") {
-		t.Errorf("sven's grep shows eric's capture:\n%s", grepDirect)
+	if strings.Contains(grepDirect, "dana's private") {
+		t.Errorf("robin's grep shows dana's capture:\n%s", grepDirect)
 	}
-	if got := e.run("sven", "ops", "tail"); got != opsDirect || strings.Count(got, "\n") != 2 {
+	if got := e.run("robin", "ops", "tail"); got != opsDirect || strings.Count(got, "\n") != 2 {
 		t.Errorf("ops tail differs:\ndirect: %s\ndaemon: %s", opsDirect, got)
 	}
 	partialDaemon := filepath.Join(out, "pm")
-	e.run("eric", "export", "-space", "eric", partialDaemon)
+	e.run("dana", "export", "-space", "dana", partialDaemon)
 	sameTree(t, "partial export direct vs daemon", partialDirect, partialDaemon)
 
 	// Writes through the daemon, then both modes again on the new state.
-	id := strings.TrimSpace(e.run("sven", "add", "captured through the socket"))
+	id := strings.TrimSpace(e.run("robin", "add", "captured through the socket"))
 	if len(id) != 26 {
 		t.Fatalf("add printed %q", id)
 	}
 	daemon2, direct2 := filepath.Join(out, "daemon2"), filepath.Join(out, "direct2")
-	e.run("sven", "export", daemon2)
-	if _, ok := tree(t, daemon2)["spaces/sven/items/"+id+".md"]; !ok {
+	e.run("robin", "export", daemon2)
+	if _, ok := tree(t, daemon2)["spaces/robin/items/"+id+".md"]; !ok {
 		t.Errorf("export lacks the capture made through the daemon")
 	}
 	stop()
-	e.run("sven", "export", direct2)
+	e.run("robin", "export", direct2)
 	sameTree(t, "export daemon vs direct after more writes", daemon2, direct2)
 
 	// An export restores into an empty data directory and exports identically.
 	e2 := &env{t: t, data: filepath.Join(out, "restored"), agents: e.agents, pubs: e.pubs}
-	e2.run("sven", "import", "-restore", direct2)
+	e2.run("robin", "import", "-restore", direct2)
 	again := filepath.Join(out, "again")
-	e2.run("sven", "export", again)
+	e2.run("robin", "export", again)
 	sameTree(t, "export after import -restore", direct2, again)
-	if msg := e2.fail("sven", "import", "-restore", direct2); !strings.Contains(msg, "already holds a database") {
+	if msg := e2.fail("robin", "import", "-restore", direct2); !strings.Contains(msg, "already holds a database") {
 		t.Errorf("second restore: %s", msg)
 	}
 }
@@ -282,9 +282,9 @@ func TestDaemonAuth(t *testing.T) {
 	e.serve()
 
 	// Admin over the socket.
-	e.run("sven", "space", "add-member", "nis", "grit")
-	e.run("sven", "space", "rm-member", "nis", "grit")
-	e.run("sven", "user", "add", "kid")
+	e.run("robin", "space", "add-member", "net", "jo")
+	e.run("robin", "space", "rm-member", "net", "jo")
+	e.run("robin", "user", "add", "kid")
 
 	for _, c := range []struct {
 		name string
@@ -292,14 +292,14 @@ func TestDaemonAuth(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"user add by a non-admin", "eric", []string{"user", "add", "mallory"}, "needs an admin"},
-		{"space create by a non-admin", "eric", []string{"space", "create", "x", "eric"}, "needs an admin"},
-		{"snapshot by a non-admin", "eric", []string{"snapshot", "create"}, "needs an admin"},
-		{"full export by a non-admin", "eric", []string{"export", filepath.Join(filepath.Dir(e.data), "x")}, "needs an admin"},
-		{"ops of a space as a non-member", "grit", []string{"ops", "tail", "-space", "nis"}, `not found: space "nis"`},
-		{"ops of a missing space", "grit", []string{"ops", "tail", "-space", "nope"}, `not found: space "nope"`},
-		{"export of a space as a non-member", "grit", []string{"export", "-space", "nis", filepath.Join(filepath.Dir(e.data), "y")}, `not found: space "nis"`},
-		{"ops of someone's personal space", "eric", []string{"ops", "tail", "-space", "sven"}, `not found: space "sven"`},
+		{"user add by a non-admin", "dana", []string{"user", "add", "mallory"}, "needs an admin"},
+		{"space create by a non-admin", "dana", []string{"space", "create", "x", "dana"}, "needs an admin"},
+		{"snapshot by a non-admin", "dana", []string{"snapshot", "create"}, "needs an admin"},
+		{"full export by a non-admin", "dana", []string{"export", filepath.Join(filepath.Dir(e.data), "x")}, "needs an admin"},
+		{"ops of a space as a non-member", "jo", []string{"ops", "tail", "-space", "net"}, `not found: space "net"`},
+		{"ops of a missing space", "jo", []string{"ops", "tail", "-space", "nope"}, `not found: space "nope"`},
+		{"export of a space as a non-member", "jo", []string{"export", "-space", "net", filepath.Join(filepath.Dir(e.data), "y")}, `not found: space "net"`},
+		{"ops of someone's personal space", "dana", []string{"ops", "tail", "-space", "robin"}, `not found: space "robin"`},
 		{"unknown user", "mallory", []string{"grep", "x"}, "authentication failed"},
 		{"user without a registered key", "kid", []string{"grep", "x"}, "authentication failed"},
 	} {
@@ -310,15 +310,15 @@ func TestDaemonAuth(t *testing.T) {
 		})
 	}
 	t.Run("another user's key", func(t *testing.T) {
-		cmd := e.cmd("sven", "grep", "collector")
-		cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK="+e.agents["eric"])
+		cmd := e.cmd("robin", "grep", "collector")
+		cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK="+e.agents["dana"])
 		out, err := cmd.CombinedOutput()
 		if err == nil || !strings.Contains(string(out), "authentication failed") {
-			t.Errorf("sven with eric's key: %v %s", err, out)
+			t.Errorf("robin with dana's key: %v %s", err, out)
 		}
 	})
 	t.Run("no agent", func(t *testing.T) {
-		cmd := e.cmd("sven", "grep", "collector")
+		cmd := e.cmd("robin", "grep", "collector")
 		cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK=")
 		out, err := cmd.CombinedOutput()
 		if err == nil || !strings.Contains(string(out), "SSH_AUTH_SOCK is not set") {
@@ -326,23 +326,23 @@ func TestDaemonAuth(t *testing.T) {
 		}
 	})
 	t.Run("named key", func(t *testing.T) {
-		if out := e.run("sven", "-key", e.pubs["sven"], "grep", "whiteboard"); !strings.Contains(out, "design session whiteboard") {
+		if out := e.run("robin", "-key", e.pubs["robin"], "grep", "whiteboard"); !strings.Contains(out, "design session whiteboard") {
 			t.Errorf("grep = %q", out)
 		}
-		if msg := e.fail("sven", "-key", e.pubs["eric"], "grep", "x"); !strings.Contains(msg, "does not hold the key") {
+		if msg := e.fail("robin", "-key", e.pubs["dana"], "grep", "x"); !strings.Contains(msg, "does not hold the key") {
 			t.Errorf("stderr = %q", msg)
 		}
 	})
 	t.Run("a removed key stops working", func(t *testing.T) {
-		e.run("eric", "grep", "collector")
-		e.run("sven", "user", "key-rm", "eric", e.pubs["eric"])
-		if msg := e.fail("eric", "grep", "collector"); !strings.Contains(msg, "authentication failed") {
+		e.run("dana", "grep", "collector")
+		e.run("robin", "user", "key-rm", "dana", e.pubs["dana"])
+		if msg := e.fail("dana", "grep", "collector"); !strings.Contains(msg, "authentication failed") {
 			t.Errorf("stderr = %q", msg)
 		}
 	})
 	t.Run("member sees the shared space, others do not", func(t *testing.T) {
-		if out := e.run("sven", "ops", "tail", "-space", "nis"); out != "" {
-			t.Errorf("nis has ops: %q", out)
+		if out := e.run("robin", "ops", "tail", "-space", "net"); out != "" {
+			t.Errorf("net has ops: %q", out)
 		}
 	})
 	if info, err := os.Stat(socketPath(e.data)); err != nil || info.Mode().Perm() != 0o660 {
@@ -358,22 +358,22 @@ func TestSnapshotCommands(t *testing.T) {
 	e := setup(t)
 	out := filepath.Dir(e.data)
 	stop := e.serve()
-	name := strings.TrimSpace(e.run("sven", "snapshot", "create", "-label", "nightly"))
+	name := strings.TrimSpace(e.run("robin", "snapshot", "create", "-label", "nightly"))
 	if !strings.HasSuffix(name, "-nightly") {
 		t.Fatalf("snapshot name %q", name)
 	}
 	atSnapshot := filepath.Join(out, "at")
-	e.run("sven", "export", atSnapshot)
-	e.run("sven", "add", "after the snapshot")
+	e.run("robin", "export", atSnapshot)
+	e.run("robin", "add", "after the snapshot")
 
-	if list := e.run("sven", "snapshot", "list"); !strings.Contains(list, name) || !strings.Contains(list, "1 blobs") {
+	if list := e.run("robin", "snapshot", "list"); !strings.Contains(list, name) || !strings.Contains(list, "1 blobs") {
 		t.Errorf("list = %q", list)
 	}
-	if got := e.run("sven", "snapshot", "verify"); got != name+" ok\n" {
+	if got := e.run("robin", "snapshot", "verify"); got != name+" ok\n" {
 		t.Errorf("verify = %q", got)
 	}
 	fromSnapshot := filepath.Join(out, "from")
-	e.run("sven", "export", "-from", name, fromSnapshot)
+	e.run("robin", "export", "-from", name, fromSnapshot)
 	sameTree(t, "export -from snapshot vs export at snapshot time", atSnapshot, fromSnapshot)
 
 	// Corrupt the one blob: flip a bit.
@@ -389,37 +389,37 @@ func TestSnapshotCommands(t *testing.T) {
 	bad[3] ^= 0x10
 	os.Chmod(blob, 0o600)
 	os.WriteFile(blob, bad, 0o600)
-	msg := e.fail("sven", "snapshot", "verify", name)
+	msg := e.fail("robin", "snapshot", "verify", name)
 	if !strings.Contains(msg, "blob "+filepath.Base(blob)+" is corrupt") {
 		t.Errorf("verify of a corrupted blob: %q", msg)
 	}
 	t.Logf("gtd snapshot verify: %s", strings.TrimSpace(msg))
 	os.WriteFile(blob, orig, 0o600)
 
-	if msg := e.fail("sven", "restore", name); !strings.Contains(msg, "stop the daemon") {
+	if msg := e.fail("robin", "restore", name); !strings.Contains(msg, "stop the daemon") {
 		t.Errorf("restore with a running daemon: %q", msg)
 	}
 	stop()
-	if got := e.run("sven", "restore", name); !strings.Contains(got, "previous database is kept at") {
+	if got := e.run("robin", "restore", name); !strings.Contains(got, "previous database is kept at") {
 		t.Errorf("restore = %q", got)
 	}
 	afterRestore := filepath.Join(out, "after")
-	e.run("sven", "export", afterRestore)
+	e.run("robin", "export", afterRestore)
 	sameTree(t, "export after restore vs export at snapshot time", atSnapshot, afterRestore)
 
-	if msg := e.fail("sven", "snapshot", "prune"); !strings.Contains(msg, "no retention configured") {
+	if msg := e.fail("robin", "snapshot", "prune"); !strings.Contains(msg, "no retention configured") {
 		t.Errorf("prune without config: %q", msg)
 	}
-	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("server: {name: home, listen: \"off\"}\nsnapshots: {schedule: hourly, keep: {hourly: 1}}\nembed: {provider: norad}\n"), 0o644)
-	second := strings.TrimSpace(e.run("sven", "snapshot", "create"))
-	if got := e.run("sven", "snapshot", "prune"); got != "deleted "+name+"\n" {
+	os.WriteFile(filepath.Join(e.data, "config.yaml"), []byte("server: {name: home, listen: \"off\"}\nsnapshots: {schedule: hourly, keep: {hourly: 1}}\nembed: {provider: other}\n"), 0o644)
+	second := strings.TrimSpace(e.run("robin", "snapshot", "create"))
+	if got := e.run("robin", "snapshot", "prune"); got != "deleted "+name+"\n" {
 		t.Errorf("prune = %q", got)
 	}
 	// Without an embedding provider, reindex says what it needs.
-	if msg := e.fail("sven", "reindex"); !strings.Contains(msg, "embed.provider") {
+	if msg := e.fail("robin", "reindex"); !strings.Contains(msg, "embed.provider") {
 		t.Errorf("reindex without embeddings: %q", msg)
 	}
-	if list := e.run("sven", "snapshot", "list"); strings.Contains(list, name) || !strings.Contains(list, second) {
+	if list := e.run("robin", "snapshot", "list"); strings.Contains(list, name) || !strings.Contains(list, second) {
 		t.Errorf("list after prune = %q", list)
 	}
 }
@@ -455,7 +455,7 @@ func TestScheduledSnapshot(t *testing.T) {
 }
 
 func TestUsageErrors(t *testing.T) {
-	e := newEnv(t, "sven")
+	e := newEnv(t, "robin")
 	for _, c := range []struct {
 		args []string
 		want string
@@ -467,7 +467,7 @@ func TestUsageErrors(t *testing.T) {
 		{[]string{"restore", "nope"}, "snapshot nope"},
 		{[]string{"reindex"}, "no database"},
 	} {
-		if msg := e.fail("sven", c.args...); !strings.Contains(msg, c.want) {
+		if msg := e.fail("robin", c.args...); !strings.Contains(msg, c.want) {
 			t.Errorf("gtd %v: %q, want %q", c.args, msg, c.want)
 		}
 	}

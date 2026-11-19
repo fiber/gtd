@@ -60,7 +60,7 @@ func (f *fake) Embed(_ context.Context, texts []string, _ Task) ([][]float32, er
 	return out, nil
 }
 
-// site is a store with sven and eric in the shared space nis, and grit alone.
+// site is a store with robin and dana in the shared space net, and jo alone.
 type site struct {
 	t   *testing.T
 	st  *store.Store
@@ -74,12 +74,12 @@ func newSite(t *testing.T) *site {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	for _, u := range []string{"sven", "eric", "grit"} {
+	for _, u := range []string{"robin", "dana", "jo"} {
 		if err := st.AddUser(core.User{ID: u}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := st.CreateSpace("nis", "NIS", []string{"sven", "eric"}); err != nil {
+	if err := st.CreateSpace("net", "NET", []string{"robin", "dana"}); err != nil {
 		t.Fatal(err)
 	}
 	return &site{t: t, st: st, emb: newFake()}
@@ -146,16 +146,16 @@ func (s *site) titles(v *store.View, hits []Hit) []string {
 func TestTextAndChunks(t *testing.T) {
 	sha := strings.Repeat("a", 64)
 	it := &core.Item{Title: "Call notes", Kind: core.KindNote,
-		Body:        "# Heading\n\n- [ ] **call** [[01ABC]] about `ports`\n> see ![[att:" + sha + "]] and @[user:eric] and [[01XYZ|the plan]]\n",
+		Body:        "# Heading\n\n- [ ] **call** [[01ABC]] about `ports`\n> see ![[att:" + sha + "]] and @[user:dana] and [[01XYZ|the plan]]\n",
 		Fields:      map[string]string{"stage": "testing", "empty": ""},
-		Imported:    map[string]any{"folder": "NIS/BGP", "tags": []any{"bgp", "todo"}},
+		Imported:    map[string]any{"folder": "NET/BGP", "tags": []any{"bgp", "todo"}},
 		Attachments: []core.Attachment{{SHA256: sha, Name: "board.png"}}}
 	got := Text(it, Resolver{
-		Title:    func(id string) string { return map[string]string{"01ABC": "Brent"}[id] },
-		UserName: func(id string) string { return "Eric" },
+		Title:    func(id string) string { return map[string]string{"01ABC": "Lee"}[id] },
+		UserName: func(id string) string { return "Dana" },
 		PDFText:  func(string) string { return "text of the pdf" },
 	})
-	want := "Call notes\n\nHeading\n\ncall Brent about ports\nsee board.png and Eric and the plan\nstage: testing\nfolder: NIS/BGP\ntags: bgp todo\n\ntext of the pdf"
+	want := "Call notes\n\nHeading\n\ncall Lee about ports\nsee board.png and Dana and the plan\nstage: testing\nfolder: NET/BGP\ntags: bgp todo\n\ntext of the pdf"
 	if got != want {
 		t.Errorf("text:\n%q\nwant:\n%q", got, want)
 	}
@@ -181,69 +181,69 @@ func TestTextAndChunks(t *testing.T) {
 
 func TestSimilarityAndIsolation(t *testing.T) {
 	s := newSite(t)
-	bgp := s.add("sven", "nis", core.Item{Kind: core.KindNote, Title: "BGP collector session reset semantics"})
-	s.add("eric", "nis", core.Item{Kind: core.KindAction, Title: "Fix the BGP collector reset handling", Owner: "eric"})
-	s.add("sven", "nis", core.Item{Kind: core.KindNote, Title: "Lunch menu for the offsite"})
-	s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "Private thoughts on the BGP collector reset"})
-	s.add("grit", "grit", core.Item{Kind: core.KindNote, Title: "Garden plan for spring"})
+	bgp := s.add("robin", "net", core.Item{Kind: core.KindNote, Title: "BGP collector session reset semantics"})
+	s.add("dana", "net", core.Item{Kind: core.KindAction, Title: "Fix the BGP collector reset handling", Owner: "dana"})
+	s.add("robin", "net", core.Item{Kind: core.KindNote, Title: "Lunch menu for the offsite"})
+	s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Private thoughts on the BGP collector reset"})
+	s.add("jo", "jo", core.Item{Kind: core.KindNote, Title: "Garden plan for spring"})
 	s.start()
 
-	sven, eric, grit := s.view("sven"), s.view("eric"), s.view("grit")
-	item, _ := sven.Item("nis", bgp)
+	robin, dana, jo := s.view("robin"), s.view("dana"), s.view("jo")
+	item, _ := robin.Item("net", bgp)
 
-	// Sven sees his personal space and nis.
-	got := s.titles(sven, s.svc.SimilarTo(sven, item, 5, nil).Hits)
+	// Robin sees his personal space and net.
+	got := s.titles(robin, s.svc.SimilarTo(robin, item, 5, nil).Hits)
 	if len(got) != 3 || got[0] != "Fix the BGP collector reset handling" && got[0] != "Private thoughts on the BGP collector reset" || slices.Contains(got, "Garden plan for spring") {
-		t.Errorf("sven's similar items: %q", got)
+		t.Errorf("robin's similar items: %q", got)
 	}
-	// Eric is in nis, not in sven's personal space.
-	got = s.titles(eric, s.svc.SimilarTo(eric, item, 5, nil).Hits)
+	// Dana is in net, not in robin's personal space.
+	got = s.titles(dana, s.svc.SimilarTo(dana, item, 5, nil).Hits)
 	if slices.Contains(got, "Private thoughts on the BGP collector reset") || !slices.Contains(got, "Fix the BGP collector reset handling") {
-		t.Errorf("eric's similar items leak sven's space: %q", got)
+		t.Errorf("dana's similar items leak robin's space: %q", got)
 	}
-	// Grit is in neither: nothing about the item, and no hit from other spaces in search.
-	if res := s.svc.SimilarTo(grit, item, 5, nil); len(res.Hits) != 0 {
-		t.Errorf("grit gets similar items for an item she cannot see: %+v", res.Hits)
+	// Jo is in neither: nothing about the item, and no hit from other spaces in search.
+	if res := s.svc.SimilarTo(jo, item, 5, nil); len(res.Hits) != 0 {
+		t.Errorf("jo gets similar items for an item she cannot see: %+v", res.Hits)
 	}
-	res := s.svc.Search(context.Background(), grit, "BGP collector reset", 20)
-	for _, title := range s.titles(grit, res.Hits) {
+	res := s.svc.Search(context.Background(), jo, "BGP collector reset", 20)
+	for _, title := range s.titles(jo, res.Hits) {
 		if title != "Garden plan for spring" {
-			t.Errorf("grit's search returned %q", title)
+			t.Errorf("jo's search returned %q", title)
 		}
 	}
-	res = s.svc.Search(context.Background(), sven, "BGP collector reset", 2)
-	if got := s.titles(sven, res.Hits); len(got) != 2 || !strings.Contains(got[0], "BGP") || !strings.Contains(got[1], "BGP") {
-		t.Errorf("sven's search: %q", got)
+	res = s.svc.Search(context.Background(), robin, "BGP collector reset", 2)
+	if got := s.titles(robin, res.Hits); len(got) != 2 || !strings.Contains(got[0], "BGP") || !strings.Contains(got[1], "BGP") {
+		t.Errorf("robin's search: %q", got)
 	}
 	// Removing a member takes effect at once: membership is read on every question.
-	if err := s.st.SetMember("nis", "eric", false); err != nil {
+	if err := s.st.SetMember("net", "dana", false); err != nil {
 		t.Fatal(err)
 	}
-	if res := s.svc.Search(context.Background(), eric, "BGP collector reset", 20); len(res.Hits) != 0 {
-		t.Errorf("removed member still gets hits: %q", s.titles(sven, res.Hits))
+	if res := s.svc.Search(context.Background(), dana, "BGP collector reset", 20); len(res.Hits) != 0 {
+		t.Errorf("removed member still gets hits: %q", s.titles(robin, res.Hits))
 	}
 	// Trashed items disappear, edited ones are re-embedded.
-	if _, err := sven.Apply("nis", core.Op{Via: "cli", Type: core.OpTransition, Item: bgp, BaseRev: 1,
+	if _, err := robin.Apply("net", core.Op{Via: "cli", Type: core.OpTransition, Item: bgp, BaseRev: 1,
 		Changes: []core.FieldChange{{Field: "state", New: []byte(`"trashed"`)}}}); err != nil {
 		t.Fatal(err)
 	}
 	s.settle()
-	res = s.svc.Search(context.Background(), sven, "session semantics", 20)
-	if slices.Contains(s.titles(sven, res.Hits), "BGP collector session reset semantics") {
+	res = s.svc.Search(context.Background(), robin, "session semantics", 20)
+	if slices.Contains(s.titles(robin, res.Hits), "BGP collector session reset semantics") {
 		t.Error("a trashed item is still found")
 	}
 
 	// A capture still in the inbox is found by meaning too.
-	s.add("sven", "sven", core.Item{Kind: core.KindCapture, Title: "need to find a present for Grit"})
+	s.add("robin", "robin", core.Item{Kind: core.KindCapture, Title: "need to find a present for Jo"})
 	s.settle()
-	res = s.svc.Search(context.Background(), sven, "present for Grit", 5)
-	if got := s.titles(sven, res.Hits); len(got) == 0 || got[0] != "need to find a present for Grit" {
+	res = s.svc.Search(context.Background(), robin, "present for Jo", 5)
+	if got := s.titles(robin, res.Hits); len(got) == 0 || got[0] != "need to find a present for Jo" {
 		t.Errorf("search does not find the capture: %q", got)
 	}
 
 	var nilSvc *Service
-	if nilSvc.Status().State != StateOff || nilSvc.SimilarTo(sven, item, 3, nil).State != StateOff ||
-		nilSvc.Search(context.Background(), sven, "x", 3).State != StateOff || nilSvc.Projects(sven, item, 3) != nil {
+	if nilSvc.Status().State != StateOff || nilSvc.SimilarTo(robin, item, 3, nil).State != StateOff ||
+		nilSvc.Search(context.Background(), robin, "x", 3).State != StateOff || nilSvc.Projects(robin, item, 3) != nil {
 		t.Error("a nil service must answer 'off'")
 	}
 }
@@ -260,9 +260,9 @@ func TestBackendDown(t *testing.T) {
 	s.svc.Start(ctx)
 
 	// Writes and exact search work as always.
-	id := s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "Equinix API notes"})
-	sven := s.view("sven")
-	if hits := sven.Grep("equinix"); len(hits) != 1 {
+	id := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Example API notes"})
+	robin := s.view("robin")
+	if hits := robin.Grep("example"); len(hits) != 1 {
 		t.Fatalf("text search with the embedder down: %d hits", len(hits))
 	}
 	deadline := time.Now().Add(5 * time.Second)
@@ -275,11 +275,11 @@ func TestBackendDown(t *testing.T) {
 	if st := s.svc.Status(); st.Error != "embedder is down" || st.Vectors != 0 {
 		t.Errorf("status = %+v", st)
 	}
-	if res := s.svc.Search(ctx, sven, "equinix", 5); res.State != StateOffline || len(res.Hits) != 0 {
+	if res := s.svc.Search(ctx, robin, "example", 5); res.State != StateOffline || len(res.Hits) != 0 {
 		t.Errorf("search while offline: %+v", res)
 	}
-	item, _ := sven.Item("sven", id)
-	if res := s.svc.SimilarTo(sven, item, 5, nil); len(res.Hits) != 0 {
+	item, _ := robin.Item("robin", id)
+	if res := s.svc.SimilarTo(robin, item, 5, nil); len(res.Hits) != 0 {
 		t.Errorf("similar while offline: %+v", res)
 	}
 
@@ -289,7 +289,7 @@ func TestBackendDown(t *testing.T) {
 	if st := s.svc.Status(); st.State != StateOK || st.Vectors != 1 || st.Error != "" {
 		t.Errorf("after recovery: %+v", st)
 	}
-	if res := s.svc.Search(ctx, sven, "equinix api", 5); res.State != StateOK || len(res.Hits) != 1 {
+	if res := s.svc.Search(ctx, robin, "example api", 5); res.State != StateOK || len(res.Hits) != 1 {
 		t.Errorf("search after recovery: %+v", res)
 	}
 }
@@ -298,25 +298,25 @@ func TestBackendDown(t *testing.T) {
 // gives the same vectors and the same answers (M4 acceptance).
 func TestReindexIsIdentical(t *testing.T) {
 	s := newSite(t)
-	words := strings.Fields("collector session reset bgp atlas curation equinix api garden gate passport dentist trade backtest")
+	words := strings.Fields("collector session reset bgp alpha curation example api garden gate passport dentist trade backtest")
 	rng := rand.New(rand.NewPCG(7, 7))
 	for i := 0; i < 60; i++ {
 		title := ""
 		for j := 0; j < 4; j++ {
 			title += words[rng.IntN(len(words))] + " "
 		}
-		s.add("sven", []string{"sven", "nis"}[i%2], core.Item{Kind: core.KindNote, Title: fmt.Sprintf("%s%d", title, i), Body: strings.Repeat(title, 3)})
+		s.add("robin", []string{"robin", "net"}[i%2], core.Item{Kind: core.KindNote, Title: fmt.Sprintf("%s%d", title, i), Body: strings.Repeat(title, 3)})
 	}
 	s.start()
-	sven := s.view("sven")
+	robin := s.view("robin")
 	snapshot := func() (map[string]string, []string) {
 		vecs := map[string]string{}
 		s.st.EachVector(func(space, id string, hash [32]byte, vec []float32) {
 			vecs[space+"/"+id] = fmt.Sprintf("%x %v", hash, vec)
 		})
 		var answers []string
-		for _, q := range []string{"bgp collector", "garden gate", "equinix api trade"} {
-			res := s.svc.Search(context.Background(), sven, q, 10)
+		for _, q := range []string{"bgp collector", "garden gate", "example api trade"} {
+			res := s.svc.Search(context.Background(), robin, q, 10)
 			answers = append(answers, fmt.Sprintf("%s: %v", q, res.Hits))
 		}
 		return vecs, answers
@@ -333,7 +333,7 @@ func TestReindexIsIdentical(t *testing.T) {
 		t.Errorf("reindex did not wipe: %+v", st)
 	}
 	// While a space is being rebuilt, it gives no answers: a partial index is not ranked.
-	if res := s.svc.Search(context.Background(), sven, "bgp collector", 10); res.State != StateBuilding && len(res.Hits) != 0 && s.svc.Status().Queued > 0 {
+	if res := s.svc.Search(context.Background(), robin, "bgp collector", 10); res.State != StateBuilding && len(res.Hits) != 0 && s.svc.Status().Queued > 0 {
 		t.Errorf("answer from a partial index: %+v", res)
 	}
 	s.settle()
@@ -367,36 +367,36 @@ func TestReindexIsIdentical(t *testing.T) {
 
 func TestProjectsAndBelongHere(t *testing.T) {
 	s := newSite(t)
-	bgp := s.add("sven", "sven", core.Item{Kind: core.KindProject, Title: "BGP collector survives session resets"})
-	s.add("sven", "sven", core.Item{Kind: core.KindAction, Title: "Ask Eric about reset semantics of the collector", Project: bgp})
-	trade := s.add("sven", "sven", core.Item{Kind: core.KindProject, Title: "Gap fill trading hypothesis tested", State: core.StSomeday})
-	s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "Backtest results for gap fill trades", Project: trade, State: core.StFiled})
-	done := s.add("sven", "sven", core.Item{Kind: core.KindProject, Title: "BGP collector reset old project"})
-	loose := s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "The collector loses BGP session state on reset"})
-	s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "Recipe for apple cake"})
-	filed := s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "BGP collector reset design", Project: bgp, State: core.StFiled})
-	cap := s.add("sven", "sven", core.Item{Kind: core.KindCapture, Title: "gap fill idea for earnings trades"})
-	sven := s.view("sven")
-	p, _ := sven.Item("sven", done)
-	if _, err := sven.Apply("sven", core.Op{Via: "cli", Type: core.OpTransition, Item: done, BaseRev: p.Rev, Changes: []core.FieldChange{{Field: "state", New: []byte(`"done"`)}}}); err != nil {
+	bgp := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "BGP collector survives session resets"})
+	s.add("robin", "robin", core.Item{Kind: core.KindAction, Title: "Ask Dana about reset semantics of the collector", Project: bgp})
+	trade := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "Gap fill trading hypothesis tested", State: core.StSomeday})
+	s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Backtest results for gap fill trades", Project: trade, State: core.StFiled})
+	done := s.add("robin", "robin", core.Item{Kind: core.KindProject, Title: "BGP collector reset old project"})
+	loose := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "The collector loses BGP session state on reset"})
+	s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Recipe for apple cake"})
+	filed := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "BGP collector reset design", Project: bgp, State: core.StFiled})
+	cap := s.add("robin", "robin", core.Item{Kind: core.KindCapture, Title: "gap fill idea for earnings trades"})
+	robin := s.view("robin")
+	p, _ := robin.Item("robin", done)
+	if _, err := robin.Apply("robin", core.Op{Via: "cli", Type: core.OpTransition, Item: done, BaseRev: p.Rev, Changes: []core.FieldChange{{Field: "state", New: []byte(`"done"`)}}}); err != nil {
 		t.Fatal(err)
 	}
 	s.start()
 	s.svc.SuggestThreshold = 0.3
 
-	capture, _ := sven.Item("sven", cap)
-	if got := s.titles(sven, s.svc.Projects(sven, capture, 3)); len(got) != 2 || got[0] != "Gap fill trading hypothesis tested" {
+	capture, _ := robin.Item("robin", cap)
+	if got := s.titles(robin, s.svc.Projects(robin, capture, 3)); len(got) != 2 || got[0] != "Gap fill trading hypothesis tested" {
 		t.Errorf("projects for the capture: %q (a finished project must not be offered)", got)
 	}
-	project, _ := sven.Item("sven", bgp)
-	got := s.titles(sven, s.svc.BelongHere(sven, project, 5))
+	project, _ := robin.Item("robin", bgp)
+	got := s.titles(robin, s.svc.BelongHere(robin, project, 5))
 	if !slices.Equal(got, []string{"The collector loses BGP session state on reset"}) {
 		t.Errorf("might belong here: %q", got)
 	}
 	_, _ = loose, filed
 	// Not for someone outside the space.
-	if hits := s.svc.BelongHere(s.view("grit"), project, 5); len(hits) != 0 {
-		t.Errorf("grit gets suggestions for sven's project: %v", hits)
+	if hits := s.svc.BelongHere(s.view("jo"), project, 5); len(hits) != 0 {
+		t.Errorf("jo gets suggestions for robin's project: %v", hits)
 	}
 }
 
@@ -464,9 +464,9 @@ func TestTopKSpeed(t *testing.T) {
 func TestPDFText(t *testing.T) {
 	s := newSite(t)
 	sha := strings.Repeat("ab", 32)
-	id := s.add("sven", "sven", core.Item{Kind: core.KindNote, Title: "Report", Attachments: []core.Attachment{{SHA256: sha, Name: "q3.pdf", MIME: "application/pdf", Size: 1}}})
-	sven := s.view("sven")
-	if hits := sven.Grep("quarterly"); len(hits) != 0 {
+	id := s.add("robin", "robin", core.Item{Kind: core.KindNote, Title: "Report", Attachments: []core.Attachment{{SHA256: sha, Name: "q3.pdf", MIME: "application/pdf", Size: 1}}})
+	robin := s.view("robin")
+	if hits := robin.Grep("quarterly"); len(hits) != 0 {
 		t.Fatal("found before extraction")
 	}
 	// The blob does not exist, so pdftotext (if installed) yields nothing: the
@@ -478,10 +478,10 @@ func TestPDFText(t *testing.T) {
 	if err := s.st.PutPDFText(sha, "Quarterly numbers for the collector fleet"); err != nil {
 		t.Fatal(err)
 	}
-	if hits := sven.Grep("quarterly fleet"); len(hits) != 1 || hits[0].ID != id {
+	if hits := robin.Grep("quarterly fleet"); len(hits) != 1 || hits[0].ID != id {
 		t.Errorf("text search over the PDF: %v", hits)
 	}
-	it, _ := sven.Item("sven", id)
+	it, _ := robin.Item("robin", id)
 	if text := s.svc.text(it); !strings.Contains(text, "Quarterly numbers") {
 		t.Errorf("embedding input lacks the PDF text: %q", text)
 	}

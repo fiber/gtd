@@ -75,7 +75,7 @@ func patchOp(it *core.Item, field string, value any) core.Op {
 
 // nasty strings that a Markdown-with-frontmatter export must carry unchanged.
 const (
-	nastyTitle = `NIS/BGP: Collector — "session reset"? #1 [[x]] @eric: {a: b} | > ' ` + "`" + ` é 日本 🚀`
+	nastyTitle = `NET/BGP: Collector — "session reset"? #1 [[x]] @dana: {a: b} | > ' ` + "`" + ` é 日本 🚀`
 	nastyBody  = "# Heading\r\nCRLF line\r\n\ttab  trailing spaces   \n---\nkey: value\n\n\n- [ ] todo\n```\ncode\n```\nno newline at end"
 	nastyOrig  = "  leading spaces\nline two: with colon\n---\n\ttab\n\n"
 )
@@ -86,13 +86,13 @@ const (
 func fixture(t testing.TB, dir string) *Store {
 	t.Helper()
 	s := must(create(dir, "test", deterministic))
-	check0(s.AddUser(core.User{ID: "sven", Name: "Sven", Lang: "de", Admin: true,
+	check0(s.AddUser(core.User{ID: "robin", Name: "Robin", Lang: "de", Admin: true,
 		SSHKeys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKeyFixtureKeyFixtureKeyFixtureKeyAAAA"}, PersonalContexts: []string{"boat"}, ReviewWeekday: 5}))
-	check0(s.AddUser(core.User{ID: "eric", Name: "Eric"}))
-	check0(s.AddUser(core.User{ID: "grit", Name: "Grit"}))
-	check0(s.CreateSpace("nis", "NIS", []string{"sven", "eric"}))
+	check0(s.AddUser(core.User{ID: "dana", Name: "Dana"}))
+	check0(s.AddUser(core.User{ID: "jo", Name: "Jo"}))
+	check0(s.CreateSpace("net", "NET", []string{"robin", "dana"}))
 	// People and templates have no admin command in M0. Set them on the record.
-	sp := s.spaces["nis"]
+	sp := s.spaces["net"]
 	rec := *sp.rec
 	rec.People = []string{"Kim"}
 	rec.Templates = []core.Template{{Key: "edge_hypothesis", Kind: "project",
@@ -101,66 +101,66 @@ func fixture(t testing.TB, dir string) *Store {
 			{Key: "stage", Type: "enum", Options: []string{"idea", "testing"}, Label: map[string]string{"en": "Stage"}},
 			{Key: "expires", Type: "date", Tickler: true}},
 		Body: "## Hypothesis\n\n## Result\n"}}
-	check0(s.db.Set(spaceKey("nis"), mustJSON(rec), pebble.Sync))
+	check0(s.db.Set(spaceKey("net"), mustJSON(rec), pebble.Sync))
 	sp.rec = &rec
 
-	sven, eric := must(s.View("sven")), must(s.View("eric"))
+	robin, dana := must(s.View("robin")), must(s.View("dana"))
 	png := must2(s.PutBlob(strings.NewReader("\x89PNG fake image bytes")))
 	pdf := must2(s.PutBlob(strings.NewReader("%PDF-1.7 fake report")))
 
 	// Personal space: captures, one trashed, one clarified into an action.
-	c1 := must(sven.Capture("bgp collector reset thing ask eric", "", core.Source{Via: "cli"}, nil))
-	c2 := must(sven.Capture(nastyOrig+"multi-line capture", "", core.Source{Via: "share", Ref: "https://example.org/a?b=c"},
+	c1 := must(robin.Capture("bgp collector reset thing ask dana", "", core.Source{Via: "cli"}, nil))
+	c2 := must(robin.Capture(nastyOrig+"multi-line capture", "", core.Source{Via: "share", Ref: "https://example.org/a?b=c"},
 		[]core.Attachment{{SHA256: png.sha, Name: "whiteboard.png", MIME: "image/png", Size: png.size}}))
-	must(sven.Apply("sven", moveOp(c2, core.StTrashed)))
-	must(sven.Apply("sven",
+	must(robin.Apply("robin", moveOp(c2, core.StTrashed)))
+	must(robin.Apply("robin",
 		core.Op{Via: "web", Type: core.OpTransition, Item: c1.ID, BaseRev: c1.Rev, Changes: []core.FieldChange{
 			{Field: "kind", New: raw(core.KindAction)}, {Field: "state", New: raw(core.StNext)}}},
 		core.Op{Via: "web", Type: core.OpPatch, Item: c1.ID, BaseRev: c1.Rev + 1, Changes: []core.FieldChange{
-			{Field: "title", New: raw("Ask Eric about BGP collector session resets")},
+			{Field: "title", New: raw("Ask Dana about BGP collector session resets")},
 			{Field: "context", New: raw("boat")}, {Field: "energy", New: raw("low")}, {Field: "time", New: raw("15m")}}}))
 
 	// Shared space: area, project tree, actions with dependencies, a note.
 	id := func(n int) string { return fmt.Sprintf("01JD8X4Q9V3T6M2K7P5RZZ%04d", n) }
 	area, proj, sub, a, b, c, d, note := id(1), id(2), id(3), id(4), id(5), id(6), id(7), id(8)
-	must(sven.Apply("nis",
+	must(robin.Apply("net",
 		createOp(core.Item{ID: area, Kind: core.KindArea, Title: "Collectors"}),
 		createOp(core.Item{ID: proj, Kind: core.KindProject, Title: nastyTitle, Area: area, Target: "2027-01-15",
 			Template: "edge_hypothesis", Fields: map[string]string{"stage": "testing", "odd": "- yes: null ~ 1e3", "empty": ""}}),
 		createOp(core.Item{ID: sub, Kind: core.KindProject, Title: "Sub-outcome", Parent: proj, State: core.StSomeday}),
 		createOp(core.Item{ID: a, Kind: core.KindAction, Title: "Clarify reset semantics", Project: proj, Area: area,
-			Owner: "sven", Context: "agenda:eric", Due: "2026-12-01"}),
+			Owner: "robin", Context: "agenda:dana", Due: "2026-12-01"}),
 		createOp(core.Item{ID: b, Kind: core.KindAction, Title: "Implement reset handling", Project: proj,
-			Owner: "eric", DelegatedBy: "sven", BlockedBy: []string{a}, State: core.StPlanned, DeferUntil: "2026-12-03"}),
+			Owner: "dana", DelegatedBy: "robin", BlockedBy: []string{a}, State: core.StPlanned, DeferUntil: "2026-12-03"}),
 		createOp(core.Item{ID: c, Kind: core.KindAction, Title: "Write the test", Project: sub, BlockedBy: []string{a, b}}),
 		createOp(core.Item{ID: d, Kind: core.KindAction, Title: "Wait for Kim", State: core.StWaiting, WaitingOn: "Kim"}),
 	))
-	must(eric.Apply("nis", createOp(core.Item{ID: note, Kind: core.KindNote, Title: "Design notes", Project: proj,
-		Original: nastyOrig, Body: nastyBody, Source: core.Source{Via: "import", Ref: "obsidian:NIS/Design notes.md"},
+	must(dana.Apply("net", createOp(core.Item{ID: note, Kind: core.KindNote, Title: "Design notes", Project: proj,
+		Original: nastyOrig, Body: nastyBody, Source: core.Source{Via: "import", Ref: "obsidian:NET/Design notes.md"},
 		DerivedFrom: []string{a}, Generated: true, AIGenerated: true,
-		Imported: map[string]any{"folder": "NIS/BGP", "tags": []any{"bgp", "todo"}, "nested": map[string]any{"n": 1.5, "ok": true}},
-		Conflict: raw(map[string]any{"by": "eric", "base_rev": 1, "ours": "a\n", "theirs": "b\n"}),
+		Imported: map[string]any{"folder": "NET/BGP", "tags": []any{"bgp", "todo"}, "nested": map[string]any{"n": 1.5, "ok": true}},
+		Conflict: raw(map[string]any{"by": "dana", "base_rev": 1, "ours": "a\n", "theirs": "b\n"}),
 	})))
-	must(eric.Apply("nis", core.Op{Via: "service", Type: core.OpAttach, Item: note,
+	must(dana.Apply("net", core.Op{Via: "service", Type: core.OpAttach, Item: note,
 		Payload: raw(core.Attachment{SHA256: pdf.sha, Name: "report (final).pdf", MIME: "application/pdf", Size: pdf.size})}))
-	must(sven.Apply("nis", moveOp(must(sven.Item("nis", note)), core.StFiled)))
+	must(robin.Apply("net", moveOp(must(robin.Item("net", note)), core.StFiled)))
 
 	// Thread: a mention, an attachment, a deleted comment.
-	cm := must(eric.Apply("nis", core.Op{Via: "web", Type: core.OpComment, Item: a,
-		Payload: raw(core.Comment{Body: "see @[user:sven]\n\nsecond paragraph", Mentions: []string{"sven"},
+	cm := must(dana.Apply("net", core.Op{Via: "web", Type: core.OpComment, Item: a,
+		Payload: raw(core.Comment{Body: "see @[user:robin]\n\nsecond paragraph", Mentions: []string{"robin"},
 			Attachments: []core.Attachment{{SHA256: png.sha, Name: "curve.png", MIME: "image/png", Size: png.size}}})}))
-	del := must(sven.Apply("nis", core.Op{Via: "web", Type: core.OpComment, Item: a, Payload: raw(core.Comment{Body: "oops"})}))
+	del := must(robin.Apply("net", core.Op{Via: "web", Type: core.OpComment, Item: a, Payload: raw(core.Comment{Body: "oops"})}))
 	var delC core.Comment
 	check0(json.Unmarshal(del[0].Payload, &delC))
-	must(sven.Apply("nis", core.Op{Via: "web", Type: core.OpDeleteComment, Item: a, Payload: raw(map[string]string{"comment": delC.ID})}))
+	must(robin.Apply("net", core.Op{Via: "web", Type: core.OpDeleteComment, Item: a, Payload: raw(map[string]string{"comment": delC.ID})}))
 	_ = cm
 
 	// Dependencies: a done unblocks b (c still waits for b), then b dropped
 	// unblocks c with a warning, then a reopened.
-	must(sven.Apply("nis", moveOp(must(sven.Item("nis", a)), core.StDone)))
-	must(eric.Apply("nis", moveOp(must(eric.Item("nis", b)), core.StDropped)))
-	must(sven.Apply("nis", moveOp(must(sven.Item("nis", a)), core.StNext)))
-	must(sven.Apply("nis", patchOp(must(sven.Item("nis", d)), "target", "2026-12-24")))
+	must(robin.Apply("net", moveOp(must(robin.Item("net", a)), core.StDone)))
+	must(dana.Apply("net", moveOp(must(dana.Item("net", b)), core.StDropped)))
+	must(robin.Apply("net", moveOp(must(robin.Item("net", a)), core.StNext)))
+	must(robin.Apply("net", patchOp(must(robin.Item("net", d)), "target", "2026-12-24")))
 	return s
 }
 
@@ -257,7 +257,7 @@ func TestRoundTrip(t *testing.T) {
 	before := dump(t, s1)
 
 	// A password hash must never reach the export.
-	check0(s1.UpdateUser("sven", func(u *core.User) error { u.PasswordHash = "$2a$10$SECRETHASH"; return nil }))
+	check0(s1.UpdateUser("robin", func(u *core.User) error { u.PasswordHash = "$2a$10$SECRETHASH"; return nil }))
 	exportTo(t, s1, exp1)
 	files := tree(t, exp1)
 	for name, data := range files {
@@ -283,8 +283,8 @@ func TestRoundTrip(t *testing.T) {
 	if len(man.Spaces) != 4 || man.Users != 3 || man.Blobs != 2 {
 		t.Errorf("manifest: %d spaces, %d users, %d blobs", len(man.Spaces), man.Users, man.Blobs)
 	}
-	for _, want := range []string{"users/eric/notifications.jsonl", "users/sven/notifications.jsonl",
-		"spaces/nis/space.yaml", "spaces/nis/ops.jsonl", "spaces/sven/ops.jsonl", "spaces/grit/space.yaml"} {
+	for _, want := range []string{"users/dana/notifications.jsonl", "users/robin/notifications.jsonl",
+		"spaces/net/space.yaml", "spaces/net/ops.jsonl", "spaces/robin/ops.jsonl", "spaces/jo/space.yaml"} {
 		if _, ok := files[want]; !ok {
 			t.Errorf("export has no %s", want)
 		}
@@ -342,14 +342,14 @@ func TestPartialExport(t *testing.T) {
 	s := fixture(t, t.TempDir())
 	defer s.Close()
 	dir := t.TempDir()
-	exportTo(t, s, dir, "nis")
+	exportTo(t, s, dir, "net")
 	files := tree(t, dir)
 	for name := range files {
-		if strings.HasPrefix(name, "spaces/") && !strings.HasPrefix(name, "spaces/nis/") || strings.HasPrefix(name, "users/") {
+		if strings.HasPrefix(name, "spaces/") && !strings.HasPrefix(name, "spaces/net/") || strings.HasPrefix(name, "users/") {
 			t.Errorf("partial export contains %s", name)
 		}
 	}
-	if strings.Contains(files["users.json"], `"grit"`) || !strings.Contains(files["users.json"], `"eric"`) {
+	if strings.Contains(files["users.json"], `"jo"`) || !strings.Contains(files["users.json"], `"dana"`) {
 		t.Errorf("users.json should list exactly the members: %s", files["users.json"])
 	}
 	if _, err := Restore(t.TempDir(), dir); err == nil || !strings.Contains(err.Error(), "partial") {
@@ -359,8 +359,8 @@ func TestPartialExport(t *testing.T) {
 
 func TestItemMarkdownRoundTrip(t *testing.T) {
 	stamp := time.Date(2026, 11, 19, 8, 12, 3, 0, time.FixedZone("", 3600))
-	base := core.Item{V: 1, ID: "01JD8X4Q9V3T6M2K7P5R1W0Y8Z", Space: "nis", Kind: core.KindNote, Title: "t", State: core.StFiled,
-		Rev: 7, Created: stamp, Updated: stamp.Add(time.Hour + 5*time.Nanosecond).UTC(), UpdatedBy: "sven"}
+	base := core.Item{V: 1, ID: "01JD8X4Q9V3T6M2K7P5R1W0Y8Z", Space: "net", Kind: core.KindNote, Title: "t", State: core.StFiled,
+		Rev: 7, Created: stamp, Updated: stamp.Add(time.Hour + 5*time.Nanosecond).UTC(), UpdatedBy: "robin"}
 	for i, str := range []string{
 		"plain", nastyTitle, nastyBody, nastyOrig, "", " ", "\n", "\n\n\n", "---", "---\n", "\n---\n", "a\n---\nb\n---\n",
 		"trailing space \n", "\ttab", "x\r", "\r\n", "null", "~", "true", "123", "1e3", "0x1F", "2026-11-19", "- item", "? q",
@@ -390,8 +390,8 @@ func TestItemMarkdownRoundTrip(t *testing.T) {
 func TestIsolation(t *testing.T) {
 	s := fixture(t, t.TempDir())
 	defer s.Close()
-	eric, grit := must(s.View("eric")), must(s.View("grit"))
-	items := must(eric.Items("nis", nil))
+	dana, jo := must(s.View("dana")), must(s.View("jo"))
+	items := must(dana.Items("net", nil))
 	item := items[0]
 
 	calls := map[string]func(v *View, space string) error{
@@ -415,67 +415,67 @@ func TestIsolation(t *testing.T) {
 			t.Errorf("View.%s has no isolation test", name)
 		}
 	}
-	seq := s.spaces["nis"].seq
+	seq := s.spaces["net"].seq
 	for name, call := range calls {
-		if err := call(eric, "nis"); err != nil {
+		if err := call(dana, "net"); err != nil {
 			t.Errorf("%s as a member: %v", name, err)
 		}
-		errNonMember := call(grit, "nis")
-		errNoSpace := call(grit, "no-such-space")
+		errNonMember := call(jo, "net")
+		errNoSpace := call(jo, "no-such-space")
 		if !errors.Is(errNonMember, core.ErrNotFound) {
 			t.Errorf("%s as a non-member: %v, want not found", name, errNonMember)
 		}
-		if errNonMember == nil || errNoSpace == nil || strings.ReplaceAll(errNonMember.Error(), `"nis"`, `"no-such-space"`) != errNoSpace.Error() {
+		if errNonMember == nil || errNoSpace == nil || strings.ReplaceAll(errNonMember.Error(), `"net"`, `"no-such-space"`) != errNoSpace.Error() {
 			t.Errorf("%s leaks existence: non-member %q, missing space %q", name, errNonMember, errNoSpace)
 		}
 	}
-	if got := s.spaces["nis"].seq; got != seq+1 {
-		t.Errorf("space seq moved from %d to %d, want exactly eric's one op", seq, got)
+	if got := s.spaces["net"].seq; got != seq+1 {
+		t.Errorf("space seq moved from %d to %d, want exactly dana's one op", seq, got)
 	}
-	for _, sp := range grit.Spaces() {
-		if sp.ID != "grit" {
-			t.Errorf("grit sees space %q", sp.ID)
+	for _, sp := range jo.Spaces() {
+		if sp.ID != "jo" {
+			t.Errorf("jo sees space %q", sp.ID)
 		}
 	}
-	if hits := grit.Grep("reset"); len(hits) != 0 {
-		t.Errorf("grit's grep found %d items of other spaces", len(hits))
+	if hits := jo.Grep("reset"); len(hits) != 0 {
+		t.Errorf("jo's grep found %d items of other spaces", len(hits))
 	}
-	if hits := eric.Grep("reset"); len(hits) == 0 {
-		t.Error("eric's grep found nothing in nis")
+	if hits := dana.Grep("reset"); len(hits) == 0 {
+		t.Error("dana's grep found nothing in net")
 	}
-	if _, err := grit.Find(item.ID); !errors.Is(err, core.ErrNotFound) {
-		t.Errorf("grit finds an item of nis by id: %v", err)
+	if _, err := jo.Find(item.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("jo finds an item of net by id: %v", err)
 	}
-	if _, err := eric.Find(item.ID); err != nil {
-		t.Errorf("eric cannot find an item of nis: %v", err)
+	if _, err := dana.Find(item.ID); err != nil {
+		t.Errorf("dana cannot find an item of net: %v", err)
 	}
-	blob := "a02a057e737c31e8442a34db35f889a5013733b5e1adf7769bbc878ff36e0c3a" // the PDF on the nis note
-	if _, ok := grit.Blob(blob); ok {
-		t.Error("grit reads a blob attached only in nis")
+	blob := "a02a057e737c31e8442a34db35f889a5013733b5e1adf7769bbc878ff36e0c3a" // the PDF on the net note
+	if _, ok := jo.Blob(blob); ok {
+		t.Error("jo reads a blob attached only in net")
 	}
-	if a, ok := eric.Blob(blob); !ok || a.Name != "report (final).pdf" {
-		t.Errorf("eric's blob lookup: %+v %v", a, ok)
+	if a, ok := dana.Blob(blob); !ok || a.Name != "report (final).pdf" {
+		t.Errorf("dana's blob lookup: %+v %v", a, ok)
 	}
-	if err := grit.Dismiss(1); !errors.Is(err, core.ErrNotFound) {
-		t.Errorf("grit dismisses a notification she does not have: %v", err)
+	if err := jo.Dismiss(1); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("jo dismisses a notification she does not have: %v", err)
 	}
-	if n := must(grit.Notifications()); len(n) != 0 {
-		t.Errorf("grit has %d notifications", len(n))
+	if n := must(jo.Notifications()); len(n) != 0 {
+		t.Errorf("jo has %d notifications", len(n))
 	}
-	// Sven's personal space is closed to Eric, a co-member of nis.
-	if _, err := eric.Items("sven", nil); !errors.Is(err, core.ErrNotFound) {
-		t.Errorf("eric reads sven's personal space: %v", err)
+	// Robin's personal space is closed to Dana, a co-member of net.
+	if _, err := dana.Items("robin", nil); !errors.Is(err, core.ErrNotFound) {
+		t.Errorf("dana reads robin's personal space: %v", err)
 	}
-	// Membership is checked on every call: removing Eric takes effect at once.
-	check0(s.SetMember("nis", "eric", false))
-	if _, err := eric.Item("nis", item.ID); !errors.Is(err, core.ErrNotFound) {
+	// Membership is checked on every call: removing Dana takes effect at once.
+	check0(s.SetMember("net", "dana", false))
+	if _, err := dana.Item("net", item.ID); !errors.Is(err, core.ErrNotFound) {
 		t.Errorf("removed member still reads: %v", err)
 	}
-	check0(s.SetMember("nis", "grit", true))
-	if _, err := grit.Item("nis", item.ID); err != nil {
+	check0(s.SetMember("net", "jo", true))
+	if _, err := jo.Item("net", item.ID); err != nil {
 		t.Errorf("new member cannot read: %v", err)
 	}
-	if err := s.SetMember("sven", "grit", true); !errors.Is(err, core.ErrInvalid) {
+	if err := s.SetMember("robin", "jo", true); !errors.Is(err, core.ErrInvalid) {
 		t.Errorf("adding a member to a personal space: %v", err)
 	}
 	if _, err := s.View("nobody"); !errors.Is(err, core.ErrNotFound) {
@@ -486,18 +486,18 @@ func TestIsolation(t *testing.T) {
 func TestApplyBatch(t *testing.T) {
 	s := fixture(t, t.TempDir())
 	defer s.Close()
-	sven := must(s.View("sven"))
+	robin := must(s.View("robin"))
 	before := dump(t, s)
 
 	// One invalid op: nothing of the batch is stored.
-	_, err := sven.Apply("nis",
+	_, err := robin.Apply("net",
 		createOp(core.Item{ID: "01JD8X4Q9V3T6M2K7P5RYY0001", Kind: core.KindNote, Title: "fine"}),
 		createOp(core.Item{ID: "01JD8X4Q9V3T6M2K7P5RYY0002", Kind: core.KindNote, Title: "bad", Project: "nope"}))
 	if !errors.Is(err, core.ErrInvalid) {
 		t.Fatalf("err = %v", err)
 	}
 	diffMaps(t, "after a failed batch", dump(t, s), before)
-	if _, err := sven.Item("nis", "01JD8X4Q9V3T6M2K7P5RYY0001"); !errors.Is(err, core.ErrNotFound) {
+	if _, err := robin.Item("net", "01JD8X4Q9V3T6M2K7P5RYY0001"); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("item of a failed batch is in the index: %v", err)
 	}
 
@@ -506,7 +506,7 @@ func TestApplyBatch(t *testing.T) {
 	a.ID = "01JD8X4Q9V3T6M2K7P5RYYOP01"
 	b := createOp(core.Item{ID: "01JD8X4Q9V3T6M2K7P5RYY0004", Kind: core.KindAction, Title: "second", BlockedBy: []string{"01JD8X4Q9V3T6M2K7P5RYY0003"}})
 	b.ID = "01JD8X4Q9V3T6M2K7P5RYYOP02"
-	ops := must(sven.Apply("nis", a, b, a))
+	ops := must(robin.Apply("net", a, b, a))
 	if len(ops) != 3 { // create, create, derived next→planned
 		t.Fatalf("logged %d ops, want 3", len(ops))
 	}
@@ -515,10 +515,10 @@ func TestApplyBatch(t *testing.T) {
 			t.Fatalf("op seqs are not consecutive: %d then %d", ops[i-1].Seq, ops[i].Seq)
 		}
 	}
-	if it := must(sven.Item("nis", "01JD8X4Q9V3T6M2K7P5RYY0004")); it.State != core.StPlanned {
+	if it := must(robin.Item("net", "01JD8X4Q9V3T6M2K7P5RYY0004")); it.State != core.StPlanned {
 		t.Fatalf("second item is %s", it.State)
 	}
-	again := must(sven.Apply("nis", a, b))
+	again := must(robin.Apply("net", a, b))
 	if len(again) != 0 {
 		t.Fatalf("replay logged %d ops", len(again))
 	}
@@ -531,11 +531,11 @@ func TestReopen(t *testing.T) {
 	dir := t.TempDir()
 	s := fixture(t, dir)
 	before := dump(t, s)
-	sven := must(s.View("sven"))
-	wantItems := mustJSON(must(sven.Items("nis", nil)))
-	nseq := s.nseq["eric"]
+	robin := must(s.View("robin"))
+	wantItems := mustJSON(must(robin.Items("net", nil)))
+	nseq := s.nseq["dana"]
 	if nseq == 0 {
-		t.Fatal("fixture should notify eric")
+		t.Fatal("fixture should notify dana")
 	}
 
 	if _, err := Open(dir); !errors.Is(err, ErrLocked) {
@@ -552,21 +552,21 @@ func TestReopen(t *testing.T) {
 	s = must(Open(dir))
 	defer s.Close()
 	diffMaps(t, "after reopen", dump(t, s), before)
-	sven = must(s.View("sven"))
-	if got := mustJSON(must(sven.Items("nis", nil))); !bytes.Equal(got, wantItems) {
+	robin = must(s.View("robin"))
+	if got := mustJSON(must(robin.Items("net", nil))); !bytes.Equal(got, wantItems) {
 		t.Error("index differs after reopen")
 	}
-	if s.nseq["eric"] != nseq || s.Server().Name != "test" {
-		t.Errorf("nseq %d (want %d), server %+v", s.nseq["eric"], nseq, s.Server())
+	if s.nseq["dana"] != nseq || s.Server().Name != "test" {
+		t.Errorf("nseq %d (want %d), server %+v", s.nseq["dana"], nseq, s.Server())
 	}
-	if n := must(sven.CommentCount("nis", "01JD8X4Q9V3T6M2K7P5RZZ0004")); n != 2 {
+	if n := must(robin.CommentCount("net", "01JD8X4Q9V3T6M2K7P5RZZ0004")); n != 2 {
 		t.Errorf("comment count = %d, want 2", n)
 	}
-	if cs := must(sven.Comments("nis", "01JD8X4Q9V3T6M2K7P5RZZ0004")); len(cs) != 2 || !cs[1].Deleted || cs[1].Body != "" {
+	if cs := must(robin.Comments("net", "01JD8X4Q9V3T6M2K7P5RZZ0004")); len(cs) != 2 || !cs[1].Deleted || cs[1].Body != "" {
 		t.Errorf("comments = %+v", cs)
 	}
-	ops := must(sven.Ops("nis", 3))
-	if len(ops) != 3 || ops[2].Seq != s.spaces["nis"].seq || ops[0].Seq != ops[2].Seq-2 {
+	ops := must(robin.Ops("net", 3))
+	if len(ops) != 3 || ops[2].Seq != s.spaces["net"].seq || ops[0].Seq != ops[2].Seq-2 {
 		t.Errorf("ops tail = %+v", ops)
 	}
 	for _, p := range check(s) {
@@ -577,34 +577,34 @@ func TestReopen(t *testing.T) {
 func TestAdmin(t *testing.T) {
 	s := must(Create(t.TempDir(), "test"))
 	defer s.Close()
-	check0(s.AddUser(core.User{ID: "sven"}))
+	check0(s.AddUser(core.User{ID: "robin"}))
 	for _, c := range []struct {
 		name string
 		err  error
 		want error
 	}{
-		{"duplicate user", s.AddUser(core.User{ID: "sven"}), core.ErrConflict},
+		{"duplicate user", s.AddUser(core.User{ID: "robin"}), core.ErrConflict},
 		{"reserved user", s.AddUser(core.User{ID: "system"}), core.ErrInvalid},
 		{"reserved ai", s.AddUser(core.User{ID: "ai"}), core.ErrInvalid},
-		{"bad user id", s.AddUser(core.User{ID: "Sven/x"}), core.ErrInvalid},
-		{"space with a user's id", s.CreateSpace("sven", "", nil), core.ErrConflict},
-		{"space with unknown member", s.CreateSpace("nis", "", []string{"eric"}), core.ErrNotFound},
-		{"space", s.CreateSpace("nis", "", []string{"sven"}), nil},
-		{"duplicate space", s.CreateSpace("nis", "", nil), core.ErrConflict},
-		{"user with a space's id", s.AddUser(core.User{ID: "nis"}), core.ErrConflict},
-		{"unknown member", s.SetMember("nis", "eric", true), core.ErrNotFound},
-		{"unknown space", s.SetMember("nope", "sven", true), core.ErrNotFound},
-		{"update unknown user", s.UpdateUser("eric", func(*core.User) error { return nil }), core.ErrNotFound},
+		{"bad user id", s.AddUser(core.User{ID: "Robin/x"}), core.ErrInvalid},
+		{"space with a user's id", s.CreateSpace("robin", "", nil), core.ErrConflict},
+		{"space with unknown member", s.CreateSpace("net", "", []string{"dana"}), core.ErrNotFound},
+		{"space", s.CreateSpace("net", "", []string{"robin"}), nil},
+		{"duplicate space", s.CreateSpace("net", "", nil), core.ErrConflict},
+		{"user with a space's id", s.AddUser(core.User{ID: "net"}), core.ErrConflict},
+		{"unknown member", s.SetMember("net", "dana", true), core.ErrNotFound},
+		{"unknown space", s.SetMember("nope", "robin", true), core.ErrNotFound},
+		{"update unknown user", s.UpdateUser("dana", func(*core.User) error { return nil }), core.ErrNotFound},
 	} {
 		if !errors.Is(c.err, c.want) || (c.want == nil && c.err != nil) {
 			t.Errorf("%s: %v, want %v", c.name, c.err, c.want)
 		}
 	}
-	u := s.User("sven")
-	if u.PersonalSpace != "sven" || u.Name != "sven" || s.UserCount() != 1 {
+	u := s.User("robin")
+	if u.PersonalSpace != "robin" || u.Name != "robin" || s.UserCount() != 1 {
 		t.Errorf("user = %+v", u)
 	}
-	v := must(s.View("sven"))
+	v := must(s.View("robin"))
 	if sp := v.Spaces(); len(sp) != 2 || sp[1].Kind != core.SpacePersonal || sp[0].Kind != core.SpaceShared {
 		t.Errorf("spaces = %+v", sp)
 	}
@@ -636,7 +636,7 @@ func TestConcurrent(t *testing.T) {
 	defer s.Close()
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
-	for _, w := range []struct{ user, space string }{{"sven", "sven"}, {"sven", "nis"}, {"eric", "nis"}, {"eric", "eric"}} {
+	for _, w := range []struct{ user, space string }{{"robin", "robin"}, {"robin", "net"}, {"dana", "net"}, {"dana", "dana"}} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -652,7 +652,7 @@ func TestConcurrent(t *testing.T) {
 		}()
 	}
 	var readers sync.WaitGroup
-	for _, user := range []string{"sven", "eric", "grit"} {
+	for _, user := range []string{"robin", "dana", "jo"} {
 		readers.Add(1)
 		go func() {
 			defer readers.Done()
@@ -683,21 +683,21 @@ func TestConcurrent(t *testing.T) {
 func TestSnapshots(t *testing.T) {
 	dir := t.TempDir()
 	s := fixture(t, dir)
-	sven := must(s.View("sven"))
+	robin := must(s.View("robin"))
 	var atSnapshot bytes.Buffer
 	check0(s.Export(&atSnapshot, nil))
 	stateAtSnapshot := dump(t, s)
 
 	man, err := s.Snapshot("before-change")
 	check0(err)
-	if !strings.HasSuffix(man.Name, "-before-change") || len(man.Blobs) != 2 || man.Seqs["nis"] != s.spaces["nis"].seq {
+	if !strings.HasSuffix(man.Name, "-before-change") || len(man.Blobs) != 2 || man.Seqs["net"] != s.spaces["net"].seq {
 		t.Fatalf("manifest = %+v", man)
 	}
 	if _, err := s.Snapshot("Bad Label"); !errors.Is(err, core.ErrInvalid) {
 		t.Fatalf("bad label: %v", err)
 	}
 	// The live database moves on. The snapshot does not.
-	must(sven.Capture("after the snapshot", "", core.Source{Via: "cli"}, nil))
+	must(robin.Capture("after the snapshot", "", core.Source{Via: "cli"}, nil))
 	second := must(s.Snapshot(""))
 
 	list := must(ListSnapshots(dir))
@@ -749,7 +749,7 @@ func TestSnapshots(t *testing.T) {
 		orig := must(os.ReadFile(path))
 		defer os.WriteFile(path, orig, 0o600)
 		m := *second
-		m.Seqs = map[string]uint64{"nis": 1, "sven": 1, "eric": 0, "grit": 0}
+		m.Seqs = map[string]uint64{"net": 1, "robin": 1, "dana": 0, "jo": 0}
 		check0(os.WriteFile(path, indentJSON(m), 0o600))
 		if err := VerifySnapshot(dir, second.Name); err == nil || !strings.Contains(err.Error(), "op seq") {
 			t.Fatalf("verify with wrong seqs: %v", err)
@@ -852,11 +852,11 @@ func TestPruneSnapshots(t *testing.T) {
 func TestTickler(t *testing.T) {
 	s := fixture(t, t.TempDir())
 	defer s.Close()
-	sven := must(s.View("sven"))
+	robin := must(s.View("robin"))
 	a := s.NewID()
-	must(sven.Apply("nis", createOp(core.Item{ID: a, Kind: core.KindAction, Title: "Deferred", Owner: "sven", DeferUntil: "2026-12-24"})))
+	must(robin.Apply("net", createOp(core.Item{ID: a, Kind: core.KindAction, Title: "Deferred", Owner: "robin", DeferUntil: "2026-12-24"})))
 	personal := s.NewID()
-	must(sven.Apply("sven", createOp(core.Item{ID: personal, Kind: core.KindAction, Title: "Also deferred", DeferUntil: "2026-12-24"})))
+	must(robin.Apply("robin", createOp(core.Item{ID: personal, Kind: core.KindAction, Title: "Also deferred", DeferUntil: "2026-12-24"})))
 
 	// The fixture has an action deferred until 2026-12-03, but it was dropped.
 	for _, day := range []string{"2026-12-02", "2026-12-23"} {
@@ -864,16 +864,16 @@ func TestTickler(t *testing.T) {
 			t.Fatalf("%s: %d items resurfaced too early", day, n)
 		}
 	}
-	seq := s.spaces["nis"].seq
+	seq := s.spaces["net"].seq
 	if n := must(s.Tickle("2026-12-24")); n != 2 {
 		t.Fatalf("on the day: %d items resurfaced, want 2", n)
 	}
-	it := must(sven.Item("nis", a))
+	it := must(robin.Item("net", a))
 	if it.DeferUntil != "" || it.UpdatedBy != core.System {
 		t.Errorf("after the tickler: %+v", it)
 	}
-	ops := must(sven.Ops("nis", 1))
-	if s.spaces["nis"].seq != seq+1 || ops[0].Actor != core.System || ops[0].Type != core.OpPatch || ops[0].Item != a {
+	ops := must(robin.Ops("net", 1))
+	if s.spaces["net"].seq != seq+1 || ops[0].Actor != core.System || ops[0].Type != core.OpPatch || ops[0].Item != a {
 		t.Errorf("the tickler's op: %+v", ops[0])
 	}
 	if n := must(s.Tickle("2026-12-25")); n != 0 {
@@ -884,13 +884,13 @@ func TestTickler(t *testing.T) {
 	}
 
 	// Per-user state survives a restart and is separate per user.
-	check0(s.PutUserState("sven", "review", map[string]string{"phase": "projects"}))
+	check0(s.PutUserState("robin", "review", map[string]string{"phase": "projects"}))
 	var got map[string]string
-	if !s.GetUserState("sven", "review", &got) || got["phase"] != "projects" || s.GetUserState("eric", "review", &got) {
+	if !s.GetUserState("robin", "review", &got) || got["phase"] != "projects" || s.GetUserState("dana", "review", &got) {
 		t.Errorf("user state: %v", got)
 	}
-	check0(s.DeleteUserState("sven", "review"))
-	if s.GetUserState("sven", "review", &got) {
+	check0(s.DeleteUserState("robin", "review"))
+	if s.GetUserState("robin", "review", &got) {
 		t.Error("user state survived its deletion")
 	}
 }

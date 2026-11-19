@@ -20,8 +20,8 @@ import (
 	"github.com/fiber/gtd/store"
 )
 
-// site is a test server with three users. sven and eric share the space nis;
-// grit is a member of nothing but her personal space.
+// site is a test server with three users. robin and dana share the space net;
+// jo is a member of nothing but her personal space.
 type site struct {
 	t   *testing.T
 	st  *store.Store
@@ -37,13 +37,13 @@ func newSite(t *testing.T) *site {
 		t.Fatal(err)
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
-	for _, u := range []core.User{{ID: "sven", Name: "Sven", Admin: true, Lang: "en"}, {ID: "eric", Name: "Eric", Lang: "en"}, {ID: "grit", Name: "Grit", Lang: "de"}} {
+	for _, u := range []core.User{{ID: "robin", Name: "Robin", Admin: true, Lang: "en"}, {ID: "dana", Name: "Dana", Lang: "en"}, {ID: "jo", Name: "Jo", Lang: "de"}} {
 		u.PasswordHash = string(hash)
 		if err := st.AddUser(u); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := st.CreateSpace("nis", "NIS", []string{"sven", "eric"}); err != nil {
+	if err := st.CreateSpace("net", "NET", []string{"robin", "dana"}); err != nil {
 		t.Fatal(err)
 	}
 	app := New(st)
@@ -202,24 +202,24 @@ func TestNoBuildNoThirdParty(t *testing.T) {
 func TestLoginAndSessions(t *testing.T) {
 	s := newSite(t)
 	routes := []string{"/api/v1/me", "/api/v1/inbox", "/api/v1/engage", "/api/v1/projects", "/api/v1/board", "/api/v1/areas",
-		"/api/v1/search?q=x", "/api/v1/items?space=sven", "/api/v1/items/x", "/api/v1/att/" + strings.Repeat("a", 64)}
+		"/api/v1/search?q=x", "/api/v1/items?space=robin", "/api/v1/items/x", "/api/v1/att/" + strings.Repeat("a", 64)}
 	for _, r := range routes {
 		if code, _ := s.anon().do("GET", r, nil, nil); code != 401 {
 			t.Errorf("anonymous GET %s: %d, want 401", r, code)
 		}
 	}
-	if code, _ := s.anon().do("POST", "/api/v1/ops", map[string]any{"space": "sven"}, nil); code != 401 {
+	if code, _ := s.anon().do("POST", "/api/v1/ops", map[string]any{"space": "robin"}, nil); code != 401 {
 		t.Errorf("anonymous POST /ops: %d", code)
 	}
 
 	c := s.anon()
-	if code, body := c.do("POST", "/api/v1/login", map[string]string{"user": "sven", "password": "wrong"}, nil); code != 401 || !strings.Contains(body, "login.failed") {
+	if code, body := c.do("POST", "/api/v1/login", map[string]string{"user": "robin", "password": "wrong"}, nil); code != 401 || !strings.Contains(body, "login.failed") {
 		t.Fatalf("wrong password: %d %s", code, body)
 	}
 	if code, body := c.do("POST", "/api/v1/login", map[string]string{"user": "nobody", "password": password}, nil); code != 401 || !strings.Contains(body, "login.failed") {
 		t.Fatalf("unknown user: %d %s", code, body)
 	}
-	res, err := c.http.Post(s.url+"/api/v1/login", "application/json", strings.NewReader(`{"user":"Sven","password":"`+password+`"}`))
+	res, err := c.http.Post(s.url+"/api/v1/login", "application/json", strings.NewReader(`{"user":"Robin","password":"`+password+`"}`))
 	if err != nil || res.StatusCode != 200 {
 		t.Fatalf("login: %v %v", err, res.Status)
 	}
@@ -238,7 +238,7 @@ func TestLoginAndSessions(t *testing.T) {
 		Today  string
 	}
 	c.ok("GET", "/api/v1/me", nil, &me)
-	if me.User.ID != "sven" || me.Lang != "en" || len(me.Spaces) != 2 || me.Today == "" {
+	if me.User.ID != "robin" || me.Lang != "en" || len(me.Spaces) != 2 || me.Today == "" {
 		t.Errorf("me = %+v", me)
 	}
 
@@ -256,7 +256,7 @@ func TestLoginAndSessions(t *testing.T) {
 	}
 
 	c.ok("PUT", "/api/v1/me", map[string]any{"lang": "de", "personal_contexts": []string{"boat", " Garage "}}, nil)
-	if u := s.st.User("sven"); u.Lang != "de" || strings.Join(u.PersonalContexts, ",") != "boat,garage" {
+	if u := s.st.User("robin"); u.Lang != "de" || strings.Join(u.PersonalContexts, ",") != "boat,garage" {
 		t.Errorf("user after PUT /me: %+v", u)
 	}
 	if code, _ := c.do("PUT", "/api/v1/me", map[string]any{"lang": "fr"}, nil); code != 400 {
@@ -271,9 +271,9 @@ func TestLoginAndSessions(t *testing.T) {
 	// Five failures lock the user for a minute, even with the right password.
 	d := s.anon()
 	for i := 0; i < maxFailures; i++ {
-		d.do("POST", "/api/v1/login", map[string]string{"user": "eric", "password": "wrong"}, nil)
+		d.do("POST", "/api/v1/login", map[string]string{"user": "dana", "password": "wrong"}, nil)
 	}
-	if code, body := d.do("POST", "/api/v1/login", map[string]string{"user": "eric", "password": password}, nil); code != 429 || !strings.Contains(body, "login.locked") {
+	if code, body := d.do("POST", "/api/v1/login", map[string]string{"user": "dana", "password": password}, nil); code != 429 || !strings.Contains(body, "login.locked") {
 		t.Errorf("after %d failures: %d %s", maxFailures, code, body)
 	}
 }
@@ -283,12 +283,12 @@ func TestLoginAndSessions(t *testing.T) {
 // exist (STORAGE §2.2).
 func TestIsolationOverHTTP(t *testing.T) {
 	s := newSite(t)
-	sven, eric, grit := s.login("sven"), s.login("eric"), s.login("grit")
-	project := sven.create("nis", map[string]any{"kind": "project", "title": "Secret NIS project"})
-	note := sven.create("nis", map[string]any{"kind": "note", "title": "Secret NIS note", "project": project, "body": "- [ ] secret task"})
-	sven.create("nis", map[string]any{"kind": "action", "title": "Secret NIS action", "project": project, "owner": "eric"})
-	sha := upload(t, sven, note, "secret.txt", "secret content")
-	private := sven.create("sven", map[string]any{"kind": "note", "title": "Sven's private note"})
+	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
+	project := robin.create("net", map[string]any{"kind": "project", "title": "Secret NET project"})
+	note := robin.create("net", map[string]any{"kind": "note", "title": "Secret NET note", "project": project, "body": "- [ ] secret task"})
+	robin.create("net", map[string]any{"kind": "action", "title": "Secret NET action", "project": project, "owner": "dana"})
+	sha := upload(t, robin, note, "secret.txt", "secret content")
+	private := robin.create("robin", map[string]any{"kind": "note", "title": "Robin's private note"})
 
 	type route struct {
 		method, path string
@@ -297,24 +297,24 @@ func TestIsolationOverHTTP(t *testing.T) {
 	routes := []route{
 		{"GET", "/api/v1/items/" + note, nil},
 		{"GET", "/api/v1/items/" + note + "/comments", nil},
-		{"GET", "/api/v1/items?space=nis", nil},
+		{"GET", "/api/v1/items?space=net", nil},
 		{"GET", "/api/v1/plan/" + project, nil},
-		{"GET", "/api/v1/board?space=nis", nil},
-		{"GET", "/api/v1/spaces/nis/options", nil},
-		{"GET", "/api/v1/spaces/nis/templates", nil},
-		{"PUT", "/api/v1/spaces/nis/templates", map[string]string{"yaml": ""}},
+		{"GET", "/api/v1/board?space=net", nil},
+		{"GET", "/api/v1/spaces/net/options", nil},
+		{"GET", "/api/v1/spaces/net/templates", nil},
+		{"PUT", "/api/v1/spaces/net/templates", map[string]string{"yaml": ""}},
 		{"GET", "/api/v1/att/" + sha, nil},
-		{"GET", "/api/v1/ops?space=nis&n=5", nil},
-		{"GET", "/api/v1/export?space=nis", nil},
-		{"POST", "/api/v1/ops", map[string]any{"space": "nis", "ops": []map[string]any{{"type": "create", "payload": map[string]any{"kind": "note", "title": "intruder"}}}}},
-		{"POST", "/api/v1/ops", map[string]any{"space": "nis", "ops": []map[string]any{{"type": "comment", "item": note, "payload": map[string]any{"body": "hi"}}}}},
+		{"GET", "/api/v1/ops?space=net&n=5", nil},
+		{"GET", "/api/v1/export?space=net", nil},
+		{"POST", "/api/v1/ops", map[string]any{"space": "net", "ops": []map[string]any{{"type": "create", "payload": map[string]any{"kind": "note", "title": "intruder"}}}}},
+		{"POST", "/api/v1/ops", map[string]any{"space": "net", "ops": []map[string]any{{"type": "comment", "item": note, "payload": map[string]any{"body": "hi"}}}}},
 		{"POST", "/api/v1/wizard/note/start", map[string]string{"item": note}},
 	}
 	for _, r := range routes {
-		if code, body := eric.do(r.method, r.path, r.body, nil); code != 200 {
+		if code, body := dana.do(r.method, r.path, r.body, nil); code != 200 {
 			t.Errorf("member: %s %s: %d %s", r.method, r.path, code, body)
 		}
-		code, body := grit.do(r.method, r.path, r.body, nil)
+		code, body := jo.do(r.method, r.path, r.body, nil)
 		if code != 404 {
 			t.Errorf("non-member: %s %s: %d, want 404 (%s)", r.method, r.path, code, body)
 		}
@@ -322,9 +322,9 @@ func TestIsolationOverHTTP(t *testing.T) {
 			t.Errorf("non-member: %s %s leaks content: %s", r.method, r.path, body)
 		}
 		// Something that does not exist answers the same way.
-		missing := strings.NewReplacer("nis", "nope", note, "01NOPE", project, "01NOPE", sha, strings.Repeat("0", 64)).Replace(r.path)
+		missing := strings.NewReplacer("net", "nope", note, "01NOPE", project, "01NOPE", sha, strings.Repeat("0", 64)).Replace(r.path)
 		if r.body == nil {
-			if code, _ := grit.do(r.method, missing, nil, nil); code != 404 {
+			if code, _ := jo.do(r.method, missing, nil, nil); code != 404 {
 				t.Errorf("missing: %s %s: %d, want 404", r.method, missing, code)
 			}
 		}
@@ -332,28 +332,28 @@ func TestIsolationOverHTTP(t *testing.T) {
 	// Routes without a space must only ever show the user's own spaces.
 	for _, path := range []string{"/api/v1/search?q=secret", "/api/v1/pick?q=secret", "/api/v1/engage", "/api/v1/engage?tab=waiting",
 		"/api/v1/engage?tab=dates", "/api/v1/projects", "/api/v1/areas", "/api/v1/inbox", "/api/v1/me", "/api/v1/board"} {
-		code, body := grit.do("GET", path, nil, nil)
-		if code != 200 || strings.Contains(body, "Secret") || strings.Contains(body, `"nis"`) {
-			t.Errorf("grit GET %s: %d %s", path, code, body)
+		code, body := jo.do("GET", path, nil, nil)
+		if code != 200 || strings.Contains(body, "Secret") || strings.Contains(body, `"net"`) {
+			t.Errorf("jo GET %s: %d %s", path, code, body)
 		}
 	}
-	if _, body := eric.do("GET", "/api/v1/search?q=secret", nil, nil); !strings.Contains(body, "Secret NIS note") {
-		t.Errorf("eric's search misses the shared note: %s", body)
+	if _, body := dana.do("GET", "/api/v1/search?q=secret", nil, nil); !strings.Contains(body, "Secret NET note") {
+		t.Errorf("dana's search misses the shared note: %s", body)
 	}
-	// A co-member of nis still cannot see sven's personal space.
-	if code, _ := eric.do("GET", "/api/v1/items/"+private, nil, nil); code != 404 {
-		t.Errorf("eric reads sven's private note: %d", code)
+	// A co-member of net still cannot see robin's personal space.
+	if code, _ := dana.do("GET", "/api/v1/items/"+private, nil, nil); code != 404 {
+		t.Errorf("dana reads robin's private note: %d", code)
 	}
 	// A link to an item the reader cannot see renders as "unavailable item".
-	shared := sven.create("nis", map[string]any{"kind": "note", "title": "Shared", "body": "see [[" + private + "]]"})
+	shared := robin.create("net", map[string]any{"kind": "note", "title": "Shared", "body": "see [[" + private + "]]"})
 	var iv ItemView
-	eric.ok("GET", "/api/v1/items/"+shared, nil, &iv)
+	dana.ok("GET", "/api/v1/items/"+shared, nil, &iv)
 	if !strings.Contains(iv.BodyHTML, "unavailable item") || strings.Contains(iv.BodyHTML, "private") || strings.Contains(iv.BodyEdit, "private") {
-		t.Errorf("eric sees through the link: %s / %s", iv.BodyHTML, iv.BodyEdit)
+		t.Errorf("dana sees through the link: %s / %s", iv.BodyHTML, iv.BodyEdit)
 	}
-	sven.ok("GET", "/api/v1/items/"+shared, nil, &iv)
-	if !strings.Contains(iv.BodyHTML, "Sven&#39;s private note") || iv.BodyEdit != "see [[Sven's private note]]" {
-		t.Errorf("sven's own link: %s / %s", iv.BodyHTML, iv.BodyEdit)
+	robin.ok("GET", "/api/v1/items/"+shared, nil, &iv)
+	if !strings.Contains(iv.BodyHTML, "Robin&#39;s private note") || iv.BodyEdit != "see [[Robin's private note]]" {
+		t.Errorf("robin's own link: %s / %s", iv.BodyHTML, iv.BodyEdit)
 	}
 }
 
@@ -381,7 +381,7 @@ func upload(t *testing.T, c *client, item, name, content string) string {
 // with the project prompt, body_html and the editor form of the body.
 func TestGTDLoopOverHTTP(t *testing.T) {
 	s := newSite(t)
-	c := s.login("sven")
+	c := s.login("robin")
 	var cap struct{ ID string }
 	c.ok("POST", "/api/v1/capture", map[string]any{"text": "collector thing <script>alert(1)</script>\nsecond line"}, &cap)
 	var inbox struct{ Captures []Brief }
@@ -422,7 +422,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 		t.Fatalf("empty title: %d %s", code, body)
 	}
 	// Another user cannot answer in this session.
-	if code, _ := s.login("eric").do("POST", "/api/v1/wizard/clarify/"+session+"/step", map[string]any{"choice": "continue"}, nil); code != 404 {
+	if code, _ := s.login("dana").do("POST", "/api/v1/wizard/clarify/"+session+"/step", map[string]any{"choice": "continue"}, nil); code != 404 {
 		t.Errorf("foreign wizard session: %d", code)
 	}
 	answer("continue", "title", "Collector survives resets", "body", "notes")
@@ -431,7 +431,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	if r := answer("continue", "title", "Collector survives resets"); r.Step.Key != "action" {
 		t.Fatalf("after project: %+v", r)
 	}
-	answer("continue", "action", "Ask Eric")
+	answer("continue", "action", "Ask Dana")
 	answer("no")
 	answer("me")
 	answer("continue", "context", "calls")
@@ -455,7 +455,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	}
 	var eng struct{ Items []Brief }
 	c.ok("GET", "/api/v1/engage?context=calls", nil, &eng)
-	if len(eng.Items) != 1 || eng.Items[0].Title != "Ask Eric" || eng.Items[0].ProjectTitle != "Collector survives resets" {
+	if len(eng.Items) != 1 || eng.Items[0].Title != "Ask Dana" || eng.Items[0].ProjectTitle != "Collector survives resets" {
 		t.Fatalf("engage: %+v", eng.Items)
 	}
 	c.ok("GET", "/api/v1/engage?context=home", nil, &eng)
@@ -466,7 +466,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	// Done unblocks the follow-up; no prompt, the project still has a next action.
 	done := func(b Brief) (prompts []Prompt) {
 		var res struct{ Prompts []Prompt }
-		c.ok("POST", "/api/v1/ops", map[string]any{"space": "sven", "ops": []map[string]any{{"type": "transition", "item": b.ID, "base_rev": b.Rev,
+		c.ok("POST", "/api/v1/ops", map[string]any{"space": "robin", "ops": []map[string]any{{"type": "transition", "item": b.ID, "base_rev": b.Rev,
 			"changes": []map[string]any{{"field": "state", "new": "done"}}}}}, &res)
 		return res.Prompts
 	}
@@ -484,13 +484,13 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 		t.Errorf("prompts = %+v", prompts)
 	}
 	// Stale rev: conflict.
-	if code, _ := c.do("POST", "/api/v1/ops", map[string]any{"space": "sven", "ops": []map[string]any{{"type": "transition", "item": cap.ID, "base_rev": 1,
+	if code, _ := c.do("POST", "/api/v1/ops", map[string]any{"space": "robin", "ops": []map[string]any{{"type": "transition", "item": cap.ID, "base_rev": 1,
 		"changes": []map[string]any{{"field": "state", "old": "someday", "new": "done"}}}}}, nil); code != 409 {
 		t.Errorf("stale transition: %d, want 409", code)
 	}
 
 	// Markdown is rendered on the server and is safe.
-	note := c.create("sven", map[string]any{"kind": "note", "title": "N", "body": "# T\n<script>alert(1)</script>\n- [ ] task\n[[" + cap.ID + "]]"})
+	note := c.create("robin", map[string]any{"kind": "note", "title": "N", "body": "# T\n<script>alert(1)</script>\n- [ ] task\n[[" + cap.ID + "]]"})
 	var iv ItemView
 	c.ok("GET", "/api/v1/items/"+note, nil, &iv)
 	if strings.Contains(iv.BodyHTML, "<script") || !strings.Contains(iv.BodyHTML, `href="i/`+cap.ID+`"`) || iv.Tasks != 1 ||
@@ -514,15 +514,15 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 	}
 
 	// Templates: YAML in, validation, and back.
-	if code, body := c.do("PUT", "/api/v1/spaces/sven/templates", map[string]string{"yaml": "templates:\n  - {key: t, kind: area}\n"}, nil); code != 400 {
+	if code, body := c.do("PUT", "/api/v1/spaces/robin/templates", map[string]string{"yaml": "templates:\n  - {key: t, kind: area}\n"}, nil); code != 400 {
 		t.Errorf("bad template: %d %s", code, body)
 	}
 	var tpl struct{ YAML string }
-	c.ok("PUT", "/api/v1/spaces/sven/templates", map[string]string{"yaml": "templates:\n  - key: trade_setup\n    kind: note\n    fields:\n      - {key: expires, type: date, tickler: true}\n"}, &tpl)
+	c.ok("PUT", "/api/v1/spaces/robin/templates", map[string]string{"yaml": "templates:\n  - key: trade_setup\n    kind: note\n    fields:\n      - {key: expires, type: date, tickler: true}\n"}, &tpl)
 	if !strings.Contains(tpl.YAML, "trade_setup") {
 		t.Errorf("templates = %q", tpl.YAML)
 	}
-	setup := c.create("sven", map[string]any{"kind": "note", "title": "NVDA", "template": "trade_setup", "fields": map[string]string{"expires": "2027-01-15"}})
+	setup := c.create("robin", map[string]any{"kind": "note", "title": "NVDA", "template": "trade_setup", "fields": map[string]string{"expires": "2027-01-15"}})
 	c.ok("GET", "/api/v1/items/"+setup, nil, &iv)
 	if iv.DeferUntil != "2027-01-15" || iv.TemplateDef == nil || !iv.Deferred {
 		t.Errorf("tickler field: defer %q, def %v", iv.DeferUntil, iv.TemplateDef)
@@ -546,7 +546,7 @@ func TestGTDLoopOverHTTP(t *testing.T) {
 
 func TestPhotoCaptureTitle(t *testing.T) {
 	s := newSite(t)
-	c := s.login("grit") // German
+	c := s.login("jo") // German
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	mw.WriteField("text", "")

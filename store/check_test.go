@@ -117,7 +117,7 @@ func TestCrashWriter(t *testing.T) {
 	}
 	s := must(Open(dir))
 	fmt.Println("ready")
-	for _, w := range []struct{ user, space string }{{"sven", "nis"}, {"eric", "eric"}} {
+	for _, w := range []struct{ user, space string }{{"robin", "net"}, {"dana", "dana"}} {
 		go func() {
 			v := must(s.View(w.user))
 			for {
@@ -143,9 +143,9 @@ func TestCrash(t *testing.T) {
 	}
 	dir := t.TempDir()
 	s := must(Create(dir, "crash"))
-	check0(s.AddUser(core.User{ID: "sven"}))
-	check0(s.AddUser(core.User{ID: "eric"}))
-	check0(s.CreateSpace("nis", "", []string{"sven", "eric"}))
+	check0(s.AddUser(core.User{ID: "robin"}))
+	check0(s.AddUser(core.User{ID: "dana"}))
+	check0(s.CreateSpace("net", "", []string{"robin", "dana"}))
 	check0(s.Close())
 
 	const rounds = 8
@@ -173,7 +173,7 @@ func TestCrash(t *testing.T) {
 		// Notifications are written in the batch of the op that causes them:
 		// here every system op is an unblock with exactly one notification.
 		ops, system, notes := 0, 0, 0
-		for _, id := range []string{"nis", "eric"} {
+		for _, id := range []string{"net", "dana"} {
 			scan(s.db, opPrefix(id), func(_ string, v []byte) error {
 				ops++
 				if strings.Contains(string(v), `"actor":"system"`) {
@@ -182,7 +182,7 @@ func TestCrash(t *testing.T) {
 				return nil
 			})
 		}
-		for _, u := range []string{"sven", "eric"} {
+		for _, u := range []string{"robin", "dana"} {
 			var last uint64
 			for _, n := range must(must(s.View(u)).Notifications()) {
 				notes++

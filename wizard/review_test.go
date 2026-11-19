@@ -25,7 +25,7 @@ func reviewWorld(t *testing.T) *world {
 		createOp(core.Item{ID: "home", Kind: core.KindArea, Title: "Home"}),
 		createOp(core.Item{ID: "a1", Kind: core.KindAction, Title: "Read RFC 4271", Project: "p1"}),
 		createOp(core.Item{ID: "psub", Kind: core.KindProject, Title: "Session state persisted", Parent: "p1", Target: "2027-03-01"}),
-		createOp(core.Item{ID: "w1", Kind: core.KindAction, Title: "Get the API key", Project: "psub", State: core.StWaiting, WaitingOn: "Brent"}),
+		createOp(core.Item{ID: "w1", Kind: core.KindAction, Title: "Get the API key", Project: "psub", State: core.StWaiting, WaitingOn: "Lee"}),
 		createOp(core.Item{ID: "pstuck", Kind: core.KindProject, Title: "Garden gate fixed", Area: "home"}),
 		createOp(core.Item{ID: "s1", Kind: core.KindAction, Title: "Try gap fill trades", State: core.StSomeday}),
 		createOp(core.Item{ID: "sp", Kind: core.KindProject, Title: "Learn to sail", State: core.StSomeday}),
@@ -45,7 +45,7 @@ func reviewWorld(t *testing.T) *world {
 }
 
 func (w *world) reviewEnv(inbox int) ReviewEnv {
-	return ReviewEnv{User: "sven", Today: today, Spaces: []*core.State{w.st}, Inbox: inbox, FromOthers: 2,
+	return ReviewEnv{User: "robin", Today: today, Spaces: []*core.State{w.st}, Inbox: inbox, FromOthers: 2,
 		SomedayReviewed: map[string]string{"s1": "2026-11-01"}, FollowUp: "Follow up with %s: %s", Nudge: "Any news?"}
 }
 
@@ -74,7 +74,7 @@ func TestReviewWalk(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if len(ops) > 0 && space != "sven" {
+		if len(ops) > 0 && space != "robin" {
 			t.Fatalf("ops for space %q", space)
 		}
 		if err := w.apply(ops); err != nil {
@@ -120,7 +120,7 @@ func TestReviewWalk(t *testing.T) {
 	must(in("defer", "defer_until", "2026-12-03")) // a1
 	must(in("keep"))                               // old
 	// 5. Waiting for.
-	must(in("nudge")) // w1, waiting for Brent
+	must(in("nudge")) // w1, waiting for Lee
 	// 6. Dates.
 	env := w.reviewEnv(0)
 	at, _ := r.At(env)
@@ -150,7 +150,7 @@ func TestReviewWalk(t *testing.T) {
 	}
 
 	want := "clear: | clear: | unsorted: | projects:BGP collector handles resets | projects:Session state persisted | " +
-		"projects:Equinix API integrated | projects:Garden gate fixed | projects:Garden gate fixed | projects:Garden gate fixed | " +
+		"projects:Example API integrated | projects:Garden gate fixed | projects:Garden gate fixed | projects:Garden gate fixed | " +
 		"stale:Read RFC 4271 | stale:Read RFC 4271 | stale:Renew passport | waiting:Get the API key | dates: | " +
 		"someday:Learn to sail | someday:Try gap fill trades | areas:"
 	if got := strings.Join(visited, " | "); got != want {
@@ -168,7 +168,7 @@ func TestReviewWalk(t *testing.T) {
 		}
 	}
 	slices.Sort(made)
-	if !slices.Equal(made, []string{"Buy new hinges|pstuck||next", "Follow up with Brent: Get the API key|psub|calls|next"}) {
+	if !slices.Equal(made, []string{"Buy new hinges|pstuck||next", "Follow up with Lee: Get the API key|psub|calls|next"}) {
 		t.Errorf("actions the review created: %q", made)
 	}
 	if !core.Alive(w.st, "pstuck") {
@@ -183,8 +183,8 @@ func TestReviewWalk(t *testing.T) {
 
 func TestReviewDetails(t *testing.T) {
 	t.Run("nothing to review: straight through", func(t *testing.T) {
-		w := &world{t: t, st: &core.State{Space: &core.Space{ID: "sven", Kind: core.SpacePersonal, Members: []string{"sven"}}, Items: map[string]*core.Item{}}}
-		env := ReviewEnv{User: "sven", Today: today, Spaces: []*core.State{w.st}}
+		w := &world{t: t, st: &core.State{Space: &core.Space{ID: "robin", Kind: core.SpacePersonal, Members: []string{"robin"}}, Items: map[string]*core.Item{}}}
+		env := ReviewEnv{User: "robin", Today: today, Spaces: []*core.State{w.st}}
 		r, done := StartReview(today).At(env)
 		if done || r.Phase != PhaseClear {
 			t.Fatalf("phase %q, done %v", r.Phase, done)
@@ -206,7 +206,7 @@ func TestReviewDetails(t *testing.T) {
 		if err := w.apply(ops); err != nil {
 			t.Fatal(err)
 		}
-		env := ReviewEnv{User: "sven", Today: today, Spaces: []*core.State{w.st}, SomedayReviewed: map[string]string{"s00": "2026-11-12", "s01": "2026-11-12"}}
+		env := ReviewEnv{User: "robin", Today: today, Spaces: []*core.State{w.st}, SomedayReviewed: map[string]string{"s00": "2026-11-12", "s01": "2026-11-12"}}
 		r := Review{Phase: PhaseSomeday, Stats: map[string]int{}}
 		var shown []string
 		for {
@@ -235,10 +235,10 @@ func TestReviewDetails(t *testing.T) {
 	t.Run("another user's spaces are not reviewed", func(t *testing.T) {
 		w := reviewWorld(t)
 		env := w.reviewEnv(0)
-		env.User = "eric" // not the owner of anything here
+		env.User = "dana" // not the owner of anything here
 		r := Review{Phase: PhaseStale, Stats: map[string]int{}}
 		if at, _ := r.At(env); at.Phase == PhaseStale || at.Phase == PhaseWaiting {
-			t.Errorf("eric is asked about sven's actions: phase %q", at.Phase)
+			t.Errorf("dana is asked about robin's actions: phase %q", at.Phase)
 		}
 	})
 }

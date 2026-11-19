@@ -23,11 +23,11 @@ const (
 func bulk(t testing.TB, dir string) {
 	t.Helper()
 	s := must(Create(dir, "load"))
-	check0(s.AddUser(core.User{ID: "sven"}))
-	check0(s.AddUser(core.User{ID: "eric"}))
-	check0(s.CreateSpace("nis", "", []string{"sven", "eric"}))
+	check0(s.AddUser(core.User{ID: "robin"}))
+	check0(s.AddUser(core.User{ID: "dana"}))
+	check0(s.CreateSpace("net", "", []string{"robin", "dana"}))
 	rng := rand.New(rand.NewPCG(1, 2))
-	words := strings.Fields("collector session reset bgp nora atlas curation automation review deploy fix draft plan test write call ask check migrate import export snapshot index query")
+	words := strings.Fields("collector session reset bgp beta alpha curation automation review deploy fix draft plan test write call ask check migrate import export snapshot index query")
 	text := func(n int) string {
 		var b strings.Builder
 		for i := 0; i < n; i++ {
@@ -49,21 +49,21 @@ func bulk(t testing.TB, dir string) {
 	bytes := 0
 	for i := 0; i < loadItems; i++ {
 		k := kinds[i%len(kinds)]
-		space := []string{"nis", "nis", "nis", "sven"}[i%4]
+		space := []string{"net", "net", "net", "robin"}[i%4]
 		it := core.Item{V: 1, ID: fmt.Sprintf("01JD8X4Q9V3T6M2K7P5R%06d", i), Space: space, Kind: k.kind, State: k.state,
-			Title: text(6), Rev: 3, Created: now, Updated: now, UpdatedBy: "sven", Owner: []string{"sven", "eric"}[(i/7)%2],
+			Title: text(6), Rev: 3, Created: now, Updated: now, UpdatedBy: "robin", Owner: []string{"robin", "dana"}[(i/7)%2],
 			Original: text(10), Body: text(100), Source: core.Source{Via: "import", Ref: "obsidian:x.md"}}
 		if k.kind == core.KindAction {
 			it.Context = "computer"
 		}
-		if space == "sven" {
-			it.Owner = "sven"
+		if space == "robin" {
+			it.Owner = "robin"
 		}
 		v := mustJSON(it)
 		bytes += len(v)
 		b.Set(itemKey(space, it.ID), v, nil)
 		for c := 0; c < loadComments/loadItems; c++ {
-			cm := core.Comment{V: 1, ID: fmt.Sprintf("01JD8X4Q9V3T6M2K7P5S%05d%d", i, c), Item: it.ID, Author: "eric", TS: now, Body: text(20)}
+			cm := core.Comment{V: 1, ID: fmt.Sprintf("01JD8X4Q9V3T6M2K7P5S%05d%d", i, c), Item: it.ID, Author: "dana", TS: now, Body: text(20)}
 			b.Set(commentKey(space, it.ID, cm.ID), mustJSON(cm), nil)
 		}
 		if i%2000 == 1999 {
@@ -111,7 +111,7 @@ func TestLoad50k(t *testing.T) {
 		t.Fatalf("loaded %d items and %d comment counts", n, comments)
 	}
 
-	v := must(s.View("eric"))
+	v := must(s.View("dana"))
 	timeIt := func(name string, f func() int) time.Duration {
 		best := time.Hour
 		hits := 0
@@ -126,15 +126,15 @@ func TestLoad50k(t *testing.T) {
 		return best
 	}
 	queries := []time.Duration{
-		timeIt("next actions owned by eric in nis", func() int {
-			return len(must(v.Items("nis", func(it *core.Item) bool {
-				return it.Kind == core.KindAction && it.State == core.StNext && it.Owner == "eric"
+		timeIt("next actions owned by dana in net", func() int {
+			return len(must(v.Items("net", func(it *core.Item) bool {
+				return it.Kind == core.KindAction && it.State == core.StNext && it.Owner == "dana"
 			})))
 		}),
-		timeIt("active projects in nis", func() int {
-			return len(must(v.Items("nis", func(it *core.Item) bool { return it.Kind == core.KindProject && it.State == core.StActive })))
+		timeIt("active projects in net", func() int {
+			return len(must(v.Items("net", func(it *core.Item) bool { return it.Kind == core.KindProject && it.State == core.StActive })))
 		}),
-		timeIt("one item by id", func() int { must(v.Item("nis", "01JD8X4Q9V3T6M2K7P5R000001")); return 1 }),
+		timeIt("one item by id", func() int { must(v.Item("net", "01JD8X4Q9V3T6M2K7P5R000001")); return 1 }),
 	}
 	grep := timeIt("grep, two words, 37,500 items scanned", func() int { return len(v.Grep("collector zzz")) })
 	timeIt("grep, common word (sorting 37,500 hits)", func() int { return len(v.Grep("bgp")) })

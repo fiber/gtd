@@ -22,14 +22,14 @@ type world struct {
 
 func shared(t *testing.T) *world {
 	return &world{t: t, cms: map[string]*Comment{}, st: &State{
-		Space: &Space{ID: "nis", Kind: SpaceShared, Members: []string{"sven", "eric"}, People: []string{"Kim"}},
+		Space: &Space{ID: "net", Kind: SpaceShared, Members: []string{"robin", "dana"}, People: []string{"Kim"}},
 		Items: map[string]*Item{},
 	}}
 }
 
 func personal(t *testing.T) *world {
 	return &world{t: t, cms: map[string]*Comment{}, st: &State{
-		Space:            &Space{ID: "sven", Kind: SpacePersonal, Members: []string{"sven"}},
+		Space:            &Space{ID: "robin", Kind: SpacePersonal, Members: []string{"robin"}},
 		Items:            map[string]*Item{},
 		PersonalContexts: []string{"boat"},
 	}}
@@ -78,7 +78,7 @@ func (w *world) must(err error) {
 // action creates an action owned by owner with the given blockers.
 func (w *world) action(id, owner string, blockedBy ...string) {
 	w.t.Helper()
-	w.must(w.create("sven", Item{ID: id, Kind: KindAction, Owner: owner, BlockedBy: blockedBy}))
+	w.must(w.create("robin", Item{ID: id, Kind: KindAction, Owner: owner, BlockedBy: blockedBy}))
 }
 
 func (w *world) move(actor, id, state string) error {
@@ -135,8 +135,8 @@ func TestTransitionTable(t *testing.T) {
 				t.Run(kind+"/"+from+">"+to, func(t *testing.T) {
 					w := shared(t)
 					// Put the item into `from` directly: not every state is reachable by create.
-					w.st.Items["i"] = &Item{V: 1, ID: "i", Space: "nis", Kind: kind, Title: "t", State: from, Rev: 1}
-					err := w.move("sven", "i", to)
+					w.st.Items["i"] = &Item{V: 1, ID: "i", Space: "net", Kind: kind, Title: "t", State: from, Rev: 1}
+					err := w.move("robin", "i", to)
 					want := slices.Contains(ok, from+">"+to)
 					if want && err != nil {
 						t.Fatalf("rejected: %v", err)
@@ -163,8 +163,8 @@ func TestClarifyCapture(t *testing.T) {
 			}
 			t.Run(kind+"/"+state, func(t *testing.T) {
 				w := personal(t)
-				w.must(w.create("sven", Item{ID: "c", Kind: KindCapture, Original: "raw"}))
-				_, err := w.apply(Op{Actor: "sven", Type: OpTransition, Item: "c", BaseRev: 1, Changes: []FieldChange{
+				w.must(w.create("robin", Item{ID: "c", Kind: KindCapture, Original: "raw"}))
+				_, err := w.apply(Op{Actor: "robin", Type: OpTransition, Item: "c", BaseRev: 1, Changes: []FieldChange{
 					{Field: "kind", New: mustJSON(kind)}, {Field: "state", New: mustJSON(state)}}})
 				want := slices.Contains(strings.Fields(allowed), kind+"/"+state)
 				if want != (err == nil) {
@@ -177,7 +177,7 @@ func TestClarifyCapture(t *testing.T) {
 				if it.Kind != kind || it.State != state || it.Original != "raw" {
 					t.Fatalf("got %s/%s original %q", it.Kind, it.State, it.Original)
 				}
-				if kind == KindAction && it.Owner != "sven" {
+				if kind == KindAction && it.Owner != "robin" {
 					t.Fatalf("action in a personal space has owner %q", it.Owner)
 				}
 			})
@@ -185,9 +185,9 @@ func TestClarifyCapture(t *testing.T) {
 	}
 	t.Run("only from inbox", func(t *testing.T) {
 		w := personal(t)
-		w.must(w.create("sven", Item{ID: "c", Kind: KindCapture}))
-		w.must(w.move("sven", "c", StTrashed))
-		_, err := w.apply(Op{Actor: "sven", Type: OpTransition, Item: "c", BaseRev: 2, Changes: []FieldChange{
+		w.must(w.create("robin", Item{ID: "c", Kind: KindCapture}))
+		w.must(w.move("robin", "c", StTrashed))
+		_, err := w.apply(Op{Actor: "robin", Type: OpTransition, Item: "c", BaseRev: 2, Changes: []FieldChange{
 			{Field: "kind", New: mustJSON(KindAction)}, {Field: "state", New: mustJSON(StNext)}}})
 		if !errors.Is(err, ErrConflict) {
 			t.Fatalf("err = %v", err)
@@ -195,8 +195,8 @@ func TestClarifyCapture(t *testing.T) {
 	})
 	t.Run("no other kind changes", func(t *testing.T) {
 		w := shared(t)
-		w.action("a", "sven")
-		_, err := w.apply(Op{Actor: "sven", Type: OpTransition, Item: "a", BaseRev: 1, Changes: []FieldChange{
+		w.action("a", "robin")
+		_, err := w.apply(Op{Actor: "robin", Type: OpTransition, Item: "a", BaseRev: 1, Changes: []FieldChange{
 			{Field: "kind", New: mustJSON(KindNote)}, {Field: "state", New: mustJSON(StFiled)}}})
 		if !errors.Is(err, ErrConflict) {
 			t.Fatalf("err = %v", err)
@@ -213,243 +213,243 @@ func TestDependencies(t *testing.T) {
 		notes []string          // expected notifications
 	}{
 		{name: "created with an open blocker is planned",
-			run:   func(w *world) error { w.action("a", "sven"); w.action("b", "eric", "a"); return nil },
+			run:   func(w *world) error { w.action("a", "robin"); w.action("b", "dana", "a"); return nil },
 			state: map[string]string{"a": StNext, "b": StPlanned}},
 		{name: "created as planned without a blocker becomes next",
 			run: func(w *world) error {
-				return w.create("sven", Item{ID: "a", Kind: KindAction, State: StPlanned})
+				return w.create("robin", Item{ID: "a", Kind: KindAction, State: StPlanned})
 			},
 			state: map[string]string{"a": StNext}},
 		{name: "created with a finished blocker stays next",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.must(w.move("sven", "a", StDone))
-				w.action("b", "eric", "a")
+				w.action("a", "robin")
+				w.must(w.move("robin", "a", StDone))
+				w.action("b", "dana", "a")
 				return nil
 			},
 			state: map[string]string{"b": StNext}},
 		{name: "adding a blocker makes a next action planned",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric")
-				return w.patch("sven", "b", "blocked_by", []string{"a"})
+				w.action("a", "robin")
+				w.action("b", "dana")
+				return w.patch("robin", "b", "blocked_by", []string{"a"})
 			},
 			state: map[string]string{"b": StPlanned}},
 		{name: "adding a blocker makes waiting and someday actions planned",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric")
-				w.action("c", "eric")
-				w.must(w.move("eric", "b", StWaiting))
-				w.must(w.move("eric", "c", StSomeday))
-				w.must(w.patch("sven", "b", "blocked_by", []string{"a"}))
-				return w.patch("sven", "c", "blocked_by", []string{"a"})
+				w.action("a", "robin")
+				w.action("b", "dana")
+				w.action("c", "dana")
+				w.must(w.move("dana", "b", StWaiting))
+				w.must(w.move("dana", "c", StSomeday))
+				w.must(w.patch("robin", "b", "blocked_by", []string{"a"}))
+				return w.patch("robin", "c", "blocked_by", []string{"a"})
 			},
 			state: map[string]string{"b": StPlanned, "c": StPlanned}},
 		{name: "removing the last blocker makes it next, without notification",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				return w.patch("sven", "b", "blocked_by", []string{})
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				return w.patch("robin", "b", "blocked_by", []string{})
 			},
 			state: map[string]string{"b": StNext}},
 		{name: "unblock: last blocker done",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				return w.move("sven", "a", StDone)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				return w.move("robin", "a", StDone)
 			},
 			state: map[string]string{"a": StDone, "b": StNext},
-			notes: []string{"unblocked:b>eric"}},
+			notes: []string{"unblocked:b>dana"}},
 		{name: "unblock: owner is notified even if they completed the blocker",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven", "a")
-				return w.move("sven", "a", StDone)
+				w.action("a", "robin")
+				w.action("b", "robin", "a")
+				return w.move("robin", "a", StDone)
 			},
 			state: map[string]string{"b": StNext},
-			notes: []string{"unblocked:b>sven"}},
+			notes: []string{"unblocked:b>robin"}},
 		{name: "unblock: unassigned action notifies every member",
 			run: func(w *world) error {
-				w.action("a", "sven")
+				w.action("a", "robin")
 				w.action("b", "", "a")
-				return w.move("sven", "a", StDone)
+				return w.move("robin", "a", StDone)
 			},
 			state: map[string]string{"b": StNext},
-			notes: []string{"unblocked:b>eric", "unblocked:b>sven"}},
+			notes: []string{"unblocked:b>dana", "unblocked:b>robin"}},
 		{name: "one of two blockers done: stays planned",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven")
-				w.action("c", "eric", "a", "b")
-				return w.move("sven", "a", StDone)
+				w.action("a", "robin")
+				w.action("b", "robin")
+				w.action("c", "dana", "a", "b")
+				return w.move("robin", "a", StDone)
 			},
 			state: map[string]string{"c": StPlanned}},
 		{name: "both blockers done: unblocked once",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven")
-				w.action("c", "eric", "a", "b")
-				w.must(w.move("sven", "a", StDone))
-				return w.move("sven", "b", StDone)
+				w.action("a", "robin")
+				w.action("b", "robin")
+				w.action("c", "dana", "a", "b")
+				w.must(w.move("robin", "a", StDone))
+				return w.move("robin", "b", StDone)
 			},
 			state: map[string]string{"c": StNext},
-			notes: []string{"unblocked:c>eric"}},
+			notes: []string{"unblocked:c>dana"}},
 		{name: "one blocker unblocks several dependents",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				w.action("c", "sven", "a")
-				return w.move("sven", "a", StDone)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				w.action("c", "robin", "a")
+				return w.move("robin", "a", StDone)
 			},
 			state: map[string]string{"b": StNext, "c": StNext},
-			notes: []string{"unblocked:b>eric", "unblocked:c>sven"}},
+			notes: []string{"unblocked:b>dana", "unblocked:c>robin"}},
 		{name: "chain: only the direct dependent is unblocked",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				w.action("c", "eric", "b")
-				return w.move("sven", "a", StDone)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				w.action("c", "dana", "b")
+				return w.move("robin", "a", StDone)
 			},
 			state: map[string]string{"b": StNext, "c": StPlanned},
-			notes: []string{"unblocked:b>eric"}},
+			notes: []string{"unblocked:b>dana"}},
 		{name: "drop: counts as completed, plus a warning",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				return w.move("sven", "a", StDropped)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				return w.move("robin", "a", StDropped)
 			},
 			state: map[string]string{"a": StDropped, "b": StNext},
-			notes: []string{"unblocked:b>eric", "blocker_dropped:b>eric"}},
+			notes: []string{"unblocked:b>dana", "blocker_dropped:b>dana"}},
 		{name: "drop one of two blockers: still planned, warning only",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven")
-				w.action("c", "eric", "a", "b")
-				return w.move("sven", "a", StDropped)
+				w.action("a", "robin")
+				w.action("b", "robin")
+				w.action("c", "dana", "a", "b")
+				return w.move("robin", "a", StDropped)
 			},
 			state: map[string]string{"c": StPlanned},
-			notes: []string{"blocker_dropped:c>eric"}},
+			notes: []string{"blocker_dropped:c>dana"}},
 		{name: "trash: counts as completed, no warning",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				return w.move("sven", "a", StTrashed)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				return w.move("robin", "a", StTrashed)
 			},
 			state: map[string]string{"b": StNext},
-			notes: []string{"unblocked:b>eric"}},
+			notes: []string{"unblocked:b>dana"}},
 		{name: "reopen a done blocker: open dependent goes back to planned",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				w.must(w.move("sven", "a", StDone))
-				return w.move("sven", "a", StNext)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				w.must(w.move("robin", "a", StDone))
+				return w.move("robin", "a", StNext)
 			},
 			state: map[string]string{"a": StNext, "b": StPlanned},
-			notes: []string{"unblocked:b>eric"}},
+			notes: []string{"unblocked:b>dana"}},
 		{name: "reopen a dropped blocker: dependent goes back to planned",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				w.must(w.move("sven", "a", StDropped))
-				return w.move("sven", "a", StNext)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				w.must(w.move("robin", "a", StDropped))
+				return w.move("robin", "a", StNext)
 			},
 			state: map[string]string{"b": StPlanned},
-			notes: []string{"unblocked:b>eric", "blocker_dropped:b>eric"}},
+			notes: []string{"unblocked:b>dana", "blocker_dropped:b>dana"}},
 		{name: "reopen: a dependent that is done stays done",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				w.must(w.move("sven", "a", StDone))
-				w.must(w.move("eric", "b", StDone))
-				return w.move("sven", "a", StNext)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				w.must(w.move("robin", "a", StDone))
+				w.must(w.move("dana", "b", StDone))
+				return w.move("robin", "a", StNext)
 			},
 			state: map[string]string{"a": StNext, "b": StDone},
-			notes: []string{"unblocked:b>eric"}},
+			notes: []string{"unblocked:b>dana"}},
 		{name: "reopening a dependent with an open blocker lands in planned",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				w.must(w.move("eric", "b", StDropped))
-				return w.move("eric", "b", StNext)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				w.must(w.move("dana", "b", StDropped))
+				return w.move("dana", "b", StNext)
 			},
 			state: map[string]string{"b": StPlanned}},
 		{name: "a planned action can be completed directly",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				return w.move("eric", "b", StDone)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				return w.move("dana", "b", StDone)
 			},
 			state: map[string]string{"a": StNext, "b": StDone}},
 		{name: "a user cannot set planned",
-			run: func(w *world) error { w.action("a", "sven"); return w.move("sven", "a", StPlanned) },
+			run: func(w *world) error { w.action("a", "robin"); return w.move("robin", "a", StPlanned) },
 			err: ErrConflict},
 		{name: "a user cannot move a planned action to next",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "eric", "a")
-				return w.move("eric", "b", StNext)
+				w.action("a", "robin")
+				w.action("b", "dana", "a")
+				return w.move("dana", "b", StNext)
 			},
 			err: ErrConflict},
 		{name: "cycle: self",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				return w.patch("sven", "a", "blocked_by", []string{"a"})
+				w.action("a", "robin")
+				return w.patch("robin", "a", "blocked_by", []string{"a"})
 			},
 			err: ErrInvalid},
 		{name: "cycle: two actions",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven", "a")
-				return w.patch("sven", "a", "blocked_by", []string{"b"})
+				w.action("a", "robin")
+				w.action("b", "robin", "a")
+				return w.patch("robin", "a", "blocked_by", []string{"b"})
 			},
 			err: ErrInvalid},
 		{name: "cycle: three actions",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven", "a")
-				w.action("c", "sven", "b")
-				return w.patch("sven", "a", "blocked_by", []string{"c"})
+				w.action("a", "robin")
+				w.action("b", "robin", "a")
+				w.action("c", "robin", "b")
+				return w.patch("robin", "a", "blocked_by", []string{"c"})
 			},
 			err: ErrInvalid},
 		{name: "cycle: through a finished action is still a cycle",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven", "a")
-				w.must(w.move("sven", "a", StDone))
-				return w.patch("sven", "a", "blocked_by", []string{"b"})
+				w.action("a", "robin")
+				w.action("b", "robin", "a")
+				w.must(w.move("robin", "a", StDone))
+				return w.patch("robin", "a", "blocked_by", []string{"b"})
 			},
-			err: ErrInvalid, notes: []string{"unblocked:b>sven"}},
+			err: ErrInvalid, notes: []string{"unblocked:b>robin"}},
 		{name: "diamond is not a cycle",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				w.action("b", "sven", "a")
-				w.action("c", "sven", "a")
-				w.action("d", "sven", "b", "c")
+				w.action("a", "robin")
+				w.action("b", "robin", "a")
+				w.action("c", "robin", "a")
+				w.action("d", "robin", "b", "c")
 				return nil
 			},
 			state: map[string]string{"d": StPlanned}},
 		{name: "blocker must exist in the same space",
 			run: func(w *world) error {
-				return w.create("sven", Item{ID: "b", Kind: KindAction, BlockedBy: []string{"elsewhere"}})
+				return w.create("robin", Item{ID: "b", Kind: KindAction, BlockedBy: []string{"elsewhere"}})
 			},
 			err: ErrInvalid},
 		{name: "blocker must be an action",
 			run: func(w *world) error {
-				w.must(w.create("sven", Item{ID: "p", Kind: KindProject}))
-				return w.create("sven", Item{ID: "b", Kind: KindAction, BlockedBy: []string{"p"}})
+				w.must(w.create("robin", Item{ID: "p", Kind: KindProject}))
+				return w.create("robin", Item{ID: "b", Kind: KindAction, BlockedBy: []string{"p"}})
 			},
 			err: ErrInvalid},
 		{name: "blocker listed twice",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				return w.create("sven", Item{ID: "b", Kind: KindAction, BlockedBy: []string{"a", "a"}})
+				w.action("a", "robin")
+				return w.create("robin", Item{ID: "b", Kind: KindAction, BlockedBy: []string{"a", "a"}})
 			},
 			err: ErrInvalid},
 		{name: "only actions have blockers",
 			run: func(w *world) error {
-				w.action("a", "sven")
-				return w.create("sven", Item{ID: "n", Kind: KindNote, BlockedBy: []string{"a"}})
+				w.action("a", "robin")
+				return w.create("robin", Item{ID: "n", Kind: KindNote, BlockedBy: []string{"a"}})
 			},
 			err: ErrInvalid},
 	}
@@ -492,9 +492,9 @@ func checkReplay(t *testing.T, w *world) {
 
 func TestDerivedOps(t *testing.T) {
 	w := shared(t)
-	w.action("a", "sven")
-	w.action("b", "eric", "a")
-	res, err := w.apply(Op{Actor: "sven", Type: OpTransition, Item: "a", BaseRev: 1,
+	w.action("a", "robin")
+	w.action("b", "dana", "a")
+	res, err := w.apply(Op{Actor: "robin", Type: OpTransition, Item: "a", BaseRev: 1,
 		Changes: []FieldChange{{Field: "state", New: mustJSON(StDone)}}})
 	w.must(err)
 	if len(res.Ops) != 2 || len(res.Items) != 2 {
@@ -515,10 +515,10 @@ func TestDerivedOps(t *testing.T) {
 
 func TestApplyIsPure(t *testing.T) {
 	w := shared(t)
-	w.action("a", "sven")
-	w.action("b", "eric", "a")
+	w.action("a", "robin")
+	w.action("b", "dana", "a")
 	before := string(mustJSON(w.st))
-	op := Op{ID: "o", Space: "nis", TS: time.Now(), Actor: "sven", Via: "cli", Type: OpTransition, Item: "a", BaseRev: 1,
+	op := Op{ID: "o", Space: "net", TS: time.Now(), Actor: "robin", Via: "cli", Type: OpTransition, Item: "a", BaseRev: 1,
 		Changes: []FieldChange{{Field: "state", New: mustJSON(StDone)}}}
 	if _, err := Apply(w.st, op, w.id); err != nil {
 		t.Fatal(err)
@@ -533,11 +533,11 @@ func TestPendingOverridesItems(t *testing.T) {
 	w := shared(t)
 	ts := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)
 	st := &State{Space: w.st.Space, Items: map[string]*Item{}, Pending: map[string]*Item{}}
-	r1, err := Apply(st, Op{ID: "o1", Space: "nis", TS: ts, Actor: "sven", Via: "cli", Type: OpCreate,
+	r1, err := Apply(st, Op{ID: "o1", Space: "net", TS: ts, Actor: "robin", Via: "cli", Type: OpCreate,
 		Payload: mustJSON(Item{ID: "a", Kind: KindAction, Title: "first"})}, w.id)
 	w.must(err)
 	st.Pending["a"] = r1.Items[0]
-	r2, err := Apply(st, Op{ID: "o2", Space: "nis", TS: ts, Actor: "sven", Via: "cli", Type: OpCreate,
+	r2, err := Apply(st, Op{ID: "o2", Space: "net", TS: ts, Actor: "robin", Via: "cli", Type: OpCreate,
 		Payload: mustJSON(Item{ID: "b", Kind: KindAction, Title: "second", BlockedBy: []string{"a"}})}, w.id)
 	w.must(err)
 	if got := r2.Items[0].State; got != StPlanned {
@@ -552,20 +552,20 @@ func TestValidation(t *testing.T) {
 		err  error
 	}
 	item := func(it Item) func(w *world) error {
-		return func(w *world) error { return w.create("sven", it) }
+		return func(w *world) error { return w.create("robin", it) }
 	}
 	setup := func(w *world) {
-		w.must(w.create("sven", Item{ID: "area", Kind: KindArea}))
-		w.must(w.create("sven", Item{ID: "p1", Kind: KindProject}))
-		w.must(w.create("sven", Item{ID: "p2", Kind: KindProject, Parent: "p1"}))
-		w.must(w.create("sven", Item{ID: "p3", Kind: KindProject, Parent: "p2"}))
-		w.action("act", "sven")
+		w.must(w.create("robin", Item{ID: "area", Kind: KindArea}))
+		w.must(w.create("robin", Item{ID: "p1", Kind: KindProject}))
+		w.must(w.create("robin", Item{ID: "p2", Kind: KindProject, Parent: "p1"}))
+		w.must(w.create("robin", Item{ID: "p3", Kind: KindProject, Parent: "p2"}))
+		w.action("act", "robin")
 	}
 	for _, c := range []tc{
-		{"full action", item(Item{ID: "n", Kind: KindAction, Area: "area", Project: "p3", Context: "calls", Owner: "eric",
-			DelegatedBy: "sven", Target: "2027-01-15", Due: "2027-02-01", DeferUntil: "2026-12-03", Energy: "low", Time: "2h+"}), nil},
+		{"full action", item(Item{ID: "n", Kind: KindAction, Area: "area", Project: "p3", Context: "calls", Owner: "dana",
+			DelegatedBy: "robin", Target: "2027-01-15", Due: "2027-02-01", DeferUntil: "2026-12-03", Energy: "low", Time: "2h+"}), nil},
 		{"unassigned action in a shared space", item(Item{ID: "n", Kind: KindAction}), nil},
-		{"agenda context for a member", item(Item{ID: "n", Kind: KindAction, Context: "agenda:eric"}), nil},
+		{"agenda context for a member", item(Item{ID: "n", Kind: KindAction, Context: "agenda:dana"}), nil},
 		{"agenda context for a person", item(Item{ID: "n", Kind: KindAction, Context: "agenda:Kim"}), nil},
 		{"agenda context for a stranger", item(Item{ID: "n", Kind: KindAction, Context: "agenda:nobody"}), ErrInvalid},
 		{"personal context in a shared space", item(Item{ID: "n", Kind: KindAction, Context: "boat"}), ErrInvalid},
@@ -583,56 +583,56 @@ func TestValidation(t *testing.T) {
 		{"project on a project", item(Item{ID: "n", Kind: KindProject, Project: "p1"}), ErrInvalid},
 		{"parent on an action", item(Item{ID: "n", Kind: KindAction, Parent: "p1"}), ErrInvalid},
 		{"parent missing", item(Item{ID: "n", Kind: KindProject, Parent: "nope"}), ErrInvalid},
-		{"owner is not a member", item(Item{ID: "n", Kind: KindAction, Owner: "grit"}), ErrInvalid},
-		{"delegated_by is not a member", item(Item{ID: "n", Kind: KindAction, DelegatedBy: "grit"}), ErrInvalid},
+		{"owner is not a member", item(Item{ID: "n", Kind: KindAction, Owner: "jo"}), ErrInvalid},
+		{"delegated_by is not a member", item(Item{ID: "n", Kind: KindAction, DelegatedBy: "jo"}), ErrInvalid},
 		{"bad date", item(Item{ID: "n", Kind: KindAction, Target: "15.01.2027"}), ErrInvalid},
 		{"impossible date", item(Item{ID: "n", Kind: KindAction, Due: "2027-02-30"}), ErrInvalid},
 		{"bad energy", item(Item{ID: "n", Kind: KindAction, Energy: "huge"}), ErrInvalid},
 		{"bad time", item(Item{ID: "n", Kind: KindAction, Time: "3h"}), ErrInvalid},
 		{"bad attachment hash", item(Item{ID: "n", Kind: KindNote, Attachments: []Attachment{{SHA256: "abc"}}}), ErrInvalid},
 		{"empty title", func(w *world) error {
-			_, err := w.apply(Op{Actor: "sven", Type: OpCreate, Payload: mustJSON(Item{ID: "n", Kind: KindNote})})
+			_, err := w.apply(Op{Actor: "robin", Type: OpCreate, Payload: mustJSON(Item{ID: "n", Kind: KindNote})})
 			return err
 		}, ErrInvalid},
 		{"unknown field in payload", func(w *world) error {
-			_, err := w.apply(Op{Actor: "sven", Type: OpCreate, Payload: json.RawMessage(`{"id":"n","kind":"note","title":"t","tags":["a"]}`)})
+			_, err := w.apply(Op{Actor: "robin", Type: OpCreate, Payload: json.RawMessage(`{"id":"n","kind":"note","title":"t","tags":["a"]}`)})
 			return err
 		}, ErrInvalid},
-		{"parent cycle: self", func(w *world) error { return w.patch("sven", "p1", "parent", "p1") }, ErrInvalid},
-		{"parent cycle: through grandchild", func(w *world) error { return w.patch("sven", "p1", "parent", "p3") }, ErrInvalid},
-		{"reparent without cycle", func(w *world) error { return w.patch("sven", "p3", "parent", "p1") }, nil},
-		{"patch state", func(w *world) error { return w.patch("sven", "act", "state", StDone) }, ErrInvalid},
-		{"patch kind", func(w *world) error { return w.patch("sven", "act", "kind", KindNote) }, ErrInvalid},
-		{"patch original", func(w *world) error { return w.patch("sven", "act", "original", "rewritten") }, ErrInvalid},
-		{"patch id", func(w *world) error { return w.patch("sven", "act", "id", "other") }, ErrInvalid},
-		{"patch space", func(w *world) error { return w.patch("sven", "act", "space", "other") }, ErrInvalid},
-		{"patch created", func(w *world) error { return w.patch("sven", "act", "created", "2020-01-01T00:00:00Z") }, ErrInvalid},
-		{"patch rev", func(w *world) error { return w.patch("sven", "act", "rev", 99) }, ErrInvalid},
-		{"patch with a wrong type", func(w *world) error { return w.patch("sven", "act", "blocked_by", "act") }, ErrInvalid},
+		{"parent cycle: self", func(w *world) error { return w.patch("robin", "p1", "parent", "p1") }, ErrInvalid},
+		{"parent cycle: through grandchild", func(w *world) error { return w.patch("robin", "p1", "parent", "p3") }, ErrInvalid},
+		{"reparent without cycle", func(w *world) error { return w.patch("robin", "p3", "parent", "p1") }, nil},
+		{"patch state", func(w *world) error { return w.patch("robin", "act", "state", StDone) }, ErrInvalid},
+		{"patch kind", func(w *world) error { return w.patch("robin", "act", "kind", KindNote) }, ErrInvalid},
+		{"patch original", func(w *world) error { return w.patch("robin", "act", "original", "rewritten") }, ErrInvalid},
+		{"patch id", func(w *world) error { return w.patch("robin", "act", "id", "other") }, ErrInvalid},
+		{"patch space", func(w *world) error { return w.patch("robin", "act", "space", "other") }, ErrInvalid},
+		{"patch created", func(w *world) error { return w.patch("robin", "act", "created", "2020-01-01T00:00:00Z") }, ErrInvalid},
+		{"patch rev", func(w *world) error { return w.patch("robin", "act", "rev", 99) }, ErrInvalid},
+		{"patch with a wrong type", func(w *world) error { return w.patch("robin", "act", "blocked_by", "act") }, ErrInvalid},
 		{"patch a missing item", func(w *world) error {
-			_, err := w.apply(Op{Actor: "sven", Type: OpPatch, Item: "nope", Changes: []FieldChange{{Field: "title", New: mustJSON("x")}}})
+			_, err := w.apply(Op{Actor: "robin", Type: OpPatch, Item: "nope", Changes: []FieldChange{{Field: "title", New: mustJSON("x")}}})
 			return err
 		}, ErrNotFound},
 		{"patch without changes", func(w *world) error {
-			_, err := w.apply(Op{Actor: "sven", Type: OpPatch, Item: "act", BaseRev: 1})
+			_, err := w.apply(Op{Actor: "robin", Type: OpPatch, Item: "act", BaseRev: 1})
 			return err
 		}, ErrInvalid},
 		{"transition with another field", func(w *world) error {
-			_, err := w.apply(Op{Actor: "sven", Type: OpTransition, Item: "act", BaseRev: 1, Changes: []FieldChange{
+			_, err := w.apply(Op{Actor: "robin", Type: OpTransition, Item: "act", BaseRev: 1, Changes: []FieldChange{
 				{Field: "state", New: mustJSON(StDone)}, {Field: "title", New: mustJSON("x")}}})
 			return err
 		}, ErrInvalid},
 		{"unknown op type", func(w *world) error {
-			_, err := w.apply(Op{Actor: "sven", Type: "move", Item: "act"})
+			_, err := w.apply(Op{Actor: "robin", Type: "move", Item: "act"})
 			return err
 		}, ErrInvalid},
 		{"non-member", func(w *world) error {
-			return w.create("grit", Item{ID: "n", Kind: KindNote})
+			return w.create("jo", Item{ID: "n", Kind: KindNote})
 		}, ErrNotFound},
 		{"system may act", func(w *world) error { return w.move(System, "act", StDone) }, nil},
 		{"clear a field", func(w *world) error {
-			w.must(w.patch("sven", "act", "target", "2027-01-01"))
-			w.must(w.patch("sven", "act", "target", ""))
+			w.must(w.patch("robin", "act", "target", "2027-01-01"))
+			w.must(w.patch("robin", "act", "target", ""))
 			if got := w.st.Items["act"].Target; got != "" {
 				return fmt.Errorf("target = %q", got)
 			}
@@ -653,14 +653,14 @@ func TestValidation(t *testing.T) {
 
 func TestPersonalSpace(t *testing.T) {
 	w := personal(t)
-	w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Context: "boat"}))
-	if got := w.st.Items["a"].Owner; got != "sven" {
+	w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Context: "boat"}))
+	if got := w.st.Items["a"].Owner; got != "robin" {
 		t.Fatalf("owner = %q, want the space's user", got)
 	}
-	if err := w.patch("sven", "a", "owner", ""); !errors.Is(err, ErrInvalid) {
+	if err := w.patch("robin", "a", "owner", ""); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("clearing the owner: %v", err)
 	}
-	if err := w.create("sven", Item{ID: "n", Kind: KindNote}); err != nil {
+	if err := w.create("robin", Item{ID: "n", Kind: KindNote}); err != nil {
 		t.Fatal(err)
 	}
 	if got := w.st.Items["n"].Owner; got != "" {
@@ -671,15 +671,15 @@ func TestPersonalSpace(t *testing.T) {
 
 func TestImmutableAndBookkeeping(t *testing.T) {
 	w := shared(t)
-	w.must(w.create("sven", Item{ID: "c", Kind: KindNote, Original: "the original text", Rev: 40, UpdatedBy: "mallory", Space: "other"}))
+	w.must(w.create("robin", Item{ID: "c", Kind: KindNote, Original: "the original text", Rev: 40, UpdatedBy: "mallory", Space: "other"}))
 	it := w.st.Items["c"]
-	if it.Rev != 1 || it.UpdatedBy != "sven" || it.Space != "nis" || it.Created.IsZero() || !it.Created.Equal(it.Updated) {
+	if it.Rev != 1 || it.UpdatedBy != "robin" || it.Space != "net" || it.Created.IsZero() || !it.Created.Equal(it.Updated) {
 		t.Fatalf("create bookkeeping: %+v", it)
 	}
-	w.must(w.patch("eric", "c", "title", "better title"))
-	w.must(w.patch("eric", "c", "body", "cleaned up"))
+	w.must(w.patch("dana", "c", "title", "better title"))
+	w.must(w.patch("dana", "c", "body", "cleaned up"))
 	got := w.st.Items["c"]
-	if got.Original != "the original text" || got.Rev != 3 || got.UpdatedBy != "eric" || !got.Created.Equal(it.Created) || !got.Updated.After(it.Updated) {
+	if got.Original != "the original text" || got.Rev != 3 || got.UpdatedBy != "dana" || !got.Created.Equal(it.Created) || !got.Updated.After(it.Updated) {
 		t.Fatalf("after patches: %+v", got)
 	}
 }
@@ -703,9 +703,9 @@ func TestBaseRev(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := shared(t)
-			w.must(w.create("sven", Item{ID: "n", Kind: KindNote, Title: "first"}))
-			w.must(w.patch("eric", "n", "title", "theirs")) // rev 2
-			res, err := w.apply(Op{Actor: "sven", Type: OpPatch, Item: "n", BaseRev: c.baseRev, Changes: []FieldChange{c.change}})
+			w.must(w.create("robin", Item{ID: "n", Kind: KindNote, Title: "first"}))
+			w.must(w.patch("dana", "n", "title", "theirs")) // rev 2
+			res, err := w.apply(Op{Actor: "robin", Type: OpPatch, Item: "n", BaseRev: c.baseRev, Changes: []FieldChange{c.change}})
 			if !errors.Is(err, c.err) || (c.err == nil && err != nil) {
 				t.Fatalf("err = %v, want %v", err, c.err)
 			}
@@ -720,26 +720,26 @@ func TestBaseRev(t *testing.T) {
 
 func TestComments(t *testing.T) {
 	w := shared(t)
-	w.action("a", "sven")
+	w.action("a", "robin")
 	comment := func(actor string, c Comment) (*Result, error) {
 		return w.apply(Op{Actor: actor, Type: OpComment, Item: "a", Payload: mustJSON(c)})
 	}
-	res, err := comment("eric", Comment{Body: "see @[user:sven]", Mentions: []string{"sven"}, Author: "mallory"})
+	res, err := comment("dana", Comment{Body: "see @[user:robin]", Mentions: []string{"robin"}, Author: "mallory"})
 	w.must(err)
 	c := res.Comments[0]
-	if c.Author != "eric" || c.Item != "a" || c.ID == "" || c.TS.IsZero() {
+	if c.Author != "dana" || c.Item != "a" || c.ID == "" || c.TS.IsZero() {
 		t.Fatalf("comment = %+v", c)
 	}
 	if len(res.Items) != 0 || w.st.Items["a"].Rev != 1 {
 		t.Fatal("a comment must not change the item")
 	}
-	if _, err := comment("eric", Comment{Body: "  "}); !errors.Is(err, ErrInvalid) {
+	if _, err := comment("dana", Comment{Body: "  "}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("empty comment: %v", err)
 	}
-	if _, err := comment("eric", Comment{Body: "hi", Mentions: []string{"grit"}}); !errors.Is(err, ErrInvalid) {
+	if _, err := comment("dana", Comment{Body: "hi", Mentions: []string{"jo"}}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("mention of a non-member: %v", err)
 	}
-	if _, err := w.apply(Op{Actor: "eric", Type: OpComment, Item: "nope", Payload: mustJSON(Comment{Body: "x"})}); !errors.Is(err, ErrNotFound) {
+	if _, err := w.apply(Op{Actor: "dana", Type: OpComment, Item: "nope", Payload: mustJSON(Comment{Body: "x"})}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("comment on a missing item: %v", err)
 	}
 
@@ -749,18 +749,18 @@ func TestComments(t *testing.T) {
 		_, err := w.apply(Op{Actor: actor, Type: OpDeleteComment, Item: "a", Payload: mustJSON(map[string]string{"comment": id})})
 		return err
 	}
-	if err := del("sven", c, c.ID); !errors.Is(err, ErrInvalid) {
+	if err := del("robin", c, c.ID); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("delete by someone else: %v", err)
 	}
-	if err := del("eric", nil, c.ID); !errors.Is(err, ErrNotFound) {
+	if err := del("dana", nil, c.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("delete of a missing comment: %v", err)
 	}
-	w.must(del("eric", c, c.ID))
+	w.must(del("dana", c, c.ID))
 	tomb := w.cms[c.ID]
-	if !tomb.Deleted || tomb.Body != "" || tomb.Mentions != nil || tomb.Author != "eric" || !tomb.TS.Equal(c.TS) {
+	if !tomb.Deleted || tomb.Body != "" || tomb.Mentions != nil || tomb.Author != "dana" || !tomb.TS.Equal(c.TS) {
 		t.Fatalf("tombstone = %+v", tomb)
 	}
-	if err := del("eric", tomb, c.ID); !errors.Is(err, ErrConflict) {
+	if err := del("dana", tomb, c.ID); !errors.Is(err, ErrConflict) {
 		t.Fatalf("second delete: %v", err)
 	}
 	checkReplay(t, w)
@@ -768,15 +768,15 @@ func TestComments(t *testing.T) {
 
 func TestAttach(t *testing.T) {
 	w := shared(t)
-	w.must(w.create("sven", Item{ID: "n", Kind: KindNote}))
+	w.must(w.create("robin", Item{ID: "n", Kind: KindNote}))
 	sha := strings.Repeat("ab", 32)
 	attach := func(a Attachment) error {
-		_, err := w.apply(Op{Actor: "eric", Type: OpAttach, Item: "n", Payload: mustJSON(a)})
+		_, err := w.apply(Op{Actor: "dana", Type: OpAttach, Item: "n", Payload: mustJSON(a)})
 		return err
 	}
 	w.must(attach(Attachment{SHA256: sha, Name: "board.png", MIME: "image/png", Size: 12}))
 	it := w.st.Items["n"]
-	if len(it.Attachments) != 1 || it.Rev != 2 || it.UpdatedBy != "eric" {
+	if len(it.Attachments) != 1 || it.Rev != 2 || it.UpdatedBy != "dana" {
 		t.Fatalf("after attach: %+v", it)
 	}
 	if err := attach(Attachment{SHA256: sha, Name: "again.png"}); !errors.Is(err, ErrConflict) {
@@ -796,45 +796,45 @@ func TestAlive(t *testing.T) {
 		alive bool
 	}{
 		{"no actions", func(w *world) {}, false},
-		{"next action", func(w *world) { w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "p"})) }, true},
+		{"next action", func(w *world) { w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "p"})) }, true},
 		{"waiting action", func(w *world) {
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "p", State: StWaiting, WaitingOn: "Kim"}))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "p", State: StWaiting, WaitingOn: "Kim"}))
 		}, true},
 		{"only a someday action", func(w *world) {
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "p", State: StSomeday}))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "p", State: StSomeday}))
 		}, false},
 		{"only a done action", func(w *world) {
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "p"}))
-			w.must(w.move("sven", "a", StDone))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "p"}))
+			w.must(w.move("robin", "a", StDone))
 		}, false},
 		{"next action in a child project", func(w *world) {
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "c"}))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "c"}))
 		}, true},
 		{"next action in a dropped child project", func(w *world) {
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "c"}))
-			w.must(w.move("sven", "c", StDropped))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "c"}))
+			w.must(w.move("robin", "c", StDropped))
 		}, false},
 		{"next action in another project", func(w *world) {
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "other"}))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "other"}))
 		}, false},
 		{"planned, blocker owned by someone else", func(w *world) {
-			w.must(w.create("sven", Item{ID: "x", Kind: KindAction, Project: "other", Owner: "eric", State: StSomeday}))
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "p", Owner: "sven", BlockedBy: []string{"x"}}))
+			w.must(w.create("robin", Item{ID: "x", Kind: KindAction, Project: "other", Owner: "dana", State: StSomeday}))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "p", Owner: "robin", BlockedBy: []string{"x"}}))
 		}, true},
 		{"planned, blocker owned by the same user", func(w *world) {
-			w.must(w.create("sven", Item{ID: "x", Kind: KindAction, Project: "other", Owner: "sven", State: StSomeday}))
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "p", Owner: "sven", BlockedBy: []string{"x"}}))
+			w.must(w.create("robin", Item{ID: "x", Kind: KindAction, Project: "other", Owner: "robin", State: StSomeday}))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "p", Owner: "robin", BlockedBy: []string{"x"}}))
 		}, false},
 		{"planned and deferred", func(w *world) {
-			w.must(w.create("sven", Item{ID: "x", Kind: KindAction, Project: "other", Owner: "sven", State: StSomeday}))
-			w.must(w.create("sven", Item{ID: "a", Kind: KindAction, Project: "p", Owner: "sven", BlockedBy: []string{"x"}, DeferUntil: "2026-12-24"}))
+			w.must(w.create("robin", Item{ID: "x", Kind: KindAction, Project: "other", Owner: "robin", State: StSomeday}))
+			w.must(w.create("robin", Item{ID: "a", Kind: KindAction, Project: "p", Owner: "robin", BlockedBy: []string{"x"}, DeferUntil: "2026-12-24"}))
 		}, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := shared(t)
-			w.must(w.create("sven", Item{ID: "p", Kind: KindProject}))
-			w.must(w.create("sven", Item{ID: "c", Kind: KindProject, Parent: "p"}))
-			w.must(w.create("sven", Item{ID: "other", Kind: KindProject}))
+			w.must(w.create("robin", Item{ID: "p", Kind: KindProject}))
+			w.must(w.create("robin", Item{ID: "c", Kind: KindProject, Parent: "p"}))
+			w.must(w.create("robin", Item{ID: "other", Kind: KindProject}))
 			c.setup(w)
 			if got := Alive(w.st, "p"); got != c.alive {
 				t.Fatalf("alive = %v, want %v", got, c.alive)
@@ -845,18 +845,18 @@ func TestAlive(t *testing.T) {
 
 func TestWarnings(t *testing.T) {
 	w := shared(t)
-	w.must(w.create("sven", Item{ID: "p", Kind: KindProject, Target: "2027-01-31"}))
-	w.must(w.create("sven", Item{ID: "late", Kind: KindProject, Parent: "p", Target: "2027-02-15"}))
-	w.must(w.create("sven", Item{ID: "ok", Kind: KindProject, Parent: "p", Target: "2027-01-31"}))
-	w.must(w.create("sven", Item{ID: "nodate", Kind: KindProject, Parent: "p"}))
-	w.must(w.create("sven", Item{ID: "b1", Kind: KindAction, Target: "2027-01-20"}))
-	w.must(w.create("sven", Item{ID: "b2", Kind: KindAction, Target: "2027-01-05"}))
-	w.must(w.create("sven", Item{ID: "dep", Kind: KindAction, Target: "2027-01-10", BlockedBy: []string{"b1", "b2"}}))
-	w.must(w.create("sven", Item{ID: "old", Kind: KindAction, Target: "2026-11-01"}))
-	w.must(w.create("sven", Item{ID: "olddone", Kind: KindAction, Target: "2026-11-01"}))
-	w.must(w.move("sven", "olddone", StDone))
-	w.must(w.create("sven", Item{ID: "today", Kind: KindAction, Target: "2026-11-19"}))
-	w.must(w.create("sven", Item{ID: "note", Kind: KindNote, Target: "2026-01-01"}))
+	w.must(w.create("robin", Item{ID: "p", Kind: KindProject, Target: "2027-01-31"}))
+	w.must(w.create("robin", Item{ID: "late", Kind: KindProject, Parent: "p", Target: "2027-02-15"}))
+	w.must(w.create("robin", Item{ID: "ok", Kind: KindProject, Parent: "p", Target: "2027-01-31"}))
+	w.must(w.create("robin", Item{ID: "nodate", Kind: KindProject, Parent: "p"}))
+	w.must(w.create("robin", Item{ID: "b1", Kind: KindAction, Target: "2027-01-20"}))
+	w.must(w.create("robin", Item{ID: "b2", Kind: KindAction, Target: "2027-01-05"}))
+	w.must(w.create("robin", Item{ID: "dep", Kind: KindAction, Target: "2027-01-10", BlockedBy: []string{"b1", "b2"}}))
+	w.must(w.create("robin", Item{ID: "old", Kind: KindAction, Target: "2026-11-01"}))
+	w.must(w.create("robin", Item{ID: "olddone", Kind: KindAction, Target: "2026-11-01"}))
+	w.must(w.move("robin", "olddone", StDone))
+	w.must(w.create("robin", Item{ID: "today", Kind: KindAction, Target: "2026-11-19"}))
+	w.must(w.create("robin", Item{ID: "note", Kind: KindNote, Target: "2026-01-01"}))
 
 	got := Warnings(w.st, "2026-11-19")
 	want := []Warning{
@@ -868,31 +868,31 @@ func TestWarnings(t *testing.T) {
 		t.Fatalf("warnings = %v\nwant %v", got, want)
 	}
 	// A finished blocker no longer warns.
-	w.must(w.move("sven", "b1", StDone))
+	w.must(w.move("robin", "b1", StDone))
 	if got := Warnings(w.st, "2026-11-19"); slices.Contains(got, want[0]) {
 		t.Fatalf("finished blocker still warns: %v", got)
 	}
 }
 
 func TestPermissions(t *testing.T) {
-	sp := &Space{ID: "nis", Members: []string{"sven", "eric"}}
-	for user, want := range map[string]bool{"sven": true, "eric": true, "grit": false, "": false, System: false} {
+	sp := &Space{ID: "net", Members: []string{"robin", "dana"}}
+	for user, want := range map[string]bool{"robin": true, "dana": true, "jo": false, "": false, System: false} {
 		if got := sp.HasMember(user); got != want {
 			t.Errorf("HasMember(%q) = %v", user, got)
 		}
 	}
-	for user, want := range map[string]bool{"sven": true, "grit": false, System: true, "": false} {
+	for user, want := range map[string]bool{"robin": true, "jo": false, System: true, "": false} {
 		if got := CanAct(sp, user); got != want {
 			t.Errorf("CanAct(%q) = %v", user, got)
 		}
 	}
-	for id, want := range map[string]bool{"sven": true, "sven-grit": true, "n1s": true, "": false, "-a": false,
-		"Sven": false, "a/b": false, "a b": false, "über": false, strings.Repeat("a", 65): false} {
+	for id, want := range map[string]bool{"robin": true, "robin-jo": true, "n1s": true, "": false, "-a": false,
+		"Robin": false, "a/b": false, "a b": false, "über": false, strings.Repeat("a", 65): false} {
 		if got := ValidID(id); got != want {
 			t.Errorf("ValidID(%q) = %v", id, got)
 		}
 	}
-	if !Reserved("system") || !Reserved("ai") || Reserved("sven") {
+	if !Reserved("system") || !Reserved("ai") || Reserved("robin") {
 		t.Error("Reserved")
 	}
 }

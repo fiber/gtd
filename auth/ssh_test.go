@@ -42,7 +42,7 @@ func TestChallenge(t *testing.T) {
 	svenKey := newKey(t, svenAgent, false)
 	svenEC := newKey(t, svenAgent, true)
 	ericKey := newKey(t, ericAgent, false)
-	registered := map[string][]string{"sven": {svenKey, svenEC}, "eric": {ericKey}, "nokeys": nil}
+	registered := map[string][]string{"robin": {svenKey, svenEC}, "dana": {ericKey}, "nokeys": nil}
 	const server = "01SERVER"
 
 	now := time.Date(2026, 11, 19, 8, 0, 0, 0, time.UTC)
@@ -64,19 +64,19 @@ func TestChallenge(t *testing.T) {
 		wait time.Duration // time passing between challenge and verify
 		ok   bool
 	}{
-		{"all agent keys", "sven", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 0, true},
-		{"one named key (ed25519)", "sven", func(n string) [][]byte { return sign(svenAgent, server, n, svenKey) }, 0, true},
-		{"one named key (ecdsa)", "sven", func(n string) [][]byte { return sign(svenAgent, server, n, svenEC) }, 0, true},
-		{"just inside the TTL", "sven", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 59 * time.Second, true},
-		{"someone else's key", "sven", func(n string) [][]byte { return sign(ericAgent, server, n, "") }, 0, false},
+		{"all agent keys", "robin", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 0, true},
+		{"one named key (ed25519)", "robin", func(n string) [][]byte { return sign(svenAgent, server, n, svenKey) }, 0, true},
+		{"one named key (ecdsa)", "robin", func(n string) [][]byte { return sign(svenAgent, server, n, svenEC) }, 0, true},
+		{"just inside the TTL", "robin", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 59 * time.Second, true},
+		{"someone else's key", "robin", func(n string) [][]byte { return sign(ericAgent, server, n, "") }, 0, false},
 		{"unknown user", "mallory", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 0, false},
 		{"user without keys", "nokeys", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 0, false},
-		{"signed for another server", "sven", func(n string) [][]byte { return sign(svenAgent, "01OTHER", n, "") }, 0, false},
-		{"signed another nonce", "sven", func(n string) [][]byte { return sign(svenAgent, server, n+"x", "") }, 0, false},
-		{"expired nonce", "sven", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 61 * time.Second, false},
-		{"no signatures", "sven", func(n string) [][]byte { return nil }, 0, false},
-		{"garbage signature", "sven", func(n string) [][]byte { return [][]byte{[]byte("garbage")} }, 0, false},
-		{"too many signatures", "sven", func(n string) [][]byte {
+		{"signed for another server", "robin", func(n string) [][]byte { return sign(svenAgent, "01OTHER", n, "") }, 0, false},
+		{"signed another nonce", "robin", func(n string) [][]byte { return sign(svenAgent, server, n+"x", "") }, 0, false},
+		{"expired nonce", "robin", func(n string) [][]byte { return sign(svenAgent, server, n, "") }, 61 * time.Second, false},
+		{"no signatures", "robin", func(n string) [][]byte { return nil }, 0, false},
+		{"garbage signature", "robin", func(n string) [][]byte { return [][]byte{[]byte("garbage")} }, 0, false},
+		{"too many signatures", "robin", func(n string) [][]byte {
 			s := sign(svenAgent, server, n, svenKey)
 			for len(s) <= maxSigs {
 				s = append(s, s[0])
@@ -119,7 +119,7 @@ func TestChallenge(t *testing.T) {
 	}
 
 	t.Run("a failed attempt burns the nonce", func(t *testing.T) {
-		nonce := a.Challenge("sven")
+		nonce := a.Challenge("robin")
 		if _, err := a.Verify(nonce, sign(ericAgent, server, nonce, "")); err == nil {
 			t.Fatal("accepted the wrong key")
 		}
