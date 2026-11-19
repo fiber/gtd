@@ -7,7 +7,7 @@ import { View, html, nothing, chips, dateField, select, go } from './widgets.js'
 
 class Wizard extends View {
   static properties = {
-    kind: {}, item: {}, step: { state: true }, values: { state: true }, error: { state: true },
+    kind: {}, item: {}, cancel: {}, step: { state: true }, values: { state: true }, error: { state: true },
     left: { state: true }, busy: { state: true },
   };
 
@@ -42,6 +42,7 @@ class Wizard extends View {
       return;
     }
     this.session = res.session;
+    this.first = res.step.key;
     this.show(res.step);
   }
 
@@ -171,6 +172,9 @@ class Wizard extends View {
               title=${s.options.length > 1 && i < 9 ? t('wizard.key', { n: i + 1 }) : nothing}
               @click=${s.type === 'form' && i === 0 ? null : () => this.answer(o.value)}>${label(o)}</button>`)}
         </div>
+        ${this.cancel ? html`<p class="leave">
+          ${s.key !== this.first ? html`<button type="button" class="quiet" @click=${() => this.start()}>${t('wizard.restart')}</button>` : nothing}
+          <a class="button quiet" href=${this.cancel}>${t('wizard.cancel')}</a></p>` : nothing}
         </div>
       </form>`;
   }
@@ -194,7 +198,7 @@ class Clarify extends View {
       return html`<section class="done"><h1>${t('clarify.inbox_zero')}</h1>
         <a class="button primary" href="engage">${t('nav.engage')}</a></section>`;
     }
-    return html`<gtd-wizard kind="clarify" .item=${this.item} @finished=${(e) => this.next(e)}></gtd-wizard>`;
+    return html`<gtd-wizard kind="clarify" cancel="inbox" .item=${this.item} @finished=${(e) => this.next(e)}></gtd-wizard>`;
   }
 }
 customElements.define('gtd-clarify', Clarify);

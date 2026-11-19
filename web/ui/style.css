@@ -475,3 +475,6 @@ div.facts { display: block; }
 .subject a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 
 .chip.repeat { --c: var(--blue); }
+.wizard .leave { display: flex; justify-content: flex-end; gap: 6px; margin: 0; }
+.wizard .leave .quiet { background: none; border-color: transparent; color: var(--muted); font-weight: 500; }
+.wizard .leave .quiet:hover { color: var(--text); border-color: var(--line); }
