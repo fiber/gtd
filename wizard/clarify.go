@@ -63,6 +63,7 @@ type Clarify struct {
 	Complete    bool        `json:"complete,omitempty"`     // the project is finished with DoneActions
 	Duplicate   string      `json:"duplicate,omitempty"`    // the item this capture is a duplicate of
 	WaitingOn   string      `json:"waiting_on,omitempty"`
+	Delegate    string      `json:"delegate,omitempty"` // the member who gets the action
 	Context     string      `json:"context,omitempty"`
 	Defer       string      `json:"defer,omitempty"`
 	Target      string      `json:"target,omitempty"`
@@ -184,7 +185,13 @@ func (c Clarify) Step(env Env) Step {
 		s.Data = map[string]any{"timer": 120}
 	case StepWho:
 		s.Type, s.Preselect, s.Subject = TypeChoice, "me", c.Action
-		s.Options = []Option{{Value: "me", Label: "clarify.opt.me"}, {Value: "person", Label: "clarify.opt.person"}}
+		// Me, a member of the space (delegation, COLLAB §3), or someone who
+		// is not a user here (then it is something to wait for).
+		s.Options = []Option{{Value: "me", Label: "clarify.opt.me"}}
+		for _, m := range env.Members {
+			s.Options = append(s.Options, Option{Value: "member:" + m.ID, Text: m.Title})
+		}
+		s.Options = append(s.Options, Option{Value: "person", Label: "clarify.opt.person"})
 	case StepPerson:
 		s.Subject = c.Action
 		s.Fields = []Field{{Key: "waiting_on", Type: "text", Label: "field.waiting_on", Value: c.WaitingOn, Required: true}}
@@ -361,9 +368,11 @@ func (c Clarify) Next(env Env, in Input, newID func() string) (next Clarify, ops
 		}
 		c.At = StepAction // a project needs a next action, or it is complete
 	case StepWho:
-		c.WaitingOn, c.At = "", StepWhen
+		c.WaitingOn, c.Delegate, c.At = "", "", StepWhen
 		if in.Choice == "person" {
 			c.At = StepPerson
+		} else if id, ok := strings.CutPrefix(in.Choice, "member:"); ok {
+			c.Delegate = id
 		}
 	case StepPerson:
 		if c.WaitingOn = val("waiting_on"); c.WaitingOn == "" {
@@ -532,6 +541,10 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 	if c.Action == "" {
 		return ops // single action, done in two minutes
 	}
+	owner := env.User
+	if c.Delegate != "" {
+		owner = c.Delegate
+	}
 	next := c.Item
 	if firstIsCapture {
 		ch := change(title(c.Action), "project", "", project)
@@ -542,10 +555,14 @@ func (c Clarify) ops(env Env, newID func() string) []core.Op {
 		ch = change(ch, "target", "", c.Target)
 		ch = change(ch, "due", "", c.Due)
 		ch = change(ch, "energy", "", c.Energy)
-		become(core.KindAction, state, mine(change(ch, "time", "", c.Time)))
+		ch = change(ch, "time", "", c.Time)
+		if c.Space != "" {
+			ch = change(ch, "owner", "", owner)
+		}
+		become(core.KindAction, state, ch)
 	} else {
 		next = create(core.Item{Kind: core.KindAction, State: state, Title: c.Action, Project: project, Area: c.Area,
-			Owner: env.User, WaitingOn: c.WaitingOn, Context: c.Context, DeferUntil: c.Defer, Target: c.Target,
+			Owner: owner, WaitingOn: c.WaitingOn, Context: c.Context, DeferUntil: c.Defer, Target: c.Target,
 			Due: c.Due, Energy: c.Energy, Time: c.Time})
 	}
 	// Follow-ups: planned, each after the previous one (GTD's project planning).

@@ -129,6 +129,26 @@ The tabs **Waiting for** and **Due and targets** are for a quick look, not for w
 Keys: `c` capture, `e` Engage, `n` new note, `/` search, `j`/`k` move, `x` done,
 `f` full screen, and number keys to answer a wizard question.
 
+## Working with others
+
+A **shared space** is what you share: everyone in it sees everything in it. Clarify's
+first screen has **Where does it belong?**, set to **Only me**; pick a shared space
+for what the others should see.
+
+**Giving something to someone.** At "Who does it?" pick a member of the space. It
+becomes their next action and shows up in their inbox under "From others" as
+*Delegated to you*. It stays on your **Waiting for** list until they finish it. They
+can also **hand it back** from the action's page, with a reason that goes into its
+thread; you are told.
+
+For someone who is not a user here, choose **Someone else** and type the name: that
+is simply something you are waiting for.
+
+**Places that only make sense for one group**, such as calls to another time zone:
+in Settings, give the shared space its own contexts (for example `calls-us`). They
+appear next to the usual ones for actions in that space, and under "Where are you?"
+in Engage.
+
 ## Things you do again and again
 
 For "take out the trash" or "exercise three times a week", open the action and set

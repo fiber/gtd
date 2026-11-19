@@ -32,6 +32,10 @@
   (`next` or `planned`). The member gets a `delegated` notification.
 - **Accept** (from the notification): a mini-Clarify (context, defer, target).
   **Hand back:** `owner = delegated_by` plus a required comment.
+  Built (2026-11-19): `delegated_by` is set and cleared by a rule in `core`, never by
+  a client; Clarify's "Who?" offers the members of the space; the notification opens
+  the action's page, where the new owner sets context and dates and can hand it back
+  with a reason (which goes into the thread).
 - **Unassigned** (shared spaces): `owner` empty. Visible in Engage for every member
   whose context selection matches. Whoever completes it is recorded in the op log.
   "Take it" sets `owner = me`.

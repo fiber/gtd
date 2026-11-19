@@ -68,7 +68,7 @@ func TestCatalogs(t *testing.T) {
 		"context.":       {"errands", "calls", "computer", "home", "office", "anywhere", "agenda"},
 		"energy.":        {"low", "med", "high"},
 		"time.":          {"5m", "15m", "30m", "1h", "2h+"},
-		"notification.":  {"unblocked", "blocker_dropped"},
+		"notification.":  {"unblocked", "blocker_dropped", "delegated", "handed_back"},
 		"warning.":       {"child_after_parent", "target_before_blocker", "slipping"},
 		"warning.short.": {"child_after_parent", "target_before_blocker", "slipping"},
 		"field.":         {"project", "parent", "area", "context", "owner", "waiting_on", "defer_until", "target", "energy", "time", "template"},

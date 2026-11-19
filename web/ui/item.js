@@ -41,6 +41,19 @@ class Note extends View {
     return this.run(() => store.patch(this.item, { [field]: value }));
   }
 
+  // Hand a delegated action back, with the reason in its thread.
+  async handBack(e) {
+    e.preventDefault();
+    const it = this.item;
+    const why = e.target.why.value.trim();
+    if (!why) return;
+    await this.run(() => store.ops(it.space, [
+      { type: 'comment', item: it.id, payload: { body: why } },
+      { type: 'patch', item: it.id, base_rev: it.rev, changes: [{ field: 'owner', old: it.owner, new: it.delegated_by }] },
+    ]));
+    toast(t('item.handed_back'));
+  }
+
   // ---- body editor ----
   //
   // A textarea with a live preview beside it on wide screens (a toggle on
@@ -427,6 +440,14 @@ class Note extends View {
           </div>
         </header>
         ${it.state === 'trashed' ? html`<p class="notice">${t('item.in_trash')}</p>` : nothing}
+        ${it.delegated_by && it.owner === store.me.user.id && !['done', 'dropped', 'trashed'].includes(it.state) ? html`
+          <form class="notice handback" @submit=${(e) => this.handBack(e)}>
+            <span>${t('item.delegated_to_you', { name: it.delegated_by })}</span>
+            <input type="text" name="why" required placeholder=${t('item.handback_why')}>
+            <button type="submit">${t('item.handback')}</button>
+          </form>` : nothing}
+        ${it.delegated_by === store.me.user.id && it.owner !== store.me.user.id ? html`
+          <p class="notice">${t('item.delegated_by_you', { name: it.owner })}</p>` : nothing}
         ${it.warnings.length ? html`<ul class="warnings">${it.warnings.map((w) => html`<li>${t('warning.short.' + w.Type)}</li>`)}</ul>` : nothing}
 
         <div class="item-cols">

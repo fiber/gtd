@@ -41,6 +41,7 @@ type Brief struct {
 	AreaTitle    string       `json:"area_title,omitempty"`
 	Context      string       `json:"context,omitempty"`
 	Owner        string       `json:"owner,omitempty"`
+	DelegatedBy  string       `json:"delegated_by,omitempty"`
 	WaitingOn    string       `json:"waiting_on,omitempty"`
 	DeferUntil   string       `json:"defer_until,omitempty"`
 	Target       string       `json:"target,omitempty"`
@@ -85,7 +86,7 @@ func finished(state string) bool {
 func brief(st *core.State, it *core.Item, today string, roll map[string]core.Rollup) Brief {
 	b := Brief{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Rev: it.Rev, Title: it.Title,
 		Project: it.Project, ProjectTitle: title(st, it.Project), Parent: it.Parent, Area: it.Area, AreaTitle: title(st, it.Area),
-		Context: it.Context, Owner: it.Owner, WaitingOn: it.WaitingOn, DeferUntil: it.DeferUntil, Target: it.Target, Due: it.Due,
+		Context: it.Context, Owner: it.Owner, DelegatedBy: it.DelegatedBy, WaitingOn: it.WaitingOn, DeferUntil: it.DeferUntil, Target: it.Target, Due: it.Due,
 		Energy: it.Energy, Time: it.Time, Repeat: it.Repeat, Attachments: len(it.Attachments), Created: it.Created, Updated: it.Updated,
 		Deferred:   core.Deferred(it, today),
 		Slipping:   it.Target != "" && it.Target < today && !finished(it.State),

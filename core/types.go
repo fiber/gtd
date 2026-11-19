@@ -169,6 +169,7 @@ type Space struct {
 	Kind      string     `json:"kind" yaml:"kind"`
 	Members   []string   `json:"members" yaml:"members"`
 	People    []string   `json:"people,omitempty" yaml:"people,omitempty"`
+	Contexts  []string   `json:"contexts,omitempty" yaml:"contexts,omitempty"` // a shared space\'s own contexts, besides the canonical ones
 	Templates []Template `json:"templates,omitempty" yaml:"templates,omitempty"`
 	Created   time.Time  `json:"created" yaml:"-"`
 }

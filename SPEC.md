@@ -386,6 +386,8 @@ templates:
   (Review, Board, Search, Areas, Settings). Desktop: the same as a left rail.
 - Language per user (D-09): JSON catalogs `web/ui/i18n/{de,en}.json`. All dates are
   formatted via `Intl` in the user's locale.
+- A shared space can have its own contexts besides the canonical ones (D-06), set by
+  its members; a personal space has its user's own contexts.
 - Every item has a stable URL `/gtd/i/<id>`.
 - Keyboard on desktop: `c` capture, `/` search, `e` engage, `j/k` lists, `x` done.
 

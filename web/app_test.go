@@ -739,3 +739,179 @@ func must[T any](v T, err error) T {
 	}
 	return v
 }
+
+// TestDelegationOverHTTP: a bug report comes in, is clarified into a shared
+// space and delegated to the other member; they are told, hand it back with
+// a reason, get it again and finish it (COLLAB §3).
+func TestDelegationOverHTTP(t *testing.T) {
+	s := newSite(t)
+	robin, dana := s.login("robin"), s.login("dana")
+	var cap struct{ ID string }
+	robin.ok("POST", "/api/v1/capture", map[string]any{"text": "export fails for files over 2 GB"}, &cap)
+	type res struct {
+		Session string
+		Step    struct {
+			Key     string
+			Options []struct{ Value, Text, Label string }
+		}
+		Done bool
+	}
+	var w res
+	robin.ok("POST", "/api/v1/wizard/clarify/start", map[string]string{}, &w)
+	answer := func(choice string, kv ...string) (int, res) {
+		values := map[string]string{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			values[kv[i]] = kv[i+1]
+		}
+		var r res
+		code, _ := robin.do("POST", "/api/v1/wizard/clarify/"+w.Session+"/step", map[string]any{"choice": choice, "values": values}, &r)
+		return code, r
+	}
+	answer("action", "title", "Export fails for files over 2 GB", "space", "net")
+	answer("continue", "action", "Fix the export of files over 2 GB")
+	_, r := answer("no")
+	var who []string
+	for _, o := range r.Step.Options {
+		who = append(who, o.Value+"="+o.Text+o.Label)
+	}
+	if r.Step.Key != "who" || !slices.Equal(who, []string{"me=clarify.opt.me", "member:dana=Dana", "person=clarify.opt.person"}) {
+		t.Fatalf("who step: %s %v", r.Step.Key, who)
+	}
+	if code, _ := answer("member:jo"); code != 400 {
+		t.Errorf("delegating to someone outside the space: %d", code)
+	}
+	answer("member:dana")
+	if _, r := answer("continue", "target", "2026-11-30"); !r.Done {
+		t.Fatalf("not done: %+v", r)
+	}
+
+	item := func(c *client) ItemView {
+		t.Helper()
+		var iv ItemView
+		c.ok("GET", "/api/v1/items/"+cap.ID, nil, &iv)
+		return iv
+	}
+	if iv := item(dana); iv.Owner != "dana" || iv.DelegatedBy != "robin" || iv.State != core.StNext || iv.Space != "net" {
+		t.Fatalf("after delegation: owner %s, delegated_by %s, %s in %s", iv.Owner, iv.DelegatedBy, iv.State, iv.Space)
+	}
+	type inbox struct {
+		Notifications []struct {
+			Seq              uint64
+			Type, Item, From string
+		}
+	}
+	var in inbox
+	dana.ok("GET", "/api/v1/inbox", nil, &in)
+	if len(in.Notifications) != 1 || in.Notifications[0].Type != "delegated" || in.Notifications[0].Item != cap.ID || in.Notifications[0].From != "robin" {
+		t.Fatalf("dana's From others: %+v", in.Notifications)
+	}
+	list := func(c *client, tab string) string {
+		t.Helper()
+		var e struct{ Items []Brief }
+		c.ok("GET", "/api/v1/engage?tab="+tab, nil, &e)
+		var ids []string
+		for _, b := range e.Items {
+			ids = append(ids, b.ID)
+		}
+		return strings.Join(ids, ",")
+	}
+	if list(dana, "") != cap.ID || list(robin, "") != "" || list(robin, "waiting") != cap.ID || list(dana, "waiting") != "" {
+		t.Errorf("lists: dana next %q, robin next %q, robin waiting %q, dana waiting %q", list(dana, ""), list(robin, ""), list(robin, "waiting"), list(dana, "waiting"))
+	}
+
+	// Dana hands it back with a reason: a comment and the owner change in one batch.
+	iv := item(dana)
+	dana.ok("POST", "/api/v1/ops", map[string]any{"space": "net", "ops": []map[string]any{
+		{"type": "comment", "item": cap.ID, "payload": map[string]string{"body": "I am out next week"}},
+		{"type": "patch", "item": cap.ID, "base_rev": iv.Rev, "changes": []map[string]any{{"field": "owner", "old": "dana", "new": "robin"}}},
+	}}, nil)
+	if iv := item(robin); iv.Owner != "robin" || iv.DelegatedBy != "" {
+		t.Errorf("after hand-back: owner %s, delegated_by %q", iv.Owner, iv.DelegatedBy)
+	}
+	robin.ok("GET", "/api/v1/inbox", nil, &in)
+	if len(in.Notifications) != 1 || in.Notifications[0].Type != "handed_back" || in.Notifications[0].From != "dana" {
+		t.Errorf("robin's From others: %+v", in.Notifications)
+	}
+	var comments []struct{ Body, Author string }
+	robin.ok("GET", "/api/v1/items/"+cap.ID+"/comments", nil, &comments)
+	if len(comments) != 1 || comments[0].Body != "I am out next week" || comments[0].Author != "dana" {
+		t.Errorf("thread: %+v", comments)
+	}
+	if list(robin, "") != cap.ID || list(robin, "waiting") != "" {
+		t.Errorf("after hand-back robin's lists: next %q, waiting %q", list(robin, ""), list(robin, "waiting"))
+	}
+
+	// Robin gives it to Dana again on the item page; she finishes it.
+	iv = item(robin)
+	robin.ok("POST", "/api/v1/ops", map[string]any{"space": "net", "ops": []map[string]any{
+		{"type": "patch", "item": cap.ID, "base_rev": iv.Rev, "changes": []map[string]any{{"field": "owner", "old": "robin", "new": "dana"}}},
+	}}, nil)
+	if iv := item(dana); iv.Owner != "dana" || iv.DelegatedBy != "robin" || list(robin, "waiting") != cap.ID {
+		t.Errorf("second delegation: owner %s, delegated_by %s", iv.Owner, iv.DelegatedBy)
+	}
+	iv = item(dana)
+	dana.ok("POST", "/api/v1/ops", map[string]any{"space": "net", "ops": []map[string]any{
+		{"type": "transition", "item": cap.ID, "base_rev": iv.Rev, "changes": []map[string]any{{"field": "state", "new": "done"}}},
+	}}, nil)
+	if list(robin, "waiting") != "" || list(dana, "") != "" {
+		t.Errorf("after completion: robin waiting %q, dana next %q", list(robin, "waiting"), list(dana, ""))
+	}
+}
+
+// TestSpaceContexts: a shared space has its own contexts, set by its members
+// and usable by all of them, and by nobody else.
+func TestSpaceContexts(t *testing.T) {
+	s := newSite(t)
+	robin, dana, jo := s.login("robin"), s.login("dana"), s.login("jo")
+	put := func(c *client, space string, list ...string) (int, string) {
+		return c.do("PUT", "/api/v1/spaces/"+space+"/contexts", map[string]any{"contexts": list}, nil)
+	}
+	if code, body := put(robin, "net", " Calls-US ", "calls-us", "", "lab"); code != 200 || !strings.Contains(body, `["calls-us","lab"]`) {
+		t.Fatalf("set: %d %s", code, body)
+	}
+	if code, _ := put(robin, "net", "not ok"); code != 400 {
+		t.Errorf("a bad key: %d", code)
+	}
+	if code, _ := put(robin, "robin", "x"); code != 400 {
+		t.Errorf("contexts on a personal space: %d", code)
+	}
+	if code, _ := put(jo, "net", "x"); code != 404 {
+		t.Errorf("a non-member: %d", code)
+	}
+	// Dana, the other member, can use it on an action in the space; in her
+	// personal space it does not exist.
+	id := dana.create("net", map[string]any{"kind": "action", "title": "Call the US office", "context": "calls-us", "owner": "dana"})
+	if code, _ := dana.do("POST", "/api/v1/ops", map[string]any{"space": "dana", "ops": []map[string]any{{"type": "create", "payload": map[string]any{"kind": "action", "title": "x", "context": "calls-us"}}}}, nil); code != 400 {
+		t.Errorf("the space's context used in a personal space: %d", code)
+	}
+	// Engage offers it as a place, and filters by it.
+	var e struct {
+		Items    []Brief
+		Contexts []struct{ Value string }
+	}
+	dana.ok("GET", "/api/v1/engage?context=calls-us", nil, &e)
+	offered := false
+	for _, c := range e.Contexts {
+		offered = offered || c.Value == "calls-us"
+	}
+	if !offered || len(e.Items) != 1 || e.Items[0].ID != id {
+		t.Errorf("engage by the space's context: offered %v, items %+v", offered, e.Items)
+	}
+	dana.ok("GET", "/api/v1/engage?context=calls", nil, &e)
+	if len(e.Items) != 0 {
+		t.Errorf("the ordinary calls list shows it: %+v", e.Items)
+	}
+	// /me tells the client, for the Settings page.
+	var me struct {
+		Spaces []struct {
+			ID       string
+			Contexts []string
+		}
+	}
+	robin.ok("GET", "/api/v1/me", nil, &me)
+	for _, sp := range me.Spaces {
+		if sp.ID == "net" && !slices.Equal(sp.Contexts, []string{"calls-us", "lab"}) {
+			t.Errorf("/me: %+v", sp)
+		}
+	}
+}

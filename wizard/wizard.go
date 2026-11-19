@@ -85,7 +85,10 @@ type Ref struct {
 type Env struct {
 	// Spaces are the spaces the user may put a capture into: the one it is
 	// in first, then the shared ones. Title names the space and its members.
-	Spaces    []Ref
+	Spaces []Ref
+	// Members are the other members of the space, by name: whom an action
+	// can be delegated to. Empty in a personal space.
+	Members   []Ref
 	User      string
 	Today     string // YYYY-MM-DD
 	Space     *core.Space

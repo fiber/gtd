@@ -465,7 +465,9 @@ func TestDependencies(t *testing.T) {
 					t.Errorf("%s is %s, want %s", id, got, want)
 				}
 			}
-			if got := w.noteList(); !slices.Equal(got, c.notes) {
+			// Delegation has its own test: robin's setup creates actions for dana.
+			got := slices.DeleteFunc(w.noteList(), func(n string) bool { return strings.HasPrefix(n, NoteDelegated+":") })
+			if !slices.Equal(got, c.notes) {
 				t.Errorf("notifications = %v, want %v", got, c.notes)
 			}
 			checkReplay(t, w)
@@ -584,7 +586,7 @@ func TestValidation(t *testing.T) {
 		{"parent on an action", item(Item{ID: "n", Kind: KindAction, Parent: "p1"}), ErrInvalid},
 		{"parent missing", item(Item{ID: "n", Kind: KindProject, Parent: "nope"}), ErrInvalid},
 		{"owner is not a member", item(Item{ID: "n", Kind: KindAction, Owner: "jo"}), ErrInvalid},
-		{"delegated_by is not a member", item(Item{ID: "n", Kind: KindAction, DelegatedBy: "jo"}), ErrInvalid},
+		{"delegated_by from a client is ignored: the rule sets it", item(Item{ID: "n", Kind: KindAction, DelegatedBy: "jo"}), nil},
 		{"bad date", item(Item{ID: "n", Kind: KindAction, Target: "15.01.2027"}), ErrInvalid},
 		{"impossible date", item(Item{ID: "n", Kind: KindAction, Due: "2027-02-30"}), ErrInvalid},
 		{"bad energy", item(Item{ID: "n", Kind: KindAction, Energy: "huge"}), ErrInvalid},

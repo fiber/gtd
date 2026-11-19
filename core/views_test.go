@@ -76,7 +76,7 @@ func TestWaitingForAndDated(t *testing.T) {
 	w := shared(t)
 	w.must(w.create("robin", Item{ID: "delegated", Kind: KindAction, Owner: "dana", DelegatedBy: "robin"}))
 	w.must(w.create("robin", Item{ID: "person", Kind: KindAction, Owner: "robin", State: StWaiting, WaitingOn: "Kim", Due: "2026-11-21"}))
-	w.must(w.create("robin", Item{ID: "ericsblocker", Kind: KindAction, Owner: "dana", Target: "2026-11-30"}))
+	w.must(w.create("dana", Item{ID: "ericsblocker", Kind: KindAction, Owner: "dana", Target: "2026-11-30"})) // dana's own, not delegated
 	w.must(w.create("robin", Item{ID: "blockedonEric", Kind: KindAction, Owner: "robin", BlockedBy: []string{"ericsblocker"}}))
 	w.must(w.create("robin", Item{ID: "myblocker", Kind: KindAction, Owner: "robin"}))
 	w.must(w.create("robin", Item{ID: "blockedonme", Kind: KindAction, Owner: "robin", BlockedBy: []string{"myblocker"}}))

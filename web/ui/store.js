@@ -149,6 +149,7 @@ export const store = {
   },
 
   // Wizards: the server holds the step machine, the client renders its steps.
+  setSpaceContexts: (space, contexts) => put(`/spaces/${encodeURIComponent(space)}/contexts`, { contexts }),
   changePassword: (current, password) => put('/me/password', { current, password }),
   wizardStart: (kind, item, skip) => post(`/wizard/${kind}/start`, { item: item || '', skip: skip || 0 }),
   async wizardStep(kind, session, input) {

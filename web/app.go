@@ -137,6 +137,7 @@ func (s *Server) initApp() {
 	m.HandleFunc("GET /api/v1/spaces/{id}/options", s.user(s.options))
 	m.HandleFunc("GET /api/v1/spaces/{id}/templates", s.user(s.getTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/templates", s.user(s.putTemplates))
+	m.HandleFunc("PUT /api/v1/spaces/{id}/contexts", s.user(s.putContexts))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/start", s.user(s.wizardStart))
 	m.HandleFunc("POST /api/v1/wizard/{kind}/{session}/step", s.user(s.wizardStep))
 	m.HandleFunc("PUT /api/v1/admin/users/{id}/password", s.admin(s.setPassword))
@@ -477,16 +478,13 @@ func (s *Server) setMe(w http.ResponseWriter, r *http.Request, a actor) error {
 			u.ReviewWeekday = *in.ReviewWeekday
 		}
 		if in.PersonalContexts != nil {
+			list, err := cleanContexts(*in.PersonalContexts)
+			if err != nil {
+				return err
+			}
 			u.PersonalContexts = nil
-			for _, c := range *in.PersonalContexts {
-				c = strings.ToLower(strings.TrimSpace(c))
-				if c == "" {
-					continue
-				}
-				if !core.ValidID(c) {
-					return fmt.Errorf("%w: context %q (want lowercase letters, digits and -)", core.ErrInvalid, c)
-				}
-				u.PersonalContexts = append(u.PersonalContexts, c)
+			if len(list) > 0 {
+				u.PersonalContexts = list
 			}
 		}
 		return nil
@@ -1075,6 +1073,53 @@ func (s *Server) help(w http.ResponseWriter, r *http.Request, a actor) error {
 	return reply(w, map[string]string{"html": renderMarkdown(tutorial, tokens{})})
 }
 
+// putContexts sets a shared space's own contexts (besides the canonical
+// ones): any member may. A personal space uses its user's own contexts.
+func (s *Server) putContexts(w http.ResponseWriter, r *http.Request, a actor) error {
+	var in struct {
+		Contexts []string `json:"contexts"`
+	}
+	if err := body(r, &in); err != nil {
+		return err
+	}
+	v, err := s.st.View(a.user)
+	if err != nil {
+		return err
+	}
+	id := r.PathValue("id")
+	st, err := v.State(id) // members only
+	if err != nil {
+		return err
+	}
+	if st.Space.Kind != core.SpaceShared {
+		return fmt.Errorf("%w: space %q is personal: its contexts are the user's own (settings)", core.ErrInvalid, id)
+	}
+	contexts, err := cleanContexts(in.Contexts)
+	if err != nil {
+		return err
+	}
+	if err := s.st.UpdateSpace(id, func(sp *core.Space) error { sp.Contexts = contexts; return nil }); err != nil {
+		return err
+	}
+	return reply(w, map[string]any{"contexts": contexts})
+}
+
+// cleanContexts normalizes a list of context keys typed by a user.
+func cleanContexts(in []string) ([]string, error) {
+	out := []string{}
+	for _, c := range in {
+		c = strings.ToLower(strings.TrimSpace(c))
+		if c == "" || slices.Contains(out, c) {
+			continue
+		}
+		if !core.ValidID(c) {
+			return nil, fmt.Errorf("%w: context %q (want lowercase letters, digits and -)", core.ErrInvalid, c)
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
 // ---- templates (SPEC §7): a YAML textarea with validation ----
 
 func (s *Server) getTemplates(w http.ResponseWriter, r *http.Request, a actor) error {
@@ -1251,6 +1296,17 @@ func (s *Server) wizardEnv(v *store.View, ws *wizardSession) (wizard.Env, error)
 	}
 	env := wizard.NewEnv(st, ws.user, s.today())
 	env.Similar, env.SuggestProjects = ws.similar, ws.projects
+	if st.Space.Kind == core.SpaceShared {
+		for _, m := range st.Space.Members {
+			if u := s.st.User(m); m != ws.user && u != nil && !u.Service {
+				name := u.Name
+				if name == "" {
+					name = m
+				}
+				env.Members = append(env.Members, wizard.Ref{ID: m, Title: name})
+			}
+		}
+	}
 	if ws.kind == "clarify" {
 		// Where a capture may go: it can stay, or move to a shared space of
 		// the user. Each choice says who will see it there.

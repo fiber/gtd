@@ -104,6 +104,14 @@ class Settings extends View {
     });
     this.requestUpdate();
   }
+  async setSpaceContexts(sp, e) {
+    const list = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
+    await this.run(async () => {
+      sp.contexts = (await store.setSpaceContexts(sp.id, list)).contexts;
+      toast(t('settings.saved'));
+    });
+    this.requestUpdate();
+  }
   async saveTemplates() {
     this.error = '';
     try {
@@ -161,6 +169,10 @@ class Settings extends View {
         <div class="field"><label>${t('settings.contexts')}</label>
           <input type="text" .value=${me.user.personal_contexts.join(', ')} @change=${(e) => this.setContexts(e)}>
           <small>${t('settings.contexts_hint')}</small></div>
+        ${me.spaces.filter((sp) => sp.kind === 'shared').map((sp) => html`
+          <div class="field"><label>${t('settings.space_contexts', { name: sp.name })}</label>
+            <input type="text" .value=${(sp.contexts || []).join(', ')} @change=${(e) => this.setSpaceContexts(sp, e)}>
+            <small>${t('settings.space_contexts_hint')}</small></div>`)}
         ${this.ai ? html`<p class="notice">${t('ai.label')}: ${t('ai.state.' + this.ai.state)}
           ${this.ai.state === 'off' ? '' : ' · ' + t('ai.counts', { vectors: this.ai.vectors, queued: this.ai.queued })}
           ${this.ai.error ? html`<br><small>${this.ai.error}</small>` : nothing}</p>` : nothing}

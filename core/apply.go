@@ -124,6 +124,9 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	if op.Type == OpPatch {
+		delegatePatch(ws, before, &op)
+	}
 	after, err := replayItem(before, op)
 	if err != nil {
 		return nil, err
@@ -146,6 +149,7 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 		return nil, err
 	}
 	res.Ops = []Op{op}
+	notifyDelegation(ws, res, before, after, op)
 	touched := []string{after.ID}
 	touched = append(touched, settle(ws, op, before, after, newID, res)...)
 	if id := repeatRule(ws, op, before, after, newID, res); id != "" {
@@ -272,6 +276,11 @@ func prepareCreate(ws *State, op *Op) error {
 	}
 	if o := defaultOwner(ws.Space, it.Kind, it.Owner); o != "" {
 		it.Owner = o
+	}
+	// An action created for another member is delegated by its creator.
+	it.DelegatedBy = ""
+	if delegates(ws, op.Actor, it.Kind, it.Owner) {
+		it.DelegatedBy = op.Actor
 	}
 	if d := ticklerDate(ws.Space, &it); d != "" {
 		it.DeferUntil = d
@@ -574,7 +583,10 @@ func validContext(ws *State, key string) bool {
 	if who, ok := strings.CutPrefix(key, "agenda:"); ok {
 		return ws.Space.HasMember(who) || who != "" && slices.Contains(ws.Space.People, who)
 	}
-	return ws.Space.Kind == SpacePersonal && slices.Contains(ws.PersonalContexts, key)
+	if ws.Space.Kind == SpacePersonal {
+		return slices.Contains(ws.PersonalContexts, key)
+	}
+	return slices.Contains(ws.Space.Contexts, key)
 }
 
 // validate checks every invariant of one item against the space.
@@ -780,6 +792,8 @@ func Contexts(st *State, user string) []string {
 	out := slices.Clone(canonicalContexts)
 	if st.Space.Kind == SpacePersonal {
 		out = append(out, st.PersonalContexts...)
+	} else {
+		out = append(out, st.Space.Contexts...)
 	}
 	for _, m := range st.Space.Members {
 		if m != user {
