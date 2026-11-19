@@ -377,7 +377,8 @@ templates:
   `<base href="/gtd/">`. Routing is client-side. All links the client or the server
   writes are relative to that base.
 - Components read and write only through `store.js`, the single data layer: from the
-  API when online, from IndexedDB when offline (OFFLINE.md).
+  API, and from what it kept of the last answers when the server cannot be reached
+  (OFFLINE.md).
 - Mobile-first. Bottom nav: **Capture · Inbox (n) · Engage · Projects · More**
   (Review, Board, Search, Areas, Settings). Desktop: the same as a left rail.
 - Language per user (D-09): JSON catalogs `web/ui/i18n/{de,en}.json`. All dates are
@@ -393,10 +394,10 @@ connects, the same routes are served without the `/gtd` prefix.
 - `POST /capture` (JSON `{text, source?}` or multipart with files) → `{id}`
 - `GET /items/{id}` (`ETag: rev`) · `GET /items?space=&kind=&state=&project=&owner=&context=`
 - `POST /ops` — submit one or more ops (web, offline replay and CLI all use this).
-  Returns applied ops or conflicts (OFFLINE.md §3).
+  Returns the applied ops, or the error that rejected them (OFFLINE.md §3).
 - `GET /items/{id}/comments` · comments are created via ops
 - `POST /attachments` (multipart) → `{sha256, mime, size}` · `GET /att/{sha}` · `GET /att/{sha}/thumb`
-- `GET /search?q=` · `GET /engage?...` · `GET /sync?cursor=` (OFFLINE.md)
+- `GET /search?q=` · `GET /engage?...`
 - `GET /notifications` · `POST /notifications/{id}/dismiss`
 - `POST /wizard/{clarify|review|sweep}/start` → `{session, step}` ·
   `POST /wizard/{kind}/{session}/step` → `{step}` or `{done, ops}` (§5)

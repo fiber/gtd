@@ -93,7 +93,8 @@ type Op struct {
 - Target: 50k items plus 200k comments load in under 3 s. Typical queries in under 5 ms.
 
 ## 5. Text merge
-Used for body conflicts (OFFLINE.md). Shell out to `git merge-file -p --diff3`
+Not needed since OFFLINE.md was rewritten (2026-11-19): nothing edits bodies offline.
+Kept as the rule for a future need. Shell out to `git merge-file -p --diff3`
 with base/ours/theirs temp files. Exit 0 means clean. Greater than 0 means a conflict:
 the result with markers is stored in `conflict` (see OFFLINE.md §4) and never
 silently picked.

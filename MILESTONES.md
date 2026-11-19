@@ -64,8 +64,9 @@ though collaboration features arrive in M6. Goal: Sven can use the tool daily
 
 ## M3 — PWA and offline (OFFLINE.md)
 - Manifest, share target (text, URL, files), service worker, offline capture queue,
-  pinned-space snapshot sync, op queue replay, conflict resolver. Bookmarklet.
-  `POST /capture` with a token (plus README steps for an Apple Shortcut).
+  lists kept as last seen, offline done and add with a queue that is sent on
+  reconnect. Bookmarklet. `POST /capture` with a token (plus README steps for an Apple
+  Shortcut).
 - **Accept:** OFFLINE.md §7 scenarios. Share a PDF from the Android Files app → it
   arrives as a capture with the attachment.
 

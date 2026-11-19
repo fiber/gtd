@@ -38,7 +38,7 @@ Settled with the product owner (Sven). The agent must not change them.
 | D-20 | **Export and snapshots:** `gtd export` writes lossless Markdown plus frontmatter, attachments, comments and op log (works with or without the daemon, or from a snapshot). `gtd snapshot` creates a Pebble checkpoint plus a blob manifest, with retention, `verify` and `restore`. |
 | D-21 | **Auth:** web uses password plus long-lived session cookie. API and MCP use bearer tokens with scopes. **CLI and admin use SSH key challenge-response** (keys registered per user, signing via ssh-agent) over the local Unix socket, or remotely over HTTPS. |
 | D-22 | **Web UI:** Lit web components, buildless (vendored Lit ES module bundle, import map, plain JS modules, one CSS file, hand-written service worker, all embedded via `embed.FS`; no npm, bundler, TypeScript, other framework or state-management library), installed as a PWA. The client is a pure renderer: Markdown is rendered server-side (`body_html`), wizards are Go step machines behind `/api/v1/wizard/…`, there is no GTD logic in JS, and routing is client-side on a server-delivered app shell. *(Changed 2026-11-19; was `html/template` + htmx.)* Android is first-class (share target for text, URLs, files, camera capture). iOS via Safari install plus an Apple Shortcut. No native apps. |
-| D-23 | **Offline: level 2** (OFFLINE.md). A cached snapshot of pinned spaces in IndexedDB, with offline mutations as ops replayed on reconnect. Conflicts go to a merge view. |
+| D-23 | **Offline: capture first** (OFFLINE.md, rewritten 2026-11-19, Q-7). Offline the phone captures, shows the lists as last seen, ticks actions off and adds actions to a list; all of it is queued and sent on reconnect. No offline editing or planning, no merge, no conflict view. (Was "level 2": a synced copy of pinned spaces with a merge view.) |
 | D-24 | **Embeddings:** `embeddinggemma` (768-dim unit vectors), behind one `Embedder` interface with **three adapters**: `internal` (in-process through `github.com/fiber/ai`, model files in a local directory: `/Users/sven/models/embeddinggemma-300m` on the Mac, under `/home/sven/models/` on shada), `gtt-nora` (the NIS embedding service described in Q-2; **deferred** by Sven on 2026-11-19 because of its `go.gtt.net` dependencies, so not built in M4), and `ollama` (HTTP, `/api/embed`). Exact brute-force similarity with `fiber/ai`'s `cluster` package. No ANN, no vector DB. *(Changed 2026-11-19; was two backends, fiber/ai and norad.)* |
 | D-25 | **AI generation is configured per server and per user**, optional at runtime, structured JSON output validated against schemas. A server lists the backends it offers (the work server: only the local Gemma the workplace provides; the home server: a local model and/or a cloud provider, Gemini or Anthropic, as nuro does). Each user has a setting for which of them their requests use, or none. A job runs on the backend of the user who caused it. A server sends content only to its own configured backends, and a work server never offers a cloud provider. *(Changed 2026-11-19, twice; was "local only, no cloud providers".)* |
 | D-26 | **Obsidian is abandoned.** No compatibility requirement. A one-time importer migrates the existing vault (thousands of notes) into an "unsorted" pool, which the sweep then works through. Titles may contain any characters. |
@@ -68,12 +68,7 @@ Settled with the product owner (Sven). The agent must not change them.
   inside it: in a shared space, a job started by one member sends the other members' text to
   that member's backend. Accept that, or let a shared space restrict the backends? Before M7.
 - **Q-8** (answered yes, 2026-11-19: repeating actions are built, SPEC §6.6.)
-- **Q-7** Proposed change to D-23 (offline), raised by Sven 2026-11-19: "focus offline on capture
-  mostly, plan when you're at your desk". Agent proposal: offline means capture (text, photos,
-  files), reading the cached lists, and marking actions done or deferred. Offline note editing,
-  three-way body merge and the conflict resolver are dropped. This also removes the conflict
-  between OFFLINE §3 and "no GTD logic in JS". Not applied yet: confirm before M3, then
-  OFFLINE.md and M3 are rewritten.
+- **Q-7** (answered 2026-11-19: yes, capture first. "I do want to take offline notes (in IN) and probably be able to retrieve my shopping list (and also add to it) on the go. But I don't need all the planning features while offline." D-23 and OFFLINE.md are rewritten.)
 
 ## Owner requests (2026-11-19)
 
@@ -256,3 +251,11 @@ R-1 and R-2 are built in M1 and described in SPEC §5.5. R-3 waits for M7.
 
 - 2026-11-19 — Owner: `suggest_threshold` is 0.60 by default (from the M5 calibration). Calendar integration stays a non-goal. The real vaults are imported once a real server exists, not into the demo.
 - 2026-11-19 — Owner: Engage gets a **Today** tab. It lists the user's next actions and waiting-fors with a due date or target of today or earlier, and the next actions that came back today (deferred until today, or a repeating action whose day it is). The where/time/energy answers do not filter it. Overdue items are included: they are today's problem.
+
+### Agent decisions (M3)
+
+- 2026-11-19 — "My shopping list" has no kind of its own: it is the Engage list for a context (errands) or a project's plan. Both are kept for offline, and both take additions offline.
+- 2026-11-19 — The phone keeps the last answer to each list request instead of a synced copy of items. No sync endpoint, no pinned spaces, no rules in the client. The cost: offline lists are as old as the last connection, and a filter combination never asked for online is not available offline (the per-context lists are fetched in the background so that the usual ones are).
+- 2026-11-19 — Offline changes are limited to done and add. Defer was in my first proposal; it is planning, so it is out.
+- 2026-11-19 — With the merge view gone, nothing shells out to `git merge-file` and git is not a runtime dependency. `conflict` stays in the item schema unused. CLAUDE.md still names both; it is the owner's file and unchanged.
+- 2026-11-19 — M3 builds API tokens only as far as it needs them: scope `capture`. The other scopes of COLLAB §6 come with M6 and M8.

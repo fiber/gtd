@@ -30,7 +30,7 @@ If a task seems to need one of these, stop and ask.
 - Note transclusion
 - WYSIWYG or rich-text editing (Markdown textarea plus preview)
 - OCR, PDF annotation, HEIC decoding
-- Offline editing beyond OFFLINE.md (no local server or replica)
+- Offline beyond OFFLINE.md: no offline editing or planning, no local server or replica, no merge view
 - Import from anything other than Obsidian
 - Trading-specific logic in the core (templates and service users cover it). gtd
   never starts backtests in nuro (v2 at the earliest).
