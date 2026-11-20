@@ -1036,7 +1036,8 @@ func (s *Server) options(w http.ResponseWriter, r *http.Request, a actor) error 
 
 // notes lists the notes of all the user's spaces, most recently changed
 // first: the home of note-taking. Filters: state, project, area and q (every
-// word must occur in title or body).
+// word must occur in title or body). With meaning=1 the notes that are close
+// to q in meaning follow the ones that contain its words, nearest first.
 func (s *Server) notes(w http.ResponseWriter, r *http.Request, a actor) error {
 	v, err := s.st.View(a.user)
 	if err != nil {
@@ -1091,6 +1092,37 @@ func (s *Server) notes(w http.ResponseWriter, r *http.Request, a actor) error {
 		return strings.ToLower(projects[i].Title)+projects[i].ID < strings.ToLower(projects[j].Title)+projects[j].ID
 	})
 	res := map[string]any{"notes": out, "counts": counts, "projects": projects}
+	if text := strings.TrimSpace(q.Get("q")); q.Get("meaning") != "" && text != "" && q.Get("similar") == "" {
+		listed := map[string]bool{}
+		for _, b := range out {
+			listed[b.ID] = true
+		}
+		sem := s.Embed.Search(r.Context(), v, text, 60)
+		for _, h := range sem.Hits {
+			st, err := v.State(h.Space)
+			if err != nil {
+				continue
+			}
+			it := st.Item(h.ID)
+			if it == nil || listed[it.ID] || it.Kind != core.KindNote || it.State == core.StTrashed ||
+				q.Get("project") != "" && it.Project != q.Get("project") || q.Get("area") != "" && it.Area != q.Get("area") {
+				continue
+			}
+			// A note that has the words but another state is counted already.
+			text := strings.ToLower(it.Title + "\n" + it.Body)
+			if !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(text, w) }) {
+				continue
+			}
+			counts[it.State]++
+			if state := q.Get("state"); state != "" && it.State != state {
+				continue
+			}
+			b := brief(st, it, today, nil)
+			b.Excerpt, b.SpaceName, b.Score = excerpt(it.Body, 180), st.Space.Name, h.Score
+			out = append(out, b)
+		}
+		res["notes"], res["meaning"] = out, map[string]string{"state": sem.State}
+	}
 	if id := q.Get("similar"); id != "" {
 		// The notes most like one note, nearest first, instead of the filtered
 		// list. Only notes the user can see are compared (invariant 4).

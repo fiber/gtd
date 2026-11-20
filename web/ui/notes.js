@@ -19,7 +19,7 @@ const STATES = ['', 'unsorted', 'filed', 'archived'];
 
 class Notes extends View {
   static properties = {
-    tab: { state: true }, state: { state: true }, project: { state: true }, q: { state: true }, similar: { state: true },
+    tab: { state: true }, state: { state: true }, project: { state: true }, q: { state: true }, similar: { state: true }, meaning: { state: true },
     data: { state: true }, ideas: { state: true },
   };
 
@@ -33,7 +33,7 @@ class Notes extends View {
     if (this.tab === 'ideas') {
       this.ideas = await this.run(() => store.ideas());
     } else {
-      this.data = await this.run(() => store.notes({ state: this.state, project: this.project, q: this.q, similar: this.similar }));
+      this.data = await this.run(() => store.notes({ state: this.state, project: this.project, q: this.q, similar: this.similar, meaning: this.meaning ? '1' : '' }));
     }
   }
 
@@ -42,10 +42,19 @@ class Notes extends View {
     this.reload();
   }
 
+  // Typing filters by words. Enter also looks for what is meant: notes that
+  // say the same in other words follow the ones that contain the words.
   search(e) {
     clearTimeout(this._wait);
     const q = e.target.value;
+    this.meaning = false;
     this._wait = setTimeout(() => this.set('q', q), 200);
+  }
+  byMeaning(e) {
+    if (e.key !== 'Enter') return;
+    clearTimeout(this._wait);
+    this.q = e.target.value;
+    this.set('meaning', !!this.q.trim());
   }
 
   notesTab() {
@@ -58,13 +67,15 @@ class Notes extends View {
           <button class=${this.state === s ? 'on' : ''} @click=${() => this.set('state', s)}>
             ${s ? t('state.' + s) : t('notes.all')} <span class="n">${s ? d.counts[s] || 0 : total}</span></button>`)}</div>
         ${d.counts.unsorted > 1 ? html`<a class="button" href="sweep">${t('notes.sweep', { n: d.counts.unsorted })}</a>` : nothing}
-        <input type="search" placeholder=${t('notes.filter')} @input=${(e) => this.search(e)}>
+        <input type="search" placeholder=${t('notes.filter')} @input=${(e) => this.search(e)} @keydown=${(e) => this.byMeaning(e)}>
         ${select(d.projects, this.project, (v) => this.set('project', v), t('board.all_projects'))}
       </div>
       ${d.similar ? html`<p class="notice similar-to">
         <span>${t('notes.similar_to', { title: d.similar.title })}${d.similar.state === 'ok' ? '' : ' · ' + t('ai.state.' + d.similar.state)}</span>
         <button @click=${() => this.set('similar', '')}>${t('notes.similar_clear')}</button></p>` : nothing}
-      ${d.notes.map((n) => html`
+      ${d.meaning && d.meaning.state !== 'ok' ? html`<p class="notice">${t('notes.meaning_off')} · ${t('ai.state.' + d.meaning.state)}</p>` : nothing}
+      ${d.notes.map((n, i) => html`
+        ${d.meaning && n.score && !d.notes[i - 1]?.score ? html`<p class="notes-divider">${t('notes.by_meaning')}</p>` : nothing}
         <a class="note-card" href=${'i/' + n.id}>
           <span class="title">${n.title}</span>
           ${n.excerpt ? html`<span class="excerpt">${n.excerpt}</span>` : nothing}

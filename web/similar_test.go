@@ -116,6 +116,43 @@ func TestSimilarityOverHTTP(t *testing.T) {
 		t.Errorf("similar to a note of another user: %d", code)
 	}
 
+	// The Notes filter by meaning: no note has all three words, so the words
+	// alone find nothing; by meaning the notes about it follow, only notes,
+	// never another user's, and the state filter still holds.
+	var ml struct {
+		Notes   []Brief
+		Meaning struct{ State string }
+	}
+	robin.ok("GET", "/api/v1/notes?q=engine+session+lost", nil, &ml)
+	if len(ml.Notes) != 0 {
+		t.Errorf("by words: %d notes", len(ml.Notes))
+	}
+	robin.ok("GET", "/api/v1/notes?meaning=1&q=engine+session+lost", nil, &ml)
+	var found []string
+	for _, n := range ml.Notes {
+		found = append(found, n.Title)
+		if n.Kind != core.KindNote || n.Score <= 0 {
+			t.Errorf("by meaning: %s %q score %v", n.Kind, n.Title, n.Score)
+		}
+	}
+	if got := strings.Join(found, "|"); ml.Meaning.State != embed.StateOK || !strings.Contains(got, "loses Boat session state") ||
+		strings.Contains(got, "Jo") || strings.Contains(got, "Apple") {
+		t.Errorf("notes by meaning: %q (%s)", got, ml.Meaning.State)
+	}
+	robin.ok("GET", "/api/v1/notes?meaning=1&state=archived&q=engine+session+lost", nil, &ml)
+	if len(ml.Notes) != 0 {
+		t.Errorf("by meaning among archived notes: %d", len(ml.Notes))
+	}
+	// A note that has the words comes first and is not repeated below.
+	robin.ok("GET", "/api/v1/notes?meaning=1&q=engine+session", nil, &ml)
+	seen := map[string]int{}
+	for _, n := range ml.Notes {
+		seen[n.ID]++
+	}
+	if len(ml.Notes) == 0 || ml.Notes[0].ID != loose || ml.Notes[0].Score != 0 || seen[loose] != 1 {
+		t.Errorf("words first, then meaning: %+v", found)
+	}
+
 	// Search by meaning: "router" is in no title, the neighbours of the words are.
 	robin.ok("GET", "/api/v1/search?q=session+state+lost", nil, &res)
 	if res.Semantic != embed.StateOK || !strings.Contains(titles(res.Hits), "loses Boat session state") || strings.Contains(titles(res.Hits), "Jo") {

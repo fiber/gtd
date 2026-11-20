@@ -521,3 +521,4 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .capture-to + .capture { margin-top: 0; }
 @media (max-width: 859px) { .capture-to { margin-top: 0; } }
 .nav-item.tool.privacy.on svg { color: #111; opacity: 1; }
+.notes-divider { margin: 16px 4px 6px; font-size: .74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
