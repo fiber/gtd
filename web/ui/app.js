@@ -199,7 +199,7 @@ class App extends LitElement {
         <a class="brand" href="./"><img src="ui/logo.svg" alt="" width="26" height="26">gtd</a>
         ${NAV.slice(0, 4).map(item)}
         <div class="nav-more ${this.menu ? 'open' : ''}">
-          ${NAV.slice(4).map(item)}
+          ${NAV.slice(4, -1).map(item)}
           <span class="nav-gap"></span>
           <a class="nav-item tool ${active('/help') ? 'on' : ''}" href="help" title=${t('nav.help')}>${icon.help}<span class="text">${t('nav.help')}</span></a>
           <button class="nav-item tool privacy ${this.private ? 'on' : ''}" title=${t('capture.private_hint')} aria-pressed=${this.private}
@@ -209,6 +209,7 @@ class App extends LitElement {
             ${this.theme === 'dark' ? icon.moon : icon.sun}<span class="text">${t('nav.theme')}: ${t('theme.' + this.theme)}</span></button>
           <button class="nav-item tool ${this.zen ? 'on' : ''}" title=${t('nav.fullscreen')} @click=${() => this.toggleZen()}>
             ${icon.expand}<span class="text">${t('nav.fullscreen')}</span></button>
+          <a class="nav-item tool ${active('/settings') ? 'on' : ''}" href="settings" title=${t('nav.settings')}>${icon.settings}<span class="text">${t('nav.settings')}</span></a>
         </div>
         <button class="nav-item more ${NAV.slice(4).some(([h]) => active(h)) ? 'on' : ''}" aria-expanded=${!!this.menu}
           @click=${() => { this.menu = !this.menu; }}>
