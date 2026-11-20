@@ -155,10 +155,17 @@ func serve(g globals, stdout, stderr io.Writer) error {
 	}
 	// Linked servers: this server's own SSH key (made on the first start),
 	// and a loop that delivers and collects every minute, or when asked.
+	// Links over HTTPS need no key; they also listen on a WebSocket for what
+	// the other side has for this one.
 	if app.LinkKey, err = linkKey(g.data); err != nil {
-		fmt.Fprintf(stderr, "gtd: linked servers are off: %v\n", err)
-	} else {
+		fmt.Fprintf(stderr, "gtd: linked servers over SSH are off: %v\n", err)
+	}
+	if app.BoxKey, err = boxKey(g.data); err != nil {
+		fmt.Fprintf(stderr, "gtd: linked servers over HTTPS are off: %v\n", err)
+	}
+	{
 		app.Kick = make(chan struct{}, 1)
+		go app.WatchLinks(ctx)
 		go func() {
 			tick := time.NewTicker(time.Minute)
 			defer tick.Stop()
@@ -244,6 +251,25 @@ func scheduledSnapshot(st *store.Store, interval time.Duration, keep store.Keep)
 	}
 	pruned, err = store.PruneSnapshots(st.Dir(), keep)
 	return man.Name, pruned, err
+}
+
+// boxKey loads this server's key for sealing what goes to linked servers over
+// HTTPS from the data directory, and makes it on the first call.
+func boxKey(dir string) (*[32]byte, error) {
+	path := filepath.Join(dir, "link_box.key")
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		data = make([]byte, 32)
+		rand.Read(data)
+		err = os.WriteFile(path, data, 0o600)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(data) != 32 {
+		return nil, fmt.Errorf("%s: want 32 bytes, found %d", path, len(data))
+	}
+	return (*[32]byte)(data), nil
 }
 
 // linkKey loads this server's SSH key for linked servers from the data

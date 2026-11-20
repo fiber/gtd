@@ -48,6 +48,13 @@ type Server struct {
 	LinkKey ssh.Signer
 	// Kick, if set, asks the daemon to run SyncLinks soon.
 	Kick chan struct{}
+	// BoxKey is this server's private key for sealing what travels to linked
+	// servers over HTTPS.
+	BoxKey *[32]byte
+	// wakes are the linked servers that listen for what is put into their outbox.
+	wakes wakeHub
+	// relink says that a link was added or removed, for WatchLinks.
+	relink chan struct{}
 	// Admins are the users who may administer the server (config.yaml,
 	// `admins`): users, spaces, backups. Being listed is not enough: admin
 	// routes also need the SSH-key challenge, not a web session (D-21).
@@ -78,7 +85,7 @@ var (
 )
 
 func New(st *store.Store) *Server {
-	s := &Server{st: st, mux: http.NewServeMux()}
+	s := &Server{st: st, mux: http.NewServeMux(), relink: make(chan struct{}, 1)}
 	s.ssh = auth.NewSSH(st.Server().ID, func(user string) []string {
 		if u := st.User(user); u != nil {
 			return u.SSHKeys
@@ -154,7 +161,8 @@ func (s *Server) any(h handler) http.HandlerFunc {
 					ok := r.Method == "POST" && p == "/api/v1/capture" && slices.Contains(tok.Scopes, store.ScopeCapture) ||
 						slices.Contains(tok.Scopes, store.ScopeOutbox) && tok.Link != "" &&
 							(r.Method == "GET" && (p == "/api/v1/outbox" || strings.HasPrefix(p, "/api/v1/outbox/")) ||
-								r.Method == "POST" && strings.HasPrefix(p, "/api/v1/outbox/") && strings.HasSuffix(p, "/ack"))
+								r.Method == "POST" && strings.HasPrefix(p, "/api/v1/outbox/") && strings.HasSuffix(p, "/ack") ||
+								r.Method == "POST" && p == "/api/v1/outbox/ticket")
 					if !ok {
 						fail(w, errScope)
 						return

@@ -165,11 +165,11 @@ one capture; the next one is for here again. If the other server cannot be reach
 the note waits (Settings › Linked servers shows how many do) and is delivered when
 the two next talk.
 
-The two servers talk over SSH, and only one of them has to be able to reach the
-other. Captures going the other way wait until the connecting server next comes by
-(once a minute).
+Only one of the two servers has to be able to reach the other. That one connects,
+over SSH or over HTTPS. Captures going the other way wait until the connecting server
+next comes by: once a minute over SSH, at once over HTTPS (see below).
 
-Say home can reach work:
+**Over SSH.** Say home can reach work:
 
 1. **On work**, in Settings › Linked servers: add a link named `home` and leave the
    SSH address empty. You get a token; copy it.
@@ -188,6 +188,43 @@ Say home can reach work:
 From then on home accepts only that host key, and the token lets home do two things
 on work: capture into your inbox, and collect what you sent to `home` there. Links
 are between two servers and one person; nothing is passed on to a third server.
+
+**Over HTTPS**, for when SSH is not possible, for example from behind a company
+proxy. Say home can reach `https://work.example/gtd/`:
+
+1. **On work**, add a link named `home` and leave the address empty. You get a code
+   (`gtd_…~…`); copy all of it.
+2. **On home**, add a link named `work` with the address `https://work.example/gtd/`
+   and the code.
+
+The connection does not rely on TLS for secrecy, because a proxy may open TLS.
+Every request and every answer is sealed between the two gtd servers themselves
+(public-key encryption, NaCl box), token included, and sent as one binary POST to
+`/gtd/api/v1/link`. The code you carry by hand contains work's public key, so
+nothing in between can pose as work, read a capture, or change one unnoticed: a
+changed message is refused and the capture stays in the outbox. What a proxy still
+sees is that the two servers talk, when, and how much. Each server's key is in its
+data directory (`link_box.key`); keep it as private as the database.
+
+A proxy is taken from the environment of the daemon (`HTTPS_PROXY`, `NO_PROXY`).
+
+Over HTTPS the connecting server also holds a WebSocket open to the other one, on
+which that one says when something waits; it is then collected at once. No data
+travels on it. For this, nginx in front of the reachable server must pass
+WebSockets on for one path:
+
+```
+location /gtd/api/v1/outbox/wake {
+    proxy_pass http://127.0.0.1:8640;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 120s;
+}
+```
+
+Where a WebSocket cannot be opened, nothing is lost: captures are collected within
+a minute, as over SSH.
 
 **Mail in.** `gtd capture-mail` reads one message on stdin and captures it: the
 subject becomes the title, then sender, date and text, with the attachments attached.

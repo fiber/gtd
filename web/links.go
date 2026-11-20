@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -47,11 +48,17 @@ import (
 // Link is one linked server of a user.
 type Link struct {
 	Name    string `json:"name"`
-	SSH     string `json:"ssh,omitempty"`      // user@host[:port]; empty: the other side connects to us
+	SSH     string `json:"ssh,omitempty"`      // user@host[:port]: this side connects over SSH
+	URL     string `json:"url,omitempty"`      // https://host/gtd: this side connects over HTTPS (linkhttp.go)
 	Target  string `json:"target,omitempty"`   // where the other gtd listens, as seen from that host
 	HostKey string `json:"host_key,omitempty"` // the host key seen when the link was made
 	Token   string `json:"token,omitempty"`    // the token to present there (dialing side)
+	PeerKey string `json:"peer_key,omitempty"` // the other server's sealing key (URL links)
 }
+
+// dials says whether this side connects. If not, the other side does, and
+// what is sent to the link waits for it.
+func (l Link) dials() bool { return l.SSH != "" || l.URL != "" }
 
 // outEntry is a capture of this server waiting to reach a linked server.
 type outEntry struct {
@@ -93,7 +100,7 @@ func (s *Server) LinkPublicKey() string {
 
 type linkView struct {
 	Name        string `json:"name"`
-	SSH         string `json:"ssh,omitempty"`
+	SSH         string `json:"ssh,omitempty"`         // the address this side connects to: SSH or URL
 	Fingerprint string `json:"fingerprint,omitempty"` // of the pinned host key
 	Waiting     int    `json:"waiting"`               // captures not delivered yet
 	Token       string `json:"token,omitempty"`       // shown once, when a waiting link is made
@@ -104,7 +111,9 @@ type linkView struct {
 // POST {name}: the other server will connect to this one. The answer carries
 // the token to enter there, once.
 // POST {name, ssh, target?, token}: this server connects. It does so right
-// away, to see the host key and to check that the other gtd answers.
+// away, to see the host key and to check that the other gtd answers. An ssh
+// that begins with http is the other gtd's URL: then this server connects
+// over HTTPS (target is not used).
 func (s *Server) links(w http.ResponseWriter, r *http.Request, a actor) error {
 	links := s.userLinks(a.user)
 	made := ""
@@ -127,12 +136,30 @@ func (s *Server) links(w http.ResponseWriter, r *http.Request, a actor) error {
 			if err != nil {
 				return err
 			}
-			made = token
+			made = s.linkCode(token)
+		} else if strings.HasPrefix(in.SSH, "http://") || strings.HasPrefix(in.SSH, "https://") {
+			var err error
+			if link.URL, err = cleanLinkURL(in.SSH); err != nil {
+				return err
+			}
+			if link.Token, link.PeerKey = splitCode(in.Token); !strings.HasPrefix(link.Token, "gtd_") {
+				return &keyError{http.StatusBadRequest, "link.token", "token"}
+			}
+			c, err := s.dial(r.Context(), &link)
+			if err != nil {
+				return err
+			}
+			_, err = c.get("/api/v1/outbox")
+			c.close()
+			if err != nil {
+				return err
+			}
 		} else {
 			if s.LinkKey == nil {
 				return fmt.Errorf("%w: this server has no link key (it is made when the daemon starts)", core.ErrInvalid)
 			}
-			link.SSH, link.Target, link.Token = in.SSH, strings.TrimSpace(in.Target), strings.TrimSpace(in.Token)
+			link.SSH, link.Target = in.SSH, strings.TrimSpace(in.Target)
+			link.Token, _ = splitCode(in.Token)
 			if link.Target == "" {
 				link.Target = defaultTarget
 			}
@@ -175,11 +202,15 @@ func (s *Server) links(w http.ResponseWriter, r *http.Request, a actor) error {
 		if err := s.st.PutUserState(a.user, "links", links); err != nil {
 			return err
 		}
+		select {
+		case s.relink <- struct{}{}:
+		default:
+		}
 	}
 	out := []linkView{}
 	waiting := s.outbox(a.user)
 	for _, l := range links {
-		v := linkView{Name: l.Name, SSH: l.SSH}
+		v := linkView{Name: l.Name, SSH: l.SSH + l.URL}
 		if key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(l.HostKey)); err == nil {
 			v.Fingerprint = ssh.FingerprintSHA256(key)
 		}
@@ -272,7 +303,11 @@ func (s *Server) queueCapture(user, link, item string) error {
 	if e := (outEntry{link, item}); !slices.Contains(out, e) {
 		out = append(out, e)
 	}
-	return s.st.PutUserState(user, "outbox", out)
+	if err := s.st.PutUserState(user, "outbox", out); err != nil {
+		return err
+	}
+	s.wakes.wake(user, link) // if the other side listens, it comes for it now
+	return nil
 }
 
 // ---- the dialing side ----
@@ -280,6 +315,7 @@ func (s *Server) queueCapture(user, link, item string) error {
 // linkConn is an open connection to a linked server.
 type linkConn struct {
 	link  *Link
+	base  string // where the other gtd's API is, as seen through http
 	http  *http.Client
 	close func()
 }
@@ -288,6 +324,12 @@ type linkConn struct {
 // to the gtd there. If the link has no host key yet, the one presented is
 // recorded in it (the caller stores the link).
 func (s *Server) dial(ctx context.Context, link *Link) (*linkConn, error) {
+	if link.URL != "" {
+		return s.dialHTTP(link)
+	}
+	if s.LinkKey == nil {
+		return nil, fmt.Errorf("%w: this server has no link key (it is made when the daemon starts)", core.ErrInvalid)
+	}
 	user, host, ok := strings.Cut(link.SSH, "@")
 	if !ok || user == "" || host == "" {
 		return nil, &keyError{http.StatusBadRequest, "link.address", "ssh"}
@@ -324,12 +366,12 @@ func (s *Server) dial(ctx context.Context, link *Link) (*linkConn, error) {
 	client := ssh.NewClient(sc, chans, reqs)
 	target := link.Target
 	tr := &http.Transport{DialContext: func(context.Context, string, string) (net.Conn, error) { return client.Dial("tcp", target) }}
-	return &linkConn{link: link, http: &http.Client{Transport: tr, Timeout: 2 * time.Minute},
+	return &linkConn{link: link, base: "http://gtd" + Prefix, http: &http.Client{Transport: tr, Timeout: 2 * time.Minute},
 		close: func() { tr.CloseIdleConnections(); client.Close() }}, nil
 }
 
 func (c *linkConn) do(method, path, contentType string, body io.Reader) ([]byte, error) {
-	req, err := http.NewRequest(method, "http://gtd"+Prefix+path, body)
+	req, err := http.NewRequest(method, c.base+path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -339,6 +381,13 @@ func (c *linkConn) do(method, path, contentType string, body io.Reader) ([]byte,
 	req.Header.Set("Authorization", "Bearer "+c.link.Token)
 	resp, err := c.http.Do(req)
 	if err != nil {
+		if errors.Is(err, errSealed) {
+			// Not the server the code came from, or changed on the way.
+			return nil, &keyError{http.StatusBadGateway, "link.sealed", "ssh"}
+		}
+		if c.link.URL != "" {
+			return nil, &keyError{http.StatusBadGateway, "link.unreachable", "ssh"}
+		}
 		return nil, &keyError{http.StatusBadGateway, "link.no_gtd", "target"}
 	}
 	defer resp.Body.Close()
@@ -349,6 +398,10 @@ func (c *linkConn) do(method, path, contentType string, body io.Reader) ([]byte,
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
 		return nil, &keyError{http.StatusBadGateway, "link.token", "token"}
+	case c.link.URL != "" && resp.StatusCode == http.StatusBadRequest && strings.Contains(string(data), errSealed.Error()):
+		return nil, &keyError{http.StatusBadGateway, "link.sealed", "ssh"} // the other gtd could not open what we sent
+	case c.link.URL != "" && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed):
+		return nil, &keyError{http.StatusBadGateway, "link.no_gtd", "ssh"} // a web server, but no gtd at this path
 	case resp.StatusCode != http.StatusOK:
 		return nil, fmt.Errorf("linked server %q: %s %s: status %d: %s", c.link.Name, method, path, resp.StatusCode, bytes.TrimSpace(data))
 	}
@@ -361,15 +414,12 @@ func (c *linkConn) get(path string) ([]byte, error) { return c.do("GET", path, "
 // and collects what waits there. The daemon calls it regularly, and after a
 // capture was sent. It returns the number of captures moved either way.
 func (s *Server) SyncLinks(ctx context.Context) (moved int, err error) {
-	if s.LinkKey == nil {
-		return 0, nil
-	}
 	var users []string
 	s.st.EachUser(func(u *core.User) { users = append(users, u.ID) })
 	slices.Sort(users)
 	for _, user := range users {
 		for _, link := range s.userLinks(user) {
-			if link.SSH == "" {
+			if !link.dials() || link.SSH != "" && s.LinkKey == nil {
 				continue
 			}
 			n, e := s.syncLink(ctx, user, link)
