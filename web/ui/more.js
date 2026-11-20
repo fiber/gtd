@@ -218,6 +218,14 @@ class Settings extends View {
           <div class="field"><label>${t('settings.space_contexts', { name: sp.name })}</label>
             <input type="text" .value=${(sp.contexts || []).join(', ')} @change=${(e) => this.setSpaceContexts(sp, e)}>
             <small>${t('settings.space_contexts_hint')}</small></div>`)}
+        ${me.spaces.map((sp) => html`
+          <div class="field"><label>${t('settings.people', { name: sp.id === me.user.id ? t('clarify.opt.personal') : sp.name })}</label>
+            <input type="text" .value=${(sp.people || []).join(', ')} @change=${async (e) => {
+              const list = e.target.value.split(',').map((x) => x.trim()).filter(Boolean);
+              await this.run(async () => { sp.people = (await store.setPeople(sp.id, list)).people; toast(t('settings.saved')); });
+              this.requestUpdate();
+            }}>
+            <small>${t('settings.people_hint')}</small></div>`)}
         ${this.ai ? html`<p class="notice">${t('ai.label')}: ${t('ai.state.' + this.ai.state)}
           ${this.ai.state === 'off' ? '' : ' · ' + t('ai.counts', { vectors: this.ai.vectors, queued: this.ai.queued })}
           ${this.ai.error ? html`<br><small>${this.ai.error}</small>` : nothing}</p>` : nothing}

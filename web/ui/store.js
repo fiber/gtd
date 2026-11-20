@@ -152,6 +152,7 @@ export const store = {
   },
 
   // Wizards: the server holds the step machine, the client renders its steps.
+  setPeople: (space, people) => put(`/spaces/${encodeURIComponent(space)}/people`, { people }),
   setSpaceContexts: (space, contexts) => put(`/spaces/${encodeURIComponent(space)}/contexts`, { contexts }),
   suggestTaskLines: (id) => post(`/items/${encodeURIComponent(id)}/tasklines`, {}),
   addTaskLines: (id, lines) => post(`/items/${encodeURIComponent(id)}/tasklines`, { accept: lines }),

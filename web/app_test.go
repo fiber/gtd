@@ -1391,3 +1391,48 @@ func TestCaptureForSpace(t *testing.T) {
 		t.Errorf("inbox after refused captures: %d", len(in.Captures))
 	}
 }
+
+// TestPeople: someone without an account gets an agenda context in the space
+// that names them, and cannot be removed while actions still use it.
+func TestPeople(t *testing.T) {
+	s := newSite(t)
+	robin, jo := s.login("robin"), s.login("jo")
+	put := func(c *client, space string, list ...string) (int, string) {
+		return c.do("PUT", "/api/v1/spaces/"+space+"/people", map[string]any{"people": list}, nil)
+	}
+	if code, body := put(robin, "robin", " Alex  Kim ", "alex kim", "", "Lee"); code != 200 || !strings.Contains(body, `["Alex Kim","Lee"]`) {
+		t.Fatalf("set: %d %s", code, body)
+	}
+	if code, _ := put(robin, "net", "Dana"); code != 400 {
+		t.Errorf("a member as a person: %d", code)
+	}
+	if code, _ := put(robin, "robin", "a:b"); code != 400 {
+		t.Errorf("a bad name: %d", code)
+	}
+	if code, _ := put(jo, "robin", "Lee"); code != 404 {
+		t.Errorf("another user's space: %d", code)
+	}
+	id := robin.create("robin", map[string]any{"kind": "action", "title": "raise the budget", "context": "agenda:Alex Kim"})
+	if code, body := robin.do("POST", "/api/v1/ops", map[string]any{"space": "robin", "ops": []map[string]any{
+		{"type": "create", "payload": map[string]any{"kind": "action", "title": "x", "context": "agenda:Nobody"}}}}, nil); code != 400 {
+		t.Errorf("an agenda for an unknown person: %d %s", code, body)
+	}
+	if code, body := put(robin, "robin", "Lee"); code != 409 || !strings.Contains(body, id) {
+		t.Errorf("removing a person in use: %d %s", code, body)
+	}
+	if code, body := put(robin, "robin", "Alex Kim"); code != 200 {
+		t.Errorf("removing an unused person: %d %s", code, body)
+	}
+	var me struct {
+		Spaces []struct {
+			ID     string
+			People []string
+		}
+	}
+	robin.ok("GET", "/api/v1/me", nil, &me)
+	for _, sp := range me.Spaces {
+		if sp.ID == "robin" && (len(sp.People) != 1 || sp.People[0] != "Alex Kim") {
+			t.Errorf("me: people of the personal space = %v", sp.People)
+		}
+	}
+}

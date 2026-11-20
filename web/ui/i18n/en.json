@@ -392,6 +392,8 @@
  "settings.password_current": "Current password",
  "settings.password_new": "New password",
  "settings.password_repeat": "New password again",
+ "settings.people": "People · {name}",
+ "settings.people_hint": "People without an account here whom you talk to: your boss, a customer. Comma-separated names. Each gets an Agenda context for what to raise next time.",
  "settings.review_hint": "On that day a banner reminds you. You can start a review any time under Review.",
  "settings.review_weekday": "Weekly review on",
  "settings.saved": "Saved.",

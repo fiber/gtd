@@ -609,6 +609,35 @@ func CleanContexts(in []string) ([]string, error) {
 	return out, nil
 }
 
+// CleanPeople tidies the names of people a space keeps an agenda for without
+// them having an account (D-06): the same rules as for context names. A name
+// that is a member's ID is refused: the member has an agenda already.
+func CleanPeople(sp *Space, in []string) ([]string, error) {
+	out := []string{}
+	for _, p := range in {
+		p = strings.Join(strings.Fields(p), " ")
+		if p == "" {
+			continue
+		}
+		if len([]rune(p)) > 30 {
+			return nil, fmt.Errorf("%w: name %q is longer than 30 characters", ErrInvalid, p)
+		}
+		for _, r := range p {
+			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune(" -_.", r) {
+				return nil, fmt.Errorf("%w: name %q: %q is not allowed (letters, digits, spaces and - _ .)", ErrInvalid, p, r)
+			}
+		}
+		same := func(x string) bool { return strings.EqualFold(x, p) }
+		if slices.ContainsFunc(sp.Members, same) {
+			return nil, fmt.Errorf("%w: %q is a member of space %s and has an agenda already", ErrInvalid, p, sp.ID)
+		}
+		if !slices.ContainsFunc(out, same) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 func validContext(ws *State, key string) bool {
 	if slices.Contains(canonicalContexts, key) {
 		return true

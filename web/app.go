@@ -141,6 +141,7 @@ func (s *Server) initApp() {
 	m.HandleFunc("PUT /api/v1/spaces/{id}/templates", s.user(s.putTemplates))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/contexts", s.user(s.putContexts))
 	m.HandleFunc("PUT /api/v1/spaces/{id}/ai", s.user(s.putAIPolicy))
+	m.HandleFunc("PUT /api/v1/spaces/{id}/people", s.user(s.putPeople))
 	m.HandleFunc("POST /api/v1/items/{id}/tasklines", s.user(s.taskLines))
 	m.HandleFunc("POST /api/v1/items/{id}/move", s.user(s.moveItem))
 	m.HandleFunc("DELETE /api/v1/wizard/review", s.user(s.reviewStop))
@@ -1177,6 +1178,47 @@ func (s *Server) putContexts(w http.ResponseWriter, r *http.Request, a actor) er
 		return err
 	}
 	return reply(w, map[string]any{"contexts": contexts})
+}
+
+// putPeople sets the people a space keeps an agenda for who have no account
+// here: a boss, a customer. Each gets an "Agenda · name" context. A name
+// that actions still use as their context cannot be removed.
+func (s *Server) putPeople(w http.ResponseWriter, r *http.Request, a actor) error {
+	var in struct {
+		People []string `json:"people"`
+	}
+	if err := body(r, &in); err != nil {
+		return err
+	}
+	v, err := s.st.View(a.user)
+	if err != nil {
+		return err
+	}
+	id := r.PathValue("id")
+	st, err := v.State(id) // members only
+	if err != nil {
+		return err
+	}
+	people, err := core.CleanPeople(st.Space, in.People)
+	if err != nil {
+		return err
+	}
+	for _, old := range st.Space.People {
+		if slices.Contains(people, old) {
+			continue
+		}
+		used, err := v.Items(id, func(it *core.Item) bool { return it.Context == "agenda:"+old })
+		if err != nil {
+			return err
+		}
+		if len(used) > 0 {
+			return fmt.Errorf("%w: %d actions in space %s still have the context of %q (for example %s)", core.ErrConflict, len(used), id, old, used[0].ID)
+		}
+	}
+	if err := s.st.UpdateSpace(id, func(sp *core.Space) error { sp.People = people; return nil }); err != nil {
+		return err
+	}
+	return reply(w, map[string]any{"people": people})
 }
 
 // ---- templates (SPEC §7): a YAML textarea with validation ----

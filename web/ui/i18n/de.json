@@ -392,6 +392,8 @@
  "settings.password_current": "Aktuelles Passwort",
  "settings.password_new": "Neues Passwort",
  "settings.password_repeat": "Neues Passwort wiederholen",
+ "settings.people": "Personen · {name}",
+ "settings.people_hint": "Personen ohne Konto hier, mit denen du sprichst: Chefin, ein Kunde. Namen, durch Komma getrennt. Jede bekommt einen Agenda-Kontext für das, was beim nächsten Gespräch ansteht.",
  "settings.review_hint": "An diesem Tag erinnert ein Hinweis. Eine Durchsicht kannst du jederzeit unter Durchsicht starten.",
  "settings.review_weekday": "Wochendurchsicht am",
  "settings.saved": "Gespeichert.",
