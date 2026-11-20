@@ -3,9 +3,9 @@
 // server rejects moves the rules do not allow.
 import { store } from './store.js';
 import { t } from './i18n.js';
-import { View, html, nothing, meta, select } from './widgets.js';
+import { View, html, nothing, meta, select, chips } from './widgets.js';
 
-const KEY = 'gtd.board'; // the space the board showed last, on this device
+const KEY = 'gtd.board'; // the spaces the board showed last, on this device: ids joined by commas, or *
 const ALL = '*';
 
 class Board extends View {
@@ -19,7 +19,9 @@ class Board extends View {
     // The board opens on the space it showed last on this device.
     let last = '';
     try { last = localStorage.getItem(KEY) || ''; } catch { /* private browsing */ }
-    this.space = last === ALL || store.me.spaces.some((sp) => sp.id === last) ? last : store.me.user.id;
+    const mine = store.me.spaces.map((sp) => sp.id);
+    const kept = last.split(',').filter((id) => mine.includes(id));
+    this.space = last === ALL ? ALL : kept.join(',') || store.me.user.id;
     this.area = this.project = this.field = '';
   }
 
@@ -34,6 +36,20 @@ class Board extends View {
       try { localStorage.setItem(KEY, value); } catch { /* private browsing */ }
     }
     this.reload();
+  }
+
+  // The spaces shown, as a list of ids.
+  get picked() {
+    return this.space === ALL ? store.me.spaces.map((sp) => sp.id) : this.space.split(',');
+  }
+
+  // Tapping a space adds it to the board or takes it off; the last one stays.
+  toggle(id) {
+    if (id === ALL) return this.filter('space', ALL);
+    const now = this.picked.includes(id) ? this.picked.filter((x) => x !== id) : [...this.picked, id];
+    if (!now.length) return;
+    const order = store.me.spaces.map((sp) => sp.id).filter((x) => now.includes(x));
+    this.filter('space', order.length === store.me.spaces.length ? ALL : order.join(','));
   }
 
   find(id) {
@@ -72,14 +88,15 @@ class Board extends View {
   render() {
     const d = this.data;
     if (!d) return nothing;
-    const all = this.space === ALL;
-    const spaces = [{ id: ALL, title: t('board.all_spaces') }].concat(
-      store.me.spaces.map((s) => ({ id: s.id, title: s.id === store.me.user.id ? t('clarify.opt.personal') : s.name })));
+    const all = this.picked.length > 1; // several spaces on one board
+    const own = store.me.user.id; // the personal space leads
+    const spaces = [{ value: ALL, label: 'board.all_spaces' }, { value: own, label: 'clarify.opt.personal' }].concat(
+      store.me.spaces.filter((s) => s.id !== own).map((s) => ({ value: s.id, text: s.name })));
     return html`
       <header class="bar">
         <h1>${t('nav.board')}</h1>
         <div class="filters">
-          ${spaces.length > 2 ? select(spaces, this.space, (v) => this.filter('space', v)) : nothing}
+          ${spaces.length > 2 ? chips(spaces, this.space === ALL ? [ALL, ...this.picked] : this.picked, (v) => this.toggle(v)) : nothing}
           ${all ? nothing : select(d.options.areas, this.area, (v) => this.filter('area', v), t('board.all_areas'))}
           ${all ? nothing : select(d.options.projects, this.project, (v) => this.filter('project', v), t('board.all_projects'))}
           ${this.field ? html`<button class="chip badge on" @click=${() => this.filter('field', '')}>${this.field.replace(':', ' = ')} ×</button>` : nothing}

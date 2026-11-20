@@ -948,11 +948,16 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request, a actor) error {
 	if space == "" {
 		space = a.user
 	}
-	if space == allSpaces {
-		// One board over every space of the user. Areas and projects belong
-		// to one space each, so those two filters do not apply here.
+	// space names one space, several ("a,b") or all of the user's ("*").
+	if picked := strings.Split(space, ","); space == allSpaces || len(picked) > 1 {
+		// One board over several spaces of the user. Areas and projects
+		// belong to one space each, so those two filters do not apply here.
 		var cols []Column
 		for _, sp := range v.Spaces() {
+			if space != allSpaces && !slices.Contains(picked, sp.ID) {
+				continue
+			}
+			picked = slices.DeleteFunc(picked, func(id string) bool { return id == sp.ID })
 			st, err := v.State(sp.ID)
 			if err != nil {
 				return err
@@ -964,6 +969,10 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request, a actor) error {
 				}
 			}
 			cols = mergeColumns(cols, part, s.today())
+		}
+		if space != allSpaces && len(picked) > 0 {
+			// Not one of the user's spaces: the same answer as for a single one.
+			return fmt.Errorf("%w: space %q", core.ErrNotFound, picked[0])
 		}
 		return reply(w, map[string]any{"space": space, "options": &SpaceOptions{Areas: []Named{}, Projects: []Named{}, Actions: []Named{}}, "columns": cols})
 	}

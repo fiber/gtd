@@ -2,7 +2,7 @@
 // again, with a brief confirmation and nothing else (D-02).
 import { store } from './store.js';
 import { t } from './i18n.js';
-import { View, html, nothing, icon, stateChip, toast, go, chips } from './widgets.js';
+import { View, html, nothing, icon, stateChip, toast, go, chips, privacy } from './widgets.js';
 
 class Capture extends View {
   static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true }, similar: { state: true }, private: { state: true }, to: { state: true } };
@@ -11,22 +11,24 @@ class Capture extends View {
     super();
     this.files = [];
     this.to = ''; // here, in the personal inbox
-    // Privacy mode: nothing from the past appears on this screen, for when it
-    // is being shared. Kept per device, so it stays on until switched off.
-    try {
-      this.private = localStorage.getItem('gtd.private') === '1';
-    } catch {
-      this.private = false;
-    }
+    // Privacy mode (the switch is in the title bar): nothing from the past
+    // appears on this screen.
+    this.private = privacy.on;
+    this._privacy = (e) => {
+      this.private = e.detail;
+      clearTimeout(this._lookup);
+      this.similar = null;
+      if (!this.private) this.lookup();
+    };
   }
 
-  setPrivate(on) {
-    this.private = on;
-    try { localStorage.setItem('gtd.private', on ? '1' : '0'); } catch { /* private browsing */ }
-    clearTimeout(this._lookup);
-    this.similar = null;
-    if (!on) this.lookup();
-    this.field.focus();
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener('gtd-privacy', this._privacy);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener('gtd-privacy', this._privacy);
   }
 
   firstUpdated() { this.field.focus(); }
@@ -173,8 +175,6 @@ class Capture extends View {
           ${this.files.map((f, i) => html`
             <span class="chip">${f.name}
               <button class="x" aria-label=${t('action.remove')} @click=${() => { this.files = this.files.filter((_, j) => j !== i); }}>×</button></span>`)}
-          <label class="check private ${this.private ? 'on' : ''}" title=${t('capture.private_hint')}>
-            <input type="checkbox" .checked=${this.private} @change=${(e) => this.setPrivate(e.target.checked)}> ${t('capture.private')}</label>
           <span class="capture-go">
           <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? (this.sent ? t('capture.sent', { name: this.sent }) : t('capture.done')) : ''}</span>
           <button ?disabled=${this.busy || this.to.startsWith('link:')} title=${t('capture.clarify_hint')} @click=${() => this.submit(false, true)}>${t('capture.clarify')}</button>

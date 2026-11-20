@@ -9,6 +9,19 @@ export { html, nothing };
 // Icons: inline SVG, drawn with the current text colour.
 const s1 = (strings) => html`<svg class="icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svg(strings)}</svg>`;
+// Privacy mode: nothing from the past is shown while typing a capture, for
+// when the screen is shared. Kept per device, so it stays on until switched
+// off. The switch is in the title bar; whoever shows something listens.
+export const privacy = {
+  get on() {
+    try { return localStorage.getItem('gtd.private') === '1'; } catch { return false; }
+  },
+  set(on) {
+    try { localStorage.setItem('gtd.private', on ? '1' : '0'); } catch { /* private browsing */ }
+    window.dispatchEvent(new CustomEvent('gtd-privacy', { detail: on }));
+  },
+};
+
 export const icon = {
   capture: s1`<path d="M12 5v14M5 12h14"/>`,
   inbox: s1`<path d="M4 13l2.6-7h10.8L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13h4.5a3.5 3.5 0 0 0 7 0H20"/>`,
@@ -21,6 +34,8 @@ export const icon = {
   more: s1`<circle cx="6" cy="12" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="18" cy="12" r="1.1"/>`,
   notes: s1`<path d="M7 3.5h7.5L19 8v12.5H7z"/><path d="M14 3.5V8h5M10 12.5h6M10 16h6"/>`,
   review: s1`<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 4.2v3.6h-3.6"/><path d="M9 12.2l2.2 2.2 3.8-4"/>`,
+  eye: s1`<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>`,
+  eyeoff: s1`<path d="M4 4l16 16"/><path d="M9.4 5.9A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.6 3.4M14.6 17.9a9.3 9.3 0 0 1-2.6.6c-6 0-9.5-6.5-9.5-6.5a16 16 0 0 1 3.6-4.2"/>`,
   help: s1`<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.9"/><circle cx="12" cy="16.8" r=".6"/>`,
   sun: s1`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>`,
   moon: s1`<path d="M20 14.4A8 8 0 0 1 9.6 4 8 8 0 1 0 20 14.4z"/>`,

@@ -1240,6 +1240,13 @@ func TestBoardAllSpaces(t *testing.T) {
 	if got := next(jo, "*"); !slices.Equal(got, []string{"Jo's own @Jo"}) {
 		t.Errorf("jo's board over all spaces: %q", got)
 	}
+	// Some of the spaces, not all: for a meeting that is not about the private ones.
+	if got := next(robin, "net,robin"); len(got) != 3 {
+		t.Errorf("robin's board over two named spaces: %q", got)
+	}
+	if code, _ := dana.do("GET", "/api/v1/board?space=net,robin", nil, nil); code != 404 {
+		t.Errorf("a board over someone else's space: %d", code)
+	}
 	// A single space is as before, without space names on the cards.
 	if got := next(robin, "net"); !slices.Equal(got, []string{"Shared, due soon @"}) {
 		t.Errorf("robin's board of net: %q", got)

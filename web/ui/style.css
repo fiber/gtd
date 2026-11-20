@@ -433,8 +433,9 @@ details.fields summary::-webkit-details-marker { display: none; }
 .capture-similar { max-width: 680px; margin: 14px auto 0; animation: enter .18s var(--ease); }
 .capture-similar > label { display: block; font-size: .74rem; font-weight: 700; color: var(--muted); margin: 0 4px 4px; }
 
-.check.private { margin-left: 6px; padding: 3px 10px 3px 8px; border-radius: 999px; font-weight: 650; }
-.check.private.on { background: var(--text); color: var(--bg); }
+/* Privacy mode in the title bar: when it is on, it says so in words. */
+.nav-item.tool.privacy.on { width: auto; padding: 0 12px 0 9px; gap: 6px; background: #fff; color: #111; }
+.nav-item.tool.privacy.on .text { display: inline; font-size: .82rem; font-weight: 750; }
 
 /* ---- Notes ---- */
 .notes-filters { align-items: center; margin-bottom: 10px; }
@@ -515,3 +516,4 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .capture-to { max-width: 680px; margin: 9vh auto 8px; padding: 0 4px; }
 .capture-to + .capture { margin-top: 0; }
 @media (max-width: 859px) { .capture-to { margin-top: 0; } }
+.nav-item.tool.privacy.on svg { color: #111; opacity: 1; }

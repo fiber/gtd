@@ -4,7 +4,7 @@
 import { LitElement, html, nothing } from 'lit';
 import { store } from './store.js';
 import { loadLanguage, t } from './i18n.js';
-import { go, toast, icon, rel, appPath } from './widgets.js';
+import { go, toast, icon, rel, appPath, privacy } from './widgets.js';
 import { BASE } from './store.js';
 import './capture.js';
 import './inbox.js';
@@ -26,7 +26,7 @@ const NAV = [
 class App extends LitElement {
   static properties = {
     path: { state: true }, ready: { state: true }, inbox: { state: true },
-    toastMsg: { state: true }, prompt: { state: true }, menu: { state: true }, zen: { state: true }, theme: { state: true },
+    toastMsg: { state: true }, prompt: { state: true }, menu: { state: true }, zen: { state: true }, theme: { state: true }, private: { state: true },
   };
 
   createRenderRoot() { return this; }
@@ -37,6 +37,7 @@ class App extends LitElement {
     this.ready = false;
     this.inbox = 0;
     this.theme = window.gtdTheme();
+    this.private = privacy.on;
   }
 
   async connectedCallback() {
@@ -201,6 +202,9 @@ class App extends LitElement {
           ${NAV.slice(4).map(item)}
           <span class="nav-gap"></span>
           <a class="nav-item tool ${active('/help') ? 'on' : ''}" href="help" title=${t('nav.help')}>${icon.help}<span class="text">${t('nav.help')}</span></a>
+          <button class="nav-item tool privacy ${this.private ? 'on' : ''}" title=${t('capture.private_hint')} aria-pressed=${this.private}
+            @click=${() => { this.private = !this.private; privacy.set(this.private); }}>
+            ${this.private ? icon.eyeoff : icon.eye}<span class="text">${t('capture.private')}</span></button>
           <button class="nav-item tool" title=${t('nav.theme')} @click=${() => this.cycleTheme()}>
             ${this.theme === 'dark' ? icon.moon : icon.sun}<span class="text">${t('nav.theme')}: ${t('theme.' + this.theme)}</span></button>
           <button class="nav-item tool ${this.zen ? 'on' : ''}" title=${t('nav.fullscreen')} @click=${() => this.toggleZen()}>
