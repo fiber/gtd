@@ -290,8 +290,12 @@ button.show-more { width: 100%; margin-top: 6px; border-style: dashed; color: va
 .questions .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 .questions .chips::-webkit-scrollbar { display: none; }
 .questions .chip { flex: none; background: var(--surface); color: var(--text); }
-/* A choice with something lined up is tinted; one that leads nowhere stays plain. */
-.questions .chip.has { background: color-mix(in srgb, var(--accent) 24%, var(--surface)); color: var(--accent-strong); font-weight: 750; }
+/* A choice with something lined up stands out: white, strong, with a dot.
+   One that leads nowhere recedes into the panel, but can still be picked. */
+.questions .chip:not(.has):not(.on) { background: transparent; color: var(--muted); font-weight: 500; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
+.questions .chip.has { font-weight: 750; box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+.questions .chip.has::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }
+.questions .chip.has.on::before { background: #fff; }
 .questions .chip.on { background: var(--accent); color: #fff; }
 .focus { max-width: 680px; margin: 6vh auto 0; text-align: center; }
 .focus h1 { font-size: 2.4rem; margin: 6px 0 8px; }

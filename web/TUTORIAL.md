@@ -82,7 +82,7 @@ version of this thought, press **Add to this instead**: your text goes into that
 item's thread and nothing new is created. If you ignore the list, Enter captures as
 always.
 
-If you are sharing your screen, tick **Privacy mode** next to the field first. Nothing
+If you are sharing your screen, switch on **Privacy** in the title bar first (the eye; under More on a phone). Nothing
 from the past appears on the capture screen while it is on, and it stays on for that
 device until you untick it.
 
