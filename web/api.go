@@ -538,16 +538,23 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, a actor) error {
 		return err
 	}
 	q := r.URL.Query().Get("q")
+	// archived=0 leaves out what was put away: archived notes.
+	skip := func(it *core.Item) bool { return r.URL.Query().Get("archived") == "0" && it.State == core.StArchived }
 	res := SearchResult{Hits: []Hit{}}
 	seen := map[string]bool{}
 	for _, it := range v.Grep(q) {
+		if skip(it) {
+			continue
+		}
 		seen[it.ID] = true
 		res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title})
 	}
-	sem := s.Embed.Search(r.Context(), v, q, 20)
+	sem := s.Embed.Search(r.Context(), v, q, 40)
 	res.Semantic = sem.State
+	shown := 0
 	for _, h := range sem.Hits {
-		if it, err := v.Item(h.Space, h.ID); err == nil && !seen[h.ID] {
+		if it, err := v.Item(h.Space, h.ID); err == nil && !seen[h.ID] && !skip(it) && shown < 20 {
+			shown++
 			res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title, Similar: true, Score: h.Score})
 		}
 	}

@@ -163,6 +163,25 @@ func TestSimilarityOverHTTP(t *testing.T) {
 			t.Errorf("hit %q is neither exact nor marked similar", h.Title)
 		}
 	}
+	// Archived notes can be left out, among the exact hits and the similar ones.
+	var lv ItemView
+	robin.ok("GET", "/api/v1/items/"+loose, nil, &lv)
+	robin.ok("POST", "/api/v1/ops", map[string]any{"space": "robin", "ops": []map[string]any{{"type": "transition", "item": loose, "base_rev": lv.Rev,
+		"changes": []map[string]any{{"field": "state", "new": "archived"}}}}}, nil)
+	robin.ok("GET", "/api/v1/search?q=session+state+lost", nil, &res)
+	if !strings.Contains(titles(res.Hits), "loses Boat session state") {
+		t.Errorf("an archived note is not found any more: %s", titles(res.Hits))
+	}
+	robin.ok("GET", "/api/v1/search?archived=0&q=session+state+lost", nil, &res)
+	if strings.Contains(titles(res.Hits), "loses Boat session state") || len(res.Hits) == 0 {
+		t.Errorf("search without archived: %s", titles(res.Hits))
+	}
+	robin.ok("GET", "/api/v1/search?archived=0&q=loses", nil, &res)
+	if len(res.Hits) != 0 && strings.Contains(titles(res.Hits), "loses Boat") {
+		t.Errorf("exact search without archived: %s", titles(res.Hits))
+	}
+	robin.ok("POST", "/api/v1/ops", map[string]any{"space": "robin", "ops": []map[string]any{{"type": "transition", "item": loose, "base_rev": lv.Rev + 1,
+		"changes": []map[string]any{{"field": "state", "new": "unsorted"}}}}}, nil) // as it was, for what follows
 	// Dana shares net with robin, nothing else. Jo shares nothing.
 	dana.ok("GET", "/api/v1/search?q=boat+engine+reset", nil, &res)
 	if got := titles(res.Hits); got != "Boat engine reset design in NET" {

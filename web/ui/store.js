@@ -85,7 +85,7 @@ export const store = {
   notes: (params) => get('/notes' + query(params)),
   ideas: () => get('/ideas'),
   help: () => get('/help'),
-  search: (q) => get('/search' + query({ q })),
+  search: (q, opts = {}) => get('/search' + query({ q, ...opts })),
   pick: (q) => get('/pick' + query({ q })),
   options: (space) => get(`/spaces/${encodeURIComponent(space)}/options`),
   templates: (space) => get(`/spaces/${encodeURIComponent(space)}/templates`),

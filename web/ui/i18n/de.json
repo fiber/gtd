@@ -378,6 +378,7 @@
  "review.unsorted_count": "{n} Notizen sind noch nicht abgelegt.",
  "review.waiting": "Wartest du noch darauf?",
  "search.empty": "Nichts gefunden.",
+ "search.hide_archived": "Archiviertes ausblenden",
  "search.placeholder": "Titel, Notizen und Felder durchsuchen",
  "search.similar": "Sinngemäß ähnlich",
  "settings.ai": "KI",

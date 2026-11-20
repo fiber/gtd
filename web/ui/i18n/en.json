@@ -378,6 +378,7 @@
  "review.unsorted_count": "{n} notes are not filed yet.",
  "review.waiting": "Still waiting for this?",
  "search.empty": "Nothing found.",
+ "search.hide_archived": "Hide archived",
  "search.placeholder": "Search titles, notes and fields",
  "search.similar": "Similar in meaning",
  "settings.ai": "AI",

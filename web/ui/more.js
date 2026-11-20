@@ -52,14 +52,24 @@ class Areas extends View {
 customElements.define('gtd-areas', Areas);
 
 class Search extends View {
-  static properties = { res: { state: true } };
+  static properties = { res: { state: true }, hide: { state: true } };
+  constructor() {
+    super();
+    // Whether archived notes are left out: kept on this device.
+    try { this.hide = localStorage.getItem('gtd.search.hide') === '1'; } catch { this.hide = false; }
+  }
   firstUpdated() { this.querySelector('input').focus(); }
-  async search(e) {
-    const q = e.target.value.trim();
+  async search(q, wait = 200) {
+    this.q = q.trim();
     clearTimeout(this._wait);
     this._wait = setTimeout(async () => {
-      this.res = q ? await this.run(() => store.search(q)) : null;
-    }, 200);
+      this.res = this.q ? await this.run(() => store.search(this.q, this.hide ? { archived: '0' } : {})) : null;
+    }, wait);
+  }
+  setHide(on) {
+    this.hide = on;
+    try { localStorage.setItem('gtd.search.hide', on ? '1' : '0'); } catch { /* private browsing */ }
+    this.search(this.q || '', 0);
   }
   render() {
     const r = this.res;
@@ -67,7 +77,8 @@ class Search extends View {
     const similar = (r?.hits || []).filter((h) => h.similar);
     return html`
       <header class="bar"><h1>${t('nav.search')}</h1></header>
-      <input class="search" type="search" placeholder=${t('search.placeholder')} @input=${(e) => this.search(e)}>
+      <input class="search" type="search" placeholder=${t('search.placeholder')} @input=${(e) => this.search(e.target.value)}>
+      <p class="search-options"><label class="check"><input type="checkbox" .checked=${this.hide} @change=${(e) => this.setHide(e.target.checked)}> ${t('search.hide_archived')}</label></p>
       ${exact.map((h) => row(h, { state: true }))}
       ${similar.length ? html`<h2>${t('search.similar')}</h2>${similar.map((h) => row(h, { state: true }))}` : nothing}
       ${r && !r.hits.length ? html`<p class="empty">${t('search.empty')}</p>` : nothing}

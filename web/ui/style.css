@@ -192,6 +192,10 @@ button.chip:hover { background: color-mix(in srgb, var(--c) 26%, transparent); }
 .chip.target, .chip.deferred, .chip.waits, .chip.waiting, .chip.s-planned, .chip.s-waiting { --c: var(--warn); }
 .chip.unblocked, .chip.s-done { --c: var(--ok); }
 .chip.s-next { background: var(--accent); color: var(--on-accent); }
+/* Notes: unsorted asks for a decision, filed is in its place, archived is put away. */
+.chip.s-unsorted { --c: var(--warn); }
+.chip.s-filed { --c: var(--blue); }
+.chip.s-archived { background: none; color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .chip.link[data-state=done], .chip.finished a { text-decoration: line-through; --c: var(--muted); }
 .chip.finished { --c: var(--muted); }
 .chip.unavailable { font-style: italic; }
@@ -522,3 +526,13 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 @media (max-width: 859px) { .capture-to { margin-top: 0; } }
 .nav-item.tool.privacy.on svg { color: #111; opacity: 1; }
 .notes-divider { margin: 16px 4px 6px; font-size: .74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+/* A narrow window with the top bar: the logo keeps its line, and the bar gets tighter so that Capture stays in view. */
+.brand { flex: none; white-space: nowrap; }
+@media (min-width: 860px) and (max-width: 1080px) {
+  .brand { margin-right: 6px; font-size: 0; }
+  .brand img { margin-right: 0; }
+  nav .nav-item, nav .nav-more .nav-item { padding: 0 8px; font-size: .9rem; }
+  nav .nav-item.tool { width: 30px; padding: 0; }
+  nav > a.nav-item[href="./"] { margin-left: 4px; padding: 0 12px 0 9px; }
+}
+.search-options { margin: 6px 4px 10px; font-size: .88rem; color: var(--muted); }

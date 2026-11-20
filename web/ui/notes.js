@@ -81,7 +81,7 @@ class Notes extends View {
           ${n.excerpt ? html`<span class="excerpt">${n.excerpt}</span>` : nothing}
           <span class="meta">
             ${n.state === 'unsorted' ? html`<span class="chip waiting">${t('state.unsorted')}</span>` : nothing}
-            ${n.state === 'archived' ? html`<span class="chip">${t('state.archived')}</span>` : nothing}
+            ${n.state === 'archived' ? html`<span class="chip state s-archived">${t('state.archived')}</span>` : nothing}
             ${n.project_title ? html`<span class="chip project">${n.project_title}</span>` : nothing}
             ${n.area_title ? html`<span class="chip context">${n.area_title}</span>` : nothing}
             ${store.me.spaces.length > 1 ? html`<span class="chip">${n.space_name}</span>` : nothing}
