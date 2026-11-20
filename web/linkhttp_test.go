@@ -194,6 +194,55 @@ func TestLinkOverHTTPS(t *testing.T) {
 		t.Errorf("sync once the proxy behaves: %d %v, work inbox %d", n, err, len(inbox(w)))
 	}
 
+	// A paused link makes no connection at all; what is sent to it waits and
+	// goes when the link is resumed.
+	mu.Lock()
+	before := len(seen)
+	mu.Unlock()
+	h.ok("PUT", "/api/v1/me/links/work", map[string]bool{"off": true}, nil)
+	h.ok("POST", "/api/v1/capture", map[string]any{"text": "while paused", "link": "work"}, &cap)
+	if n, err := home.srv.SyncLinks(t.Context()); err != nil || n != 0 {
+		t.Errorf("sync of a paused link: %d %v", n, err)
+	}
+	mu.Lock()
+	if len(seen) != before {
+		t.Errorf("a paused link talked: %d messages", len(seen)-before)
+	}
+	mu.Unlock()
+	h.ok("PUT", "/api/v1/me/links/work", map[string]bool{"off": false}, nil)
+	if n, err := home.srv.SyncLinks(t.Context()); err != nil || n != 1 || len(inbox(w)) != 3 {
+		t.Errorf("sync after resuming: %d %v, work inbox %d", n, err, len(inbox(w)))
+	}
+	if c, _ := w.do("PUT", "/api/v1/me/links/home", map[string]bool{"off": true}, nil); c != 400 {
+		t.Errorf("pausing a link that only waits: %d", c)
+	}
+
+	// The code is pinned to home: work shows whose it is, another server with
+	// the same code is turned away, and so is the bare token without the seal.
+	var pinned struct {
+		Links []struct{ Name, Fingerprint string }
+		Box   string
+	}
+	var mine struct{ Box string }
+	w.ok("GET", "/api/v1/me/links", nil, &pinned)
+	h.ok("GET", "/api/v1/me/links", nil, &mine)
+	if pinned.Links[0].Fingerprint == "" || pinned.Links[0].Fingerprint != mine.Box || pinned.Box == mine.Box {
+		t.Errorf("work shows %q for the link, home's key is %q, work's own %q", pinned.Links[0].Fingerprint, mine.Box, pinned.Box)
+	}
+	thief := newSite(t)
+	thief.srv.BoxKey = newBoxKey()
+	if c, body := thief.login("robin").do("POST", "/api/v1/me/links", map[string]string{"name": "work", "ssh": work.url, "token": code}, nil); c < 400 || !strings.Contains(body, `"link.pinned"`) {
+		t.Errorf("a second server with the same code: %d %s", c, body)
+	}
+	bare, _ := http.NewRequest("GET", work.url+"/api/v1/outbox", nil)
+	bare.Header.Set("Authorization", "Bearer "+token)
+	if res, err := http.DefaultClient.Do(bare); err != nil || res.StatusCode != 403 {
+		t.Errorf("the token without the seal: %v %v", res, err)
+	}
+	if n, err := home.srv.SyncLinks(t.Context()); err != nil || n != 0 {
+		t.Errorf("home after the attempts: %d %v", n, err)
+	}
+
 	// The sealed door lets in API requests with a token and nothing else,
 	// and the WebSocket needs a ticket.
 	c, err := home.srv.dial(t.Context(), &Link{Name: "work", URL: via, Token: token, PeerKey: key})

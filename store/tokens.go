@@ -33,6 +33,7 @@ type Token struct {
 	ID       string    `json:"id"`
 	Label    string    `json:"label,omitempty"`
 	Link     string    `json:"link,omitempty"` // the linked server this token is for
+	Peer     string    `json:"peer,omitempty"` // the sealing key of the server that uses it, once seen
 	Hash     string    `json:"hash"`
 	Scopes   []string  `json:"scopes"`
 	Created  time.Time `json:"created"`
@@ -80,6 +81,24 @@ func (s *Store) Tokens(user string) ([]Token, error) {
 	})
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Created.Before(out[j].Created) })
 	return out, err
+}
+
+// PinToken binds a token to the sealing key of the server that uses it, if it
+// is not bound yet, and returns the key it is bound to. The first server to
+// use a link's token over HTTPS is the only one that can from then on.
+func (s *Store) PinToken(user, id, peer string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var t Token
+	key := []byte(tokenPrefix(user) + id)
+	if err := getJSON(s.db, key, &t); err != nil {
+		return "", fmt.Errorf("%w: token %s of user %q", core.ErrNotFound, id, user)
+	}
+	if t.Peer != "" {
+		return t.Peer, nil
+	}
+	t.Peer = peer
+	return peer, s.db.Set(key, mustJSON(t), pebble.Sync)
 }
 
 // DeleteToken revokes a token.

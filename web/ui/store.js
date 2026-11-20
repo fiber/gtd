@@ -171,6 +171,7 @@ export const store = {
   adminSetMember: (space, user, member) => request(member ? 'PUT' : 'DELETE', `/admin/spaces/${encodeURIComponent(space)}/members/${encodeURIComponent(user)}`),
   links: () => get('/me/links'),
   addLink: (link) => post('/me/links', link),
+  pauseLink: (name, off) => put('/me/links/' + encodeURIComponent(name), { off }),
   removeLink: (name) => request('DELETE', '/me/links/' + encodeURIComponent(name)),
   changePassword: (current, password) => put('/me/password', { current, password }),
   wizardStart: (kind, item, skip) => post(`/wizard/${kind}/start`, { item: item || '', skip: skip || 0 }),

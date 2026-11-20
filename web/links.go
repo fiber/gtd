@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -54,11 +55,16 @@ type Link struct {
 	HostKey string `json:"host_key,omitempty"` // the host key seen when the link was made
 	Token   string `json:"token,omitempty"`    // the token to present there (dialing side)
 	PeerKey string `json:"peer_key,omitempty"` // the other server's sealing key (URL links)
+	Off     bool   `json:"off,omitempty"`      // paused: this side does not connect
 }
 
 // dials says whether this side connects. If not, the other side does, and
 // what is sent to the link waits for it.
 func (l Link) dials() bool { return l.SSH != "" || l.URL != "" }
+
+// active says whether this side connects now: a paused link makes no
+// connection and no check at all. What is sent to it waits.
+func (l Link) active() bool { return l.dials() && !l.Off }
 
 // outEntry is a capture of this server waiting to reach a linked server.
 type outEntry struct {
@@ -103,6 +109,7 @@ type linkView struct {
 	SSH         string `json:"ssh,omitempty"`         // the address this side connects to: SSH or URL
 	Fingerprint string `json:"fingerprint,omitempty"` // of the pinned host key
 	Waiting     int    `json:"waiting"`               // captures not delivered yet
+	Off         bool   `json:"off,omitempty"`         // paused
 	Token       string `json:"token,omitempty"`       // shown once, when a waiting link is made
 }
 
@@ -179,6 +186,24 @@ func (s *Server) links(w http.ResponseWriter, r *http.Request, a actor) error {
 			}
 		}
 		links = append(links, link)
+	case "PUT": // {off}: pause a link this side connects to, or resume it
+		var in struct {
+			Off bool `json:"off"`
+		}
+		if err := body(r, &in); err != nil {
+			return err
+		}
+		at := slices.IndexFunc(links, func(l Link) bool { return l.Name == r.PathValue("name") })
+		if at < 0 {
+			return fmt.Errorf("%w: linked server %q", core.ErrNotFound, r.PathValue("name"))
+		}
+		if !links[at].dials() {
+			return fmt.Errorf("%w: link %q waits for the other server; there is nothing to pause here", core.ErrInvalid, links[at].Name)
+		}
+		links[at].Off = in.Off
+		if !in.Off {
+			defer s.KickLinks() // what waited goes now
+		}
 	case "DELETE":
 		name := r.PathValue("name")
 		n := len(links)
@@ -209,8 +234,15 @@ func (s *Server) links(w http.ResponseWriter, r *http.Request, a actor) error {
 	}
 	out := []linkView{}
 	waiting := s.outbox(a.user)
+	toks, _ := s.st.Tokens(a.user)
 	for _, l := range links {
-		v := linkView{Name: l.Name, SSH: l.SSH + l.URL}
+		v := linkView{Name: l.Name, SSH: l.SSH + l.URL, Off: l.Off}
+		// A link that waits: the server its token is pinned to, once it came.
+		for _, t := range toks {
+			if key, err := base64.RawURLEncoding.DecodeString(t.Peer); !l.dials() && t.Link == l.Name && err == nil && len(key) == 32 {
+				v.Fingerprint = keyPrint(key)
+			}
+		}
 		if key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(l.HostKey)); err == nil {
 			v.Fingerprint = ssh.FingerprintSHA256(key)
 		}
@@ -224,7 +256,11 @@ func (s *Server) links(w http.ResponseWriter, r *http.Request, a actor) error {
 		}
 		out = append(out, v)
 	}
-	return reply(w, map[string]any{"links": out, "key": s.LinkPublicKey()})
+	box := "" // this server's sealing key, to compare with what the other side shows
+	if s.BoxKey != nil {
+		box = keyPrint(BoxPublic(s.BoxKey)[:])
+	}
+	return reply(w, map[string]any{"links": out, "key": s.LinkPublicKey(), "box": box})
 }
 
 // ---- the reachable side: its outbox, for the server that connects ----
@@ -396,6 +432,8 @@ func (c *linkConn) do(method, path, contentType string, body io.Reader) ([]byte,
 		return nil, err
 	}
 	switch {
+	case resp.StatusCode == http.StatusForbidden && strings.Contains(string(data), "link.pinned"):
+		return nil, &keyError{http.StatusBadGateway, "link.pinned", "token"} // the code is in use by another server
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
 		return nil, &keyError{http.StatusBadGateway, "link.token", "token"}
 	case c.link.URL != "" && resp.StatusCode == http.StatusBadRequest && strings.Contains(string(data), errSealed.Error()):
@@ -419,7 +457,7 @@ func (s *Server) SyncLinks(ctx context.Context) (moved int, err error) {
 	slices.Sort(users)
 	for _, user := range users {
 		for _, link := range s.userLinks(user) {
-			if !link.dials() || link.SSH != "" && s.LinkKey == nil {
+			if !link.active() || link.SSH != "" && s.LinkKey == nil {
 				continue
 			}
 			n, e := s.syncLink(ctx, user, link)

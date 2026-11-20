@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/ecdh"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
@@ -43,7 +44,10 @@ import (
 // side's public key is part of the code its user carries to the other server
 // by hand ("gtd_…~<key>"). The connecting side's public key comes with each
 // request; that it is the right server is shown by the token inside the
-// seal, which only the holder of the code can have.
+// seal, which only the holder of the code can have. The first key that
+// arrives with a token is pinned to it: from then on the token is good only
+// through the seal and only from that server, so a code that leaks later is
+// of no use to anyone else.
 //
 // A link over HTTPS also keeps a WebSocket open to the other side, on which
 // that side says "wake" when it has put something into the outbox. Then the
@@ -75,6 +79,16 @@ func cleanLinkURL(raw string) (string, error) {
 }
 
 // ---- the seal ----
+
+// sealedBy is the context key for the sealing key (base64) of the server a
+// sealed request came from.
+type sealedBy struct{}
+
+// keyPrint is a short fingerprint of a sealing key, for people to compare.
+func keyPrint(key []byte) string {
+	sum := sha256.Sum256(key)
+	return "SHA256:" + base64.RawStdEncoding.EncodeToString(sum[:])[:27]
+}
 
 var errSealed = errors.New("the sealed message cannot be opened")
 
@@ -225,7 +239,8 @@ func (s *Server) sealed(w http.ResponseWriter, r *http.Request) {
 	default:
 		inner.Header.Del("Cookie")
 		inner.RemoteAddr = r.RemoteAddr
-		s.mux.ServeHTTP(rec, inner.WithContext(r.Context()))
+		from := base64.RawURLEncoding.EncodeToString(peer[:])
+		s.mux.ServeHTTP(rec, inner.WithContext(context.WithValue(r.Context(), sealedBy{}, from)))
 	}
 	var out bytes.Buffer
 	(&http.Response{StatusCode: rec.code, ProtoMajor: 1, ProtoMinor: 1, Header: rec.header,
@@ -362,7 +377,7 @@ func (s *Server) WatchLinks(ctx context.Context) {
 		want := map[string]Link{}
 		s.st.EachUser(func(u *core.User) {
 			for _, l := range s.userLinks(u.ID) {
-				if l.URL != "" {
+				if l.URL != "" && l.active() {
 					want[u.ID+"\x00"+l.Name+"\x00"+l.URL+"\x00"+l.Token] = l
 				}
 			}

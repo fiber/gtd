@@ -206,6 +206,15 @@ changed message is refused and the capture stays in the outbox. What a proxy sti
 sees is that the two servers talk, when, and how much. Each server's key is in its
 data directory (`link_box.key`); keep it as private as the database.
 
+The code belongs to the first server that uses it. Work remembers home's key and from
+then on accepts the code only from home, and only sealed; Settings shows the key's
+fingerprint on both sides, so you can compare them. A code that leaks later is of no
+use to anyone else. If home is set up anew (new key), remove the link on work and
+add it again.
+
+A link that this server connects to can be paused in Settings. While paused it makes
+no connection and no check; what you send to it waits until you resume.
+
 A proxy is taken from the environment of the daemon (`HTTPS_PROXY`, `NO_PROXY`).
 
 Over HTTPS the connecting server also holds a WebSocket open to the other one, on

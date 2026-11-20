@@ -151,6 +151,7 @@ func (s *Server) initApp() {
 	m.HandleFunc("PUT /api/v1/me/password", s.user(s.changePassword))
 	m.HandleFunc("GET /api/v1/me/links", s.user(s.links))
 	m.HandleFunc("POST /api/v1/me/links", s.user(s.links))
+	m.HandleFunc("PUT /api/v1/me/links/{name}", s.user(s.links))
 	m.HandleFunc("DELETE /api/v1/me/links/{name}", s.user(s.links))
 	m.HandleFunc("GET /api/v1/outbox", s.user(s.outboxFor))
 	m.HandleFunc("POST /api/v1/outbox/ticket", s.user(s.ticketFor))

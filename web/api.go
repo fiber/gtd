@@ -156,6 +156,7 @@ func (s *Server) any(h handler) http.HandlerFunc {
 				// nothing else. Every route is closed to tokens unless it is
 				// named here.
 				var tok store.Token
+				var err error
 				if user, tok, valid = s.st.TokenUser(token); valid {
 					p := r.URL.Path
 					ok := r.Method == "POST" && p == "/api/v1/capture" && slices.Contains(tok.Scopes, store.ScopeCapture) ||
@@ -166,6 +167,20 @@ func (s *Server) any(h handler) http.HandlerFunc {
 					if !ok {
 						fail(w, errScope)
 						return
+					}
+					// A link's token belongs to the first server that used it
+					// through the seal, and from then on only there (linkhttp.go).
+					if peer, _ := r.Context().Value(sealedBy{}).(string); tok.Link != "" {
+						if tok.Peer == "" && peer != "" {
+							if tok.Peer, err = s.st.PinToken(user, tok.ID, peer); err != nil {
+								fail(w, err)
+								return
+							}
+						}
+						if tok.Peer != peer {
+							fail(w, &keyError{http.StatusForbidden, "link.pinned", "token"})
+							return
+						}
 					}
 					link = tok.Link
 				}

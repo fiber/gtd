@@ -279,9 +279,12 @@ class Settings extends View {
         ${(this.links?.links || []).map((l) => html`
           <div class="row"><span class="row-main"><span class="title">${l.name}</span>
             <span class="meta"><span class="chip">${l.ssh ? t('links.dials', { ssh: l.ssh }) : t('links.waits')}</span>
+              ${l.off ? html`<span class="chip waiting">${t('links.paused')}</span>` : nothing}
               ${l.fingerprint ? html`<span class="chip">${l.fingerprint}</span>` : nothing}
               ${l.waiting ? html`<span class="chip waiting">${t('links.waiting', { n: l.waiting })}</span>` : nothing}</span></span>
-            <span class="row-actions"><button @click=${() => this.removeLink(l.name)}>${t('links.remove')}</button></span></div>`)}
+            <span class="row-actions">
+              ${l.ssh ? html`<button @click=${async () => { this.links = await this.run(() => store.pauseLink(l.name, !l.off)); }}>${t(l.off ? 'links.resume' : 'links.pause')}</button>` : nothing}
+              <button @click=${() => this.removeLink(l.name)}>${t('links.remove')}</button></span></div>`)}
         ${this.newToken ? html`<p class="notice">${t('links.token_once', { name: this.newToken.name })}<br><code class="token">${this.newToken.token}</code></p>` : nothing}
         <form class="password" @submit=${(e) => this.addLink(e)}>
           <div class="field"><label>${t('links.name')}</label><input type="text" name="name" required maxlength="30"></div>
@@ -293,6 +296,7 @@ class Settings extends View {
           <button type="submit">${t('links.add')}</button>
         </form>
         ${this.links?.key ? html`<p><small>${t('links.key')}</small><br><code class="token">${this.links.key}</code></p>` : nothing}
+        ${this.links?.box ? html`<p><small>${t('links.box', { print: this.links.box })}</small></p>` : nothing}
         <h2>${t('settings.templates')}</h2>
         ${me.spaces.length > 1 ? select(me.spaces.map((s) => ({ id: s.id, title: s.name })), this.space, (v) => { this.space = v; this.reload(); }) : nothing}
         <textarea class="editor yaml" rows="16" spellcheck="false" .value=${this.yaml || ''}></textarea>
