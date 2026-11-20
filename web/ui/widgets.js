@@ -129,10 +129,12 @@ export function row(b, opts = {}) {
 }
 
 // chips renders a single-choice (or multi-choice) chip group.
-export function chips(options, selected, onPick) {
+// marked, if given, are the values that have something behind them: they
+// are drawn filled, the others plain.
+export function chips(options, selected, onPick, marked) {
   const sel = [].concat(selected || []);
   return html`<div class="chips">${options.map((o) => html`
-    <button type="button" class="chip pick ${sel.includes(o.value) ? 'on' : ''}" data-value=${o.value} @click=${() => onPick(o.value)}>${label(o)}</button>`)}</div>`;
+    <button type="button" class="chip pick ${sel.includes(o.value) ? 'on' : ''} ${marked?.includes(o.value) ? 'has' : ''}" data-value=${o.value} @click=${() => onPick(o.value)}>${label(o)}</button>`)}</div>`;
 }
 
 // dateField is a date input with the server's presets (tomorrow, next week…).

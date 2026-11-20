@@ -839,11 +839,13 @@ func (s *Server) engage(w http.ResponseWriter, r *http.Request, a actor) error {
 	var all []entry
 	contexts := []wizard.Option{}
 	seen := map[string]bool{}
+	active := core.Active{Contexts: []string{}, Time: []string{}, Energy: []string{}}
 	for _, sp := range v.Spaces() {
 		st, err := v.State(sp.ID)
 		if err != nil {
 			return err
 		}
+		core.EngageActive(core.Engage(st, a.user, today, core.EngageFilter{}), f, &active)
 		var list []*core.Item
 		switch q.Get("tab") {
 		case "today":
@@ -881,7 +883,10 @@ func (s *Server) engage(w http.ResponseWriter, r *http.Request, a actor) error {
 	for _, e := range all {
 		out = append(out, brief(e.st, e.it, today, nil))
 	}
-	return reply(w, map[string]any{"items": out, "contexts": contexts})
+	slices.Sort(active.Contexts)
+	slices.Sort(active.Time)
+	slices.Sort(active.Energy)
+	return reply(w, map[string]any{"items": out, "contexts": contexts, "active": active})
 }
 
 func (s *Server) projects(w http.ResponseWriter, r *http.Request, a actor) error {

@@ -84,9 +84,9 @@ class Engage extends View {
         <button class=${this.tab === k ? 'on' : ''} @click=${() => this.setTab(k)}>${t(label)}</button>`)}</div>
       ${this.tab ? nothing : html`
         <div class="questions">
-          <div><label>${t('engage.where')}</label>${chips(d?.contexts || [], this.answers.context, (v) => this.answer('context', v))}</div>
-          <div><label>${t('engage.time')}</label>${chips(TIMES, this.answers.time, (v) => this.answer('time', v))}</div>
-          <div><label>${t('engage.energy')}</label>${chips(ENERGIES, this.answers.energy, (v) => this.answer('energy', v))}</div>
+          <div><label>${t('engage.where')}</label>${chips(d?.contexts || [], this.answers.context, (v) => this.answer('context', v), d?.active?.context || [])}</div>
+          <div><label>${t('engage.time')}</label>${chips(TIMES, this.answers.time, (v) => this.answer('time', v), d?.active?.time || [])}</div>
+          <div><label>${t('engage.energy')}</label>${chips(ENERGIES, this.answers.energy, (v) => this.answer('energy', v), d?.active?.energy || [])}</div>
         </div>`}
       ${!d ? nothing : shown.length ? shown.map((b) => row(b, { state: !!this.tab, actions: this.tab && this.tab !== 'today' ? null : this.actions(b) }))
         : html`<p class="empty">${t(this.tab === 'today' ? 'engage.empty_today' : this.tab ? 'engage.empty_tab' : 'engage.empty')}</p>`}

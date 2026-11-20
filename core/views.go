@@ -53,6 +53,49 @@ func Engage(st *State, user, today string, f EngageFilter) []*Item {
 	return out
 }
 
+// Active says which answers to Engage's questions have something lined up,
+// so that the choices can show it before one is picked.
+type Active struct {
+	Contexts []string `json:"context"`
+	Time     []string `json:"time"`
+	Energy   []string `json:"energy"`
+}
+
+// EngageActive marks the answers that lead to an action in items (the
+// unfiltered Engage list). Each question is judged with the other two as
+// answered in f: a place counts when an action is for exactly that place
+// (what can be done anywhere would mark every place), a time or an energy
+// when an action with an estimate fits into it.
+func EngageActive(items []*Item, f EngageFilter, into *Active) {
+	add := func(list *[]string, v string) {
+		if !slices.Contains(*list, v) {
+			*list = append(*list, v)
+		}
+	}
+	for _, it := range items {
+		place := len(f.Contexts) == 0 || it.Context == "anywhere" || slices.Contains(f.Contexts, it.Context)
+		time := f.Time == "" || timeRank[it.Time] <= timeRank[f.Time]
+		energy := f.Energy == "" || energyRank[it.Energy] <= energyRank[f.Energy]
+		if it.Context != "" && time && energy {
+			add(&into.Contexts, it.Context)
+		}
+		if it.Time != "" && place && energy {
+			for t, rank := range timeRank {
+				if timeRank[it.Time] <= rank {
+					add(&into.Time, t)
+				}
+			}
+		}
+		if it.Energy != "" && place && time {
+			for e, rank := range energyRank {
+				if energyRank[it.Energy] <= rank {
+					add(&into.Energy, e)
+				}
+			}
+		}
+	}
+}
+
 // Today returns what the day asks of the user: their next actions and
 // waiting-fors that are due or have their target today or earlier, and the
 // actions that came back today (a deferred or repeating action whose day it

@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -285,5 +286,34 @@ func TestTodayLeadsEngage(t *testing.T) {
 	// The same day's items are exactly the Today tab's.
 	if today := ids(Today(w.st, "robin", today)); !slices.Equal(today, want[:4]) {
 		t.Errorf("Today tab: %v", today)
+	}
+}
+
+// TestEngageActive: which answers have something lined up.
+func TestEngageActive(t *testing.T) {
+	items := []*Item{
+		{ID: "a", Context: "calls-us", Time: "30m", Energy: "high"},
+		{ID: "b", Context: "agenda:Kim"},
+		{ID: "c", Context: "anywhere", Time: "5m"},
+		{ID: "d"},
+	}
+	for _, c := range []struct {
+		name                   string
+		f                      EngageFilter
+		contexts, time, energy string
+	}{
+		{"nothing answered", EngageFilter{}, "agenda:Kim anywhere calls-us", "15m 1h 2h+ 30m 5m", "high"},
+		{"five minutes", EngageFilter{Time: "5m"}, "agenda:Kim anywhere", "15m 1h 2h+ 30m 5m", ""},
+		{"low energy", EngageFilter{Energy: "low"}, "agenda:Kim anywhere", "15m 1h 2h+ 30m 5m", "high"},
+		{"at the office", EngageFilter{Contexts: []string{"office"}}, "agenda:Kim anywhere calls-us", "15m 1h 2h+ 30m 5m", ""},
+	} {
+		got := Active{}
+		EngageActive(items, c.f, &got)
+		for _, l := range [][]string{got.Contexts, got.Time, got.Energy} {
+			slices.Sort(l)
+		}
+		if strings.Join(got.Contexts, " ") != c.contexts || strings.Join(got.Time, " ") != c.time || strings.Join(got.Energy, " ") != c.energy {
+			t.Errorf("%s: %+v", c.name, got)
+		}
 	}
 }
