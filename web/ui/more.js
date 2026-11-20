@@ -61,7 +61,7 @@ class Search extends View {
   // The search is still there when you come back from a hit: what was typed
   // is kept for this tab and searched again.
   firstUpdated() {
-    const input = this.querySelector('input.search');
+    const input = this.querySelector('input[type=search]');
     input.focus();
     let last = '';
     try { last = sessionStorage.getItem('gtd.search.q') || ''; } catch { /* private browsing */ }
