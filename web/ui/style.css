@@ -242,8 +242,10 @@ button.show-more { width: 100%; margin-top: 6px; border-style: dashed; color: va
 .capture-bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px 8px; flex-wrap: wrap; }
 .iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; color: var(--muted); cursor: pointer; transition: background .12s, color .12s; }
 .iconbtn:hover { background: var(--accent-soft); color: var(--accent-strong); }
-.capture .hint { margin-left: 6px; }
-@media (max-width: 560px) { .capture .hint { display: none; } }
+/* Capture and its companion stay together at the right, also when the bar wraps. */
+.capture-go { display: flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
+.capture-hint { max-width: 680px; margin: 8px auto 0; padding: 0 6px; text-align: right; }
+@media (max-width: 560px) { .capture-hint { display: none; } }
 .captured { color: var(--ok); font-weight: 750; font-size: .88rem; opacity: 0; transition: opacity .2s; }
 .captured.show { opacity: 1; }
 
@@ -507,4 +509,7 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .capture-brand { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 18px 0 14px; font-weight: 850; font-size: 1.7rem; letter-spacing: -.05em; }
 .capture-brand img { border-radius: 28%; }
 @media (min-width: 860px) { .capture-brand { display: none; } }
-.capture-to { padding: 2px 16px 4px; }
+/* Where the capture goes, above the box. It takes over the box's distance from the top. */
+.capture-to { max-width: 680px; margin: 9vh auto 8px; padding: 0 4px; }
+.capture-to + .capture { margin-top: 0; }
+@media (max-width: 859px) { .capture-to { margin-top: 0; } }

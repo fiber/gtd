@@ -152,6 +152,10 @@ class Capture extends View {
   render() {
     return html`
       <p class="capture-brand"><img src="ui/logo.svg" alt="" width="34" height="34">gtd</p>
+      ${this.places.length > 1 ? html`
+        <div class="capture-to" title=${t('capture.to_hint')}>
+          ${chips(this.places, [this.to], (v) => { this.to = v; this.field.focus(); })}
+        </div>` : nothing}
       <section class="capture">
         <textarea rows="1" placeholder=${t('capture.placeholder')} aria-label=${t('nav.capture')}
           @keydown=${(e) => this.onKey(e)} @paste=${(e) => this.onPaste(e)} @input=${() => { this.grow(); this.lookup(); if (this.split) this.split = null; }}></textarea>
@@ -160,10 +164,6 @@ class Capture extends View {
             <span>${t('capture.split_question')}</span>
             <button class="primary" @click=${() => this.submit(false)}>${t('capture.one_item')}</button>
             <button @click=${() => this.submit(true)}>${t('capture.n_items', { n: this.split.length })}</button>
-          </div>` : nothing}
-        ${this.places.length > 1 ? html`
-          <div class="capture-to" title=${t('capture.to_hint')}>
-            ${chips(this.places, [this.to], (v) => { this.to = v; this.field.focus(); })}
           </div>` : nothing}
         <div class="capture-bar">
           <label class="iconbtn" title=${t('capture.camera')}>${icon.camera}
@@ -175,13 +175,14 @@ class Capture extends View {
               <button class="x" aria-label=${t('action.remove')} @click=${() => { this.files = this.files.filter((_, j) => j !== i); }}>×</button></span>`)}
           <label class="check private ${this.private ? 'on' : ''}" title=${t('capture.private_hint')}>
             <input type="checkbox" .checked=${this.private} @change=${(e) => this.setPrivate(e.target.checked)}> ${t('capture.private')}</label>
-          <span class="hint">${t('capture.hint')}</span>
-          <span class="spacer"></span>
+          <span class="capture-go">
           <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? (this.sent ? t('capture.sent', { name: this.sent }) : t('capture.done')) : ''}</span>
           <button ?disabled=${this.busy || this.to.startsWith('link:')} title=${t('capture.clarify_hint')} @click=${() => this.submit(false, true)}>${t('capture.clarify')}</button>
           <button class="primary" ?disabled=${this.busy} @click=${() => this.submit()}>${t('capture.submit')}</button>
+          </span>
         </div>
       </section>
+      <p class="capture-hint hint">${t('capture.hint')}</p>
       ${this.similar?.length ? html`
         <section class="capture-similar">
           <label>${t('capture.similar')}</label>
