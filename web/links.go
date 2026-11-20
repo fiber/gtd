@@ -67,6 +67,15 @@ func (s *Server) userLinks(user string) []Link {
 	return links
 }
 
+// linkNames are the names a user picks from when sending a capture on.
+func linkNames(links []Link) []string {
+	names := []string{}
+	for _, l := range links {
+		names = append(names, l.Name)
+	}
+	return names
+}
+
 func (s *Server) outbox(user string) []outEntry {
 	var out []outEntry
 	s.st.GetUserState(user, "outbox", &out)

@@ -118,15 +118,18 @@ export const store = {
   comment(item, body) {
     return this.ops(item.space, [{ type: 'comment', item: item.id, payload: { body } }]);
   },
-  async capture(text, files) {
+  // to says where it belongs, if not simply here: { link } sends it on to a
+  // linked server, { space } is what Clarify will propose.
+  async capture(text, files, to = {}) {
     let res;
     if (files && files.length) {
       const form = new FormData();
       form.append('text', text);
+      for (const [k, v] of Object.entries(to)) form.append(k, v);
       for (const f of files) form.append('file', f, f.name);
       res = await request('POST', '/capture', form, true);
     } else {
-      res = await post('/capture', { text });
+      res = await post('/capture', { text, ...to });
     }
     changed();
     return res;

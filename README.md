@@ -158,6 +158,13 @@ If you have an account on two gtd servers (say home and work), a capture that
 belongs on the other one can be sent there from Clarify ("Send to work"). It leaves
 your inbox here and arrives in your inbox there.
 
+You do not have to open the other server's app to get a thought into it: the
+capture page shows a chip per linked server ("→ work"). Pick it and capture, and the
+note goes to your inbox there without stopping in the one here. The choice lasts for
+one capture; the next one is for here again. If the other server cannot be reached,
+the note waits (Settings › Linked servers shows how many do) and is delivered when
+the two next talk.
+
 The two servers talk over SSH, and only one of them has to be able to reach the
 other. Captures going the other way wait until the connecting server next comes by
 (once a minute).

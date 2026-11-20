@@ -1,6 +1,7 @@
 package web
 
 import (
+	"maps"
 	"slices"
 	"sort"
 
@@ -83,4 +84,29 @@ func (s *Server) putBack(v *store.View, user, item string) error {
 	moves = slices.DeleteFunc(moves, func(m pushed) bool { return !present[m.Item] || m.Item == item })
 	moves = append(moves, pushed{Item: item, After: after})
 	return s.st.PutUserState(user, "inbox-later", moves)
+}
+
+// hintSpace remembers the space picked when a capture was made. Clarify
+// proposes it; the capture itself stays in the inbox, in the personal space.
+func (s *Server) hintSpace(v *store.View, user, item, space string) error {
+	hints := map[string]string{}
+	s.st.GetUserState(user, "capture-space", &hints)
+	queue, err := s.inboxQueue(v, user)
+	if err != nil {
+		return err
+	}
+	waiting := map[string]bool{item: true}
+	for _, c := range queue {
+		waiting[c.ID] = true
+	}
+	maps.DeleteFunc(hints, func(id, _ string) bool { return !waiting[id] }) // forget what left the inbox
+	hints[item] = space
+	return s.st.PutUserState(user, "capture-space", hints)
+}
+
+// spaceHint is the space picked for a capture when it was made, or "".
+func (s *Server) spaceHint(user, item string) string {
+	hints := map[string]string{}
+	s.st.GetUserState(user, "capture-space", &hints)
+	return hints[item]
 }

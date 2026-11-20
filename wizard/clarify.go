@@ -115,6 +115,9 @@ func (c Clarify) Step(env Env) Step {
 		if len(env.Spaces) > 1 {
 			f := Field{Key: "space", Type: "chips", Label: "field.space", Value: env.Spaces[0].ID}
 			for i, sp := range env.Spaces {
+				if sp.ID == env.SpaceHint {
+					f.Value = sp.ID // the user's own choice at capture, not a suggestion
+				}
 				o := Option{Value: sp.ID, Text: sp.Title}
 				if i == 0 {
 					o.Label = "clarify.opt.personal"

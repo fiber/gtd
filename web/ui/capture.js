@@ -2,14 +2,15 @@
 // again, with a brief confirmation and nothing else (D-02).
 import { store } from './store.js';
 import { t } from './i18n.js';
-import { View, html, nothing, icon, stateChip, toast, go } from './widgets.js';
+import { View, html, nothing, icon, stateChip, toast, go, chips } from './widgets.js';
 
 class Capture extends View {
-  static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true }, similar: { state: true }, private: { state: true } };
+  static properties = { files: { state: true }, split: { state: true }, done: { state: true }, busy: { state: true }, similar: { state: true }, private: { state: true }, to: { state: true } };
 
   constructor() {
     super();
     this.files = [];
+    this.to = ''; // here, in the personal inbox
     // Privacy mode: nothing from the past appears on this screen, for when it
     // is being shared. Kept per device, so it stays on until switched off.
     try {
@@ -29,6 +30,21 @@ class Capture extends View {
   }
 
   firstUpdated() { this.field.focus(); }
+
+  // Where a capture can go besides the personal inbox here: a shared space
+  // (Clarify then proposes it) or the inbox on a linked server. Values are
+  // "space:<id>" and "link:<name>"; '' is here.
+  get places() {
+    const me = store.me;
+    const out = [{ value: '', label: 'capture.here' }];
+    for (const sp of me.spaces) if (sp.id !== me.user.id) out.push({ value: 'space:' + sp.id, text: sp.name });
+    for (const name of me.links || []) out.push({ value: 'link:' + name, text: '→ ' + name });
+    return out;
+  }
+  get dest() {
+    const [kind, ...rest] = this.to.split(':');
+    return this.to ? { [kind]: rest.join(':') } : {};
+  }
   get field() { return this.querySelector('textarea'); }
 
   onKey(e) {
@@ -105,12 +121,16 @@ class Capture extends View {
     if (this.split && asLines === undefined) return; // answer the question first
     this.busy = true;
     let made = null;
+    const to = this.dest;
     await this.run(async () => {
       if (asLines) {
-        for (const line of this.split) await store.capture(line);
+        for (const line of this.split) await store.capture(line, null, to);
       } else {
-        made = await store.capture(text, this.files);
+        made = await store.capture(text, this.files, to);
       }
+      // The next thought is private again unless it is sent elsewhere on purpose.
+      this.to = '';
+      this.sent = to.link || '';
       this.field.value = '';
       this.files = [];
       this.split = null;
@@ -122,7 +142,7 @@ class Capture extends View {
       this._done = setTimeout(() => { this.done = false; }, 1500);
     });
     this.busy = false;
-    if (clarify && made?.id) {
+    if (clarify && made?.id && !made.sent) {
       go('/clarify?item=' + encodeURIComponent(made.id));
       return;
     }
@@ -141,6 +161,10 @@ class Capture extends View {
             <button class="primary" @click=${() => this.submit(false)}>${t('capture.one_item')}</button>
             <button @click=${() => this.submit(true)}>${t('capture.n_items', { n: this.split.length })}</button>
           </div>` : nothing}
+        ${this.places.length > 1 ? html`
+          <div class="capture-to" title=${t('capture.to_hint')}>
+            ${chips(this.places, [this.to], (v) => { this.to = v; this.field.focus(); })}
+          </div>` : nothing}
         <div class="capture-bar">
           <label class="iconbtn" title=${t('capture.camera')}>${icon.camera}
             <input type="file" accept="image/*" capture hidden @change=${(e) => this.addFiles(e)}></label>
@@ -153,8 +177,8 @@ class Capture extends View {
             <input type="checkbox" .checked=${this.private} @change=${(e) => this.setPrivate(e.target.checked)}> ${t('capture.private')}</label>
           <span class="hint">${t('capture.hint')}</span>
           <span class="spacer"></span>
-          <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? t('capture.done') : ''}</span>
-          <button ?disabled=${this.busy} title=${t('capture.clarify_hint')} @click=${() => this.submit(false, true)}>${t('capture.clarify')}</button>
+          <span class="captured ${this.done ? 'show' : ''}" role="status">${this.done ? (this.sent ? t('capture.sent', { name: this.sent }) : t('capture.done')) : ''}</span>
+          <button ?disabled=${this.busy || this.to.startsWith('link:')} title=${t('capture.clarify_hint')} @click=${() => this.submit(false, true)}>${t('capture.clarify')}</button>
           <button class="primary" ?disabled=${this.busy} @click=${() => this.submit()}>${t('capture.submit')}</button>
         </div>
       </section>

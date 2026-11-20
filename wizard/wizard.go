@@ -86,6 +86,9 @@ type Env struct {
 	// Spaces are the spaces the user may put a capture into: the one it is
 	// in first, then the shared ones. Title names the space and its members.
 	Spaces []Ref
+	// SpaceHint is the space the user picked when making the capture, if
+	// any: Clarify starts with it selected.
+	SpaceHint string
 	// Members are the other members of the space, by name: whom an action
 	// can be delegated to. Empty in a personal space.
 	Members []Ref

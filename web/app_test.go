@@ -1348,3 +1348,46 @@ func TestClarifyLater(t *testing.T) {
 		t.Errorf("the capture after being put back twice: %s rev %d", iv.State, iv.Rev)
 	}
 }
+
+// TestCaptureForSpace: a space picked on the capture page keeps the capture
+// in the personal inbox, and Clarify starts with that space selected.
+func TestCaptureForSpace(t *testing.T) {
+	s := newSite(t)
+	robin := s.login("robin")
+	var cap struct{ ID string }
+	robin.ok("POST", "/api/v1/capture", map[string]any{"text": "agenda for the team call", "space": "net"}, &cap)
+	var in struct{ Captures []Brief }
+	robin.ok("GET", "/api/v1/inbox", nil, &in)
+	if len(in.Captures) != 1 || in.Captures[0].Space != "robin" {
+		t.Fatalf("inbox: %+v", in.Captures)
+	}
+	var st struct {
+		Step struct{ Fields []struct{ Key, Value string } }
+	}
+	space := func(id string) string {
+		robin.ok("POST", "/api/v1/wizard/clarify/start", map[string]string{"item": id}, &st)
+		for _, f := range st.Step.Fields {
+			if f.Key == "space" {
+				return f.Value
+			}
+		}
+		return ""
+	}
+	if got := space(cap.ID); got != "net" {
+		t.Errorf("Clarify proposes space %q, want net", got)
+	}
+	robin.ok("POST", "/api/v1/capture", map[string]any{"text": "a private thought"}, &cap)
+	if got := space(cap.ID); got != "robin" {
+		t.Errorf("Clarify proposes space %q for a plain capture, want the personal one", got)
+	}
+	// A space the user is not in, and two destinations at once.
+	for _, bad := range []map[string]any{{"text": "x", "space": "elsewhere"}, {"text": "x", "space": "net", "link": "work"}} {
+		if code, body := robin.do("POST", "/api/v1/capture", bad, nil); code < 400 {
+			t.Errorf("capture %v: %d %s", bad, code, body)
+		}
+	}
+	robin.ok("GET", "/api/v1/inbox", nil, &in)
+	if len(in.Captures) != 2 {
+		t.Errorf("inbox after refused captures: %d", len(in.Captures))
+	}
+}

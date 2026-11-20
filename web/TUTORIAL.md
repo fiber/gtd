@@ -169,7 +169,10 @@ in Engage.
 **Two servers.** If you use gtd at home and at work, link the two in Settings. A
 thought for work that you captured at home then has one more way out in Clarify,
 **Send to work**: it goes to your inbox there. (The README says how to set the link
-up.)
+up.) Quicker still: on the capture page, pick **→ work** before you capture, and the
+thought goes straight to your inbox there. If the two servers cannot talk right now,
+it waits and is delivered later. The chips beside it are your shared spaces: pick
+one, and Clarify will start with that space selected.
 
 ## Things you do again and again
 

@@ -507,3 +507,4 @@ code.token { display: block; overflow-wrap: anywhere; user-select: all; font-siz
 .capture-brand { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 18px 0 14px; font-weight: 850; font-size: 1.7rem; letter-spacing: -.05em; }
 .capture-brand img { border-radius: 28%; }
 @media (min-width: 860px) { .capture-brand { display: none; } }
+.capture-to { padding: 2px 16px 4px; }

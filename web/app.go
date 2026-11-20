@@ -475,6 +475,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, a actor) error {
 		"review":  s.reviewInfo(a.user),
 		"presets": wizard.DatePresets(s.today()),
 		"server":  s.st.Server().Name,
+		"links":   linkNames(s.userLinks(a.user)),
 	})
 }
 
@@ -1389,6 +1390,7 @@ func (s *Server) wizardEnv(v *store.View, ws *wizardSession) (wizard.Env, error)
 				env.Spaces = append(env.Spaces, ref)
 			}
 		}
+		env.SpaceHint = s.spaceHint(ws.user, ws.clarify.Item)
 	}
 	return env, nil
 }

@@ -261,6 +261,37 @@ func TestLinkedServers(t *testing.T) {
 		t.Errorf("a capture collected twice: home inbox has %d", len(inbox(h)))
 	}
 
+	// Picked on the capture page: it never enters the inbox here, waits in
+	// the outbox, and arrives with the next connection, from either side.
+	var sent struct{ ID, Sent string }
+	h.ok("POST", "/api/v1/capture", map[string]any{"text": "review the rollout plan", "link": "work"}, &sent)
+	h.ok("GET", "/api/v1/me/links", nil, &hl)
+	if sent.Sent != "work" || len(inbox(h)) != 1 || hl.Links[0].Waiting != 1 {
+		t.Fatalf("captured for work: %+v, home inbox %d, waiting %d", sent, len(inbox(h)), hl.Links[0].Waiting)
+	}
+	if it, _ := hv.Item("robin", sent.ID); it.State != core.StTrashed {
+		t.Errorf("the capture for work is %s on home, want trashed", it.State)
+	}
+	w.ok("POST", "/api/v1/capture", map[string]any{"text": "water the plants", "link": "home"}, &sent)
+	if n := sync(); n != 2 {
+		t.Fatalf("sync after two captures for the other side moved %d", n)
+	}
+	if got := inbox(w); len(got) != 2 || got[1].Title != "review the rollout plan" && got[0].Title != "review the rollout plan" {
+		t.Errorf("work inbox: %+v", got)
+	}
+	if got := inbox(h); len(got) != 2 {
+		t.Errorf("home inbox: %+v", got)
+	}
+	// A destination that does not exist creates nothing.
+	if code, body := h.do("POST", "/api/v1/capture", map[string]any{"text": "lost?", "link": "nowhere"}, nil); code != 404 || len(inbox(h)) != 2 {
+		t.Errorf("capture for an unknown link: %d %s, inbox %d", code, body, len(inbox(h)))
+	}
+	var me struct{ Links []string }
+	h.ok("GET", "/api/v1/me", nil, &me)
+	if len(me.Links) != 1 || me.Links[0] != "work" {
+		t.Errorf("me.links = %v", me.Links)
+	}
+
 	// What the link's token may do on work, and what it may not.
 	call := func(tok, method, path string) int {
 		req, _ := http.NewRequest(method, work.url+path, nil)
@@ -271,6 +302,13 @@ func TestLinkedServers(t *testing.T) {
 		}
 		res.Body.Close()
 		return res.StatusCode
+	}
+	// A linked server cannot have its capture passed on to a third one.
+	relay, _ := http.NewRequest("POST", work.url+"/api/v1/capture", strings.NewReader(`{"text":"pass it on","link":"home"}`))
+	relay.Header.Set("Authorization", "Bearer "+token)
+	relay.Header.Set("Content-Type", "application/json")
+	if res, err := http.DefaultClient.Do(relay); err != nil || res.StatusCode != 400 {
+		t.Errorf("a capture passed on through work: %v %v", res, err)
 	}
 	if code := call(token, "GET", "/api/v1/outbox"); code != 200 {
 		t.Errorf("the link token reading its outbox: %d", code)

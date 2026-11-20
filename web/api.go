@@ -375,7 +375,11 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 
 // capture creates a capture in the acting user's inbox: JSON {text, source},
 // or multipart with a "text" field, optional "via" and "ref" fields and any
-// number of "file" parts.
+// number of "file" parts. Two optional fields say where it belongs, so that
+// nobody has to open another server's app to get something out of their head:
+// "link" sends it on to the inbox of that linked server (it waits in the
+// outbox until the two next talk), "space" is remembered as the space
+// Clarify proposes for it.
 func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error {
 	v, err := s.st.View(a.user)
 	if err != nil {
@@ -386,6 +390,8 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error 
 		src  core.Source
 		atts []core.Attachment
 		opID string // from a sender that may retry: the same op is not captured twice
+		link string // the linked server it is sent on to
+		toSp string // the shared space Clarify will propose
 	)
 	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if mediaType == "multipart/form-data" {
@@ -425,20 +431,38 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error 
 				src.Ref = string(val)
 			case "op":
 				opID = string(val)
+			case "link":
+				link = string(val)
+			case "space":
+				toSp = string(val)
 			}
 		}
 	} else {
 		var in struct {
 			Text   string      `json:"text"`
 			Source core.Source `json:"source"`
+			Link   string      `json:"link"`
+			Space  string      `json:"space"`
 		}
 		if err := body(r, &in); err != nil {
 			return err
 		}
-		text, src = in.Text, in.Source
+		text, src, link, toSp = in.Text, in.Source, in.Link, in.Space
 	}
 	if strings.TrimSpace(text) == "" && len(atts) == 0 {
 		return fmt.Errorf("%w: nothing to capture", core.ErrInvalid)
+	}
+	// Checked before anything is created: a capture must not end up in the
+	// inbox here because its destination was misspelt.
+	switch {
+	case link != "" && toSp != "":
+		return fmt.Errorf("%w: a capture goes to a linked server or to a space, not both", core.ErrInvalid)
+	case link != "" && a.link != "":
+		return fmt.Errorf("%w: a capture from linked server %q is not passed on to %q", core.ErrInvalid, a.link, link)
+	case link != "" && !slices.ContainsFunc(s.userLinks(a.user), func(l Link) bool { return l.Name == link }):
+		return fmt.Errorf("%w: linked server %q", core.ErrNotFound, link)
+	case toSp != "" && !slices.ContainsFunc(v.Spaces(), func(sp *core.Space) bool { return sp.ID == toSp }):
+		return fmt.Errorf("%w: space %q", core.ErrNotFound, toSp)
 	}
 	fallback := ""
 	if strings.TrimSpace(text) == "" && strings.HasPrefix(atts[0].MIME, "image/") {
@@ -459,7 +483,32 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, a actor) error 
 	if it == nil {
 		return reply(w, map[string]any{"id": "", "duplicate": true})
 	}
+	switch {
+	case link != "":
+		// Into the outbox for that server and to the trash here, with a line
+		// that says where it went: what Clarify's "send" does.
+		if err := s.queueCapture(a.user, link, it.ID); err != nil {
+			return err
+		}
+		defer s.KickLinks()
+		if _, err := v.Apply(a.user,
+			core.Op{Via: src.Via, Type: core.OpComment, Item: it.ID, Payload: sendNote(link)},
+			core.Op{Via: src.Via, Type: core.OpTransition, Item: it.ID, BaseRev: it.Rev,
+				Changes: []core.FieldChange{{Field: "state", New: json.RawMessage(`"` + core.StTrashed + `"`)}}}); err != nil {
+			return err
+		}
+		return reply(w, map[string]string{"id": it.ID, "sent": link})
+	case toSp != "" && toSp != a.user:
+		if err := s.hintSpace(v, a.user, it.ID, toSp); err != nil {
+			return err
+		}
+	}
 	return reply(w, map[string]string{"id": it.ID})
+}
+
+func sendNote(link string) json.RawMessage {
+	b, _ := json.Marshal(core.Comment{Body: "→ " + link})
+	return b
 }
 
 // Hit is one search result.
