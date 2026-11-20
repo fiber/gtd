@@ -518,6 +518,7 @@ type Hit struct {
 	Kind  string `json:"kind"`
 	State string `json:"state"`
 	Title string `json:"title"`
+	Rev   uint64 `json:"rev"` // for acting on a hit from the list
 	// Similar marks a hit found by meaning, not by the words typed.
 	Similar bool    `json:"similar,omitempty"`
 	Score   float32 `json:"score,omitempty"`
@@ -547,7 +548,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, a actor) error {
 			continue
 		}
 		seen[it.ID] = true
-		res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title})
+		res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title, Rev: it.Rev})
 	}
 	sem := s.Embed.Search(r.Context(), v, q, 40)
 	res.Semantic = sem.State
@@ -555,7 +556,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, a actor) error {
 	for _, h := range sem.Hits {
 		if it, err := v.Item(h.Space, h.ID); err == nil && !seen[h.ID] && !skip(it) && shown < 20 {
 			shown++
-			res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title, Similar: true, Score: h.Score})
+			res.Hits = append(res.Hits, Hit{ID: it.ID, Space: it.Space, Kind: it.Kind, State: it.State, Title: it.Title, Rev: it.Rev, Similar: true, Score: h.Score})
 		}
 	}
 	return reply(w, res)

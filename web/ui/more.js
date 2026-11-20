@@ -58,13 +58,34 @@ class Search extends View {
     // Whether archived notes are left out: kept on this device.
     try { this.hide = localStorage.getItem('gtd.search.hide') === '1'; } catch { this.hide = false; }
   }
-  firstUpdated() { this.querySelector('input').focus(); }
+  // The search is still there when you come back from a hit: what was typed
+  // is kept for this tab and searched again.
+  firstUpdated() {
+    const input = this.querySelector('input.search');
+    input.focus();
+    let last = '';
+    try { last = sessionStorage.getItem('gtd.search.q') || ''; } catch { /* private browsing */ }
+    if (last) {
+      input.value = last;
+      this.search(last, 0);
+    }
+  }
   async search(q, wait = 200) {
     this.q = q.trim();
+    try { sessionStorage.setItem('gtd.search.q', this.q); } catch { /* private browsing */ }
     clearTimeout(this._wait);
     this._wait = setTimeout(async () => {
       this.res = this.q ? await this.run(() => store.search(this.q, this.hide ? { archived: '0' } : {})) : null;
     }, wait);
+  }
+  // A note can be put away from the list, without opening it.
+  async archive(h) {
+    await this.run(() => store.transition(h, 'archived'));
+    this.search(this.q, 0);
+  }
+  hit(h) {
+    const can = h.kind === 'note' && (h.state === 'unsorted' || h.state === 'filed');
+    return row(h, { state: true, actions: can ? html`<button @click=${() => this.archive(h)}>${t('transition.archived')}</button>` : null });
   }
   setHide(on) {
     this.hide = on;
@@ -79,8 +100,8 @@ class Search extends View {
       <header class="bar"><h1>${t('nav.search')}</h1></header>
       <input class="search" type="search" placeholder=${t('search.placeholder')} @input=${(e) => this.search(e.target.value)}>
       <p class="search-options"><label class="check"><input type="checkbox" .checked=${this.hide} @change=${(e) => this.setHide(e.target.checked)}> ${t('search.hide_archived')}</label></p>
-      ${exact.map((h) => row(h, { state: true }))}
-      ${similar.length ? html`<h2>${t('search.similar')}</h2>${similar.map((h) => row(h, { state: true }))}` : nothing}
+      ${exact.map((h) => this.hit(h))}
+      ${similar.length ? html`<h2>${t('search.similar')}</h2>${similar.map((h) => this.hit(h))}` : nothing}
       ${r && !r.hits.length ? html`<p class="empty">${t('search.empty')}</p>` : nothing}
       ${r && (r.semantic === 'offline' || r.semantic === 'building') ? html`<p class="notice">${t('ai.note.' + r.semantic)}</p>` : nothing}`;
   }
