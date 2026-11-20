@@ -221,6 +221,7 @@
  "item.unavailable": "unavailable item",
  "item.unblocked": "unblocked",
  "item.updated": "Last changed {time} by {user}",
+ "item.waiting_for": "Waiting for {name}",
  "item.waiting_on": "waiting for {name}",
  "item.waits_for": "waits for: {title}",
  "kind.action": "Action",

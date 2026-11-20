@@ -221,6 +221,7 @@
  "item.unavailable": "nicht verfügbarer Eintrag",
  "item.unblocked": "freigegeben",
  "item.updated": "Zuletzt geändert {time} von {user}",
+ "item.waiting_for": "Wartet auf {name}",
  "item.waiting_on": "wartet auf {name}",
  "item.waits_for": "wartet auf: {title}",
  "kind.action": "Schritt",

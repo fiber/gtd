@@ -63,7 +63,7 @@ class Engage extends View {
 
   actions(b) {
     return html`
-      <button class="primary" data-done @click=${() => this.done(b)}>${t('action.done')}</button>
+      <button data-done @click=${() => this.done(b)}>${t('action.done')}</button>
       <button @click=${() => { this.menu = this.menu === b.id ? null : b.id; }}>${t('action.defer')}</button>
       <button @click=${() => { this.hidden = [...this.hidden, b.id]; }}>${t('action.not_now')}</button>
       <button @click=${() => { this.focus = b; }}>${t('action.focus')}</button>

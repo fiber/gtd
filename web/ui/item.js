@@ -476,7 +476,8 @@ class Note extends View {
       <article class="item kind-${it.kind} ${this.editing ? 'editing' : ''}">
         <header>
           <span class="meta">
-            <span class="chip">${t('kind.' + it.kind)}</span>${stateChip(it.state)}
+            <span class="chip">${t('kind.' + it.kind)}</span>${it.state === 'waiting' && it.waiting_on
+              ? html`<span class="chip state s-waiting">${t('item.waiting_for', { name: it.waiting_on })}</span>` : stateChip(it.state)}
             <span class="chip">${it.space_name}</span>
             ${it.deferred ? html`<span class="chip deferred">${t('item.deferred', { date: it.defer_until })}</span>` : nothing}
             ${it.rollup && it.state === 'active' && !it.rollup.alive ? html`<span class="chip stuck">${t('project.stuck')}</span>` : nothing}

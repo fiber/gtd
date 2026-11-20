@@ -128,6 +128,7 @@ func Apply(st *State, op Op, newID func() string) (*Result, error) {
 	if op.Type == OpPatch {
 		delegatePatch(ws, before, &op)
 	}
+	waitRule(before, &op)
 	after, err := replayItem(before, op)
 	if err != nil {
 		return nil, err
