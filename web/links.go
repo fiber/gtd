@@ -453,7 +453,11 @@ func (c *linkConn) get(path string) ([]byte, error) { return c.do("GET", path, "
 // capture was sent. It returns the number of captures moved either way.
 func (s *Server) SyncLinks(ctx context.Context) (moved int, err error) {
 	var users []string
-	s.st.EachUser(func(u *core.User) { users = append(users, u.ID) })
+	s.st.EachUser(func(u *core.User) {
+		if !u.Disabled {
+			users = append(users, u.ID)
+		}
+	})
 	slices.Sort(users)
 	for _, user := range users {
 		for _, link := range s.userLinks(user) {

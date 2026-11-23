@@ -1053,6 +1053,106 @@ func TestInstallable(t *testing.T) {
 
 // TestAdminInTheBrowser: an admin's web session administers only after the
 // admin gave their password again, and only for a while. Everyone else never.
+// The admin sees when a user last logged in and was last seen, and can
+// deactivate a user: sessions end, and password and token are refused until
+// the user is activated again.
+func TestPresenceAndDeactivation(t *testing.T) {
+	s := newSite(t)
+	now := time.Date(2026, 11, 23, 9, 0, 0, 0, time.UTC)
+	s.st.Now = func() time.Time { return now }
+	robin, dana := s.login("robin"), s.login("dana")
+	robin.ok("POST", "/api/v1/admin/unlock", map[string]string{"password": password}, nil)
+	type user struct {
+		ID, Name    string
+		Disabled    bool
+		Login, Seen *time.Time
+	}
+	list := func() map[string]user {
+		var users []user
+		robin.ok("GET", "/api/v1/admin/users", nil, &users)
+		m := map[string]user{}
+		for _, u := range users {
+			m[u.ID] = u
+		}
+		return m
+	}
+	login := now
+	if u := list(); u["jo"].Login != nil || u["dana"].Login == nil || !u["dana"].Login.Equal(login) || !u["dana"].Seen.Equal(login) {
+		t.Fatalf("after the logins: %+v", u)
+	}
+	// Using the session moves "seen" in steps, and never "login".
+	now = now.Add(2 * time.Minute)
+	dana.ok("GET", "/api/v1/me", nil, nil)
+	if u := list()["dana"]; !u.Seen.Equal(login) {
+		t.Errorf("seen moved within the step: %v", u.Seen)
+	}
+	now = now.Add(presenceStep)
+	dana.ok("GET", "/api/v1/me", nil, nil)
+	if u := list()["dana"]; !u.Seen.Equal(now) || !u.Login.Equal(login) {
+		t.Errorf("seen %v login %v, want %v and %v", u.Seen, u.Login, now, login)
+	}
+
+	plain, _, err := s.st.AddToken("dana", "phone", "", []string{store.ScopeCapture})
+	if err != nil {
+		t.Fatal(err)
+	}
+	capture := func() int {
+		req, _ := http.NewRequest("POST", s.url+"/api/v1/capture", strings.NewReader(`{"text":"from the token"}`))
+		req.Header.Set("Authorization", "Bearer "+plain)
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	if code := capture(); code != 200 {
+		t.Fatalf("capture by token: %d", code)
+	}
+
+	if code, body := robin.do("PUT", "/api/v1/admin/users/robin", map[string]bool{"disabled": true}, nil); code != 400 {
+		t.Errorf("an admin deactivating themselves: %d %s", code, body)
+	}
+	if code, _ := dana.do("PUT", "/api/v1/admin/users/jo", map[string]bool{"disabled": true}, nil); code != 403 {
+		t.Errorf("a non-admin deactivating: %d", code)
+	}
+	robin.ok("PUT", "/api/v1/admin/users/dana", map[string]bool{"disabled": true}, nil)
+	if !list()["dana"].Disabled {
+		t.Error("dana is not listed as deactivated")
+	}
+	if code, _ := dana.do("GET", "/api/v1/me", nil, nil); code != 401 {
+		t.Errorf("the session of a deactivated user: %d", code)
+	}
+	if code, body := s.anon().do("POST", "/api/v1/login", map[string]string{"user": "dana", "password": password}, nil); code != 403 || !strings.Contains(body, "login.disabled") {
+		t.Errorf("login of a deactivated user: %d %s", code, body)
+	}
+	if code, body := s.anon().do("POST", "/api/v1/login", map[string]string{"user": "dana", "password": "wrong"}, nil); code != 401 || strings.Contains(body, "disabled") {
+		t.Errorf("a wrong password must not tell that the account is deactivated: %d %s", code, body)
+	}
+	if code := capture(); code != 401 {
+		t.Errorf("token of a deactivated user: %d", code)
+	}
+	// Nothing is gone: dana is still a member, and comes back.
+	member := false
+	s.st.EachSpace(func(sp *core.Space) { member = member || sp.ID == "net" && slices.Contains(sp.Members, "dana") })
+	if !member {
+		t.Error("deactivation changed the space's members")
+	}
+	robin.ok("PUT", "/api/v1/admin/users/dana", map[string]bool{"disabled": false}, nil)
+	s.login("dana")
+	if code := capture(); code != 200 {
+		t.Errorf("token after activation: %d", code)
+	}
+	robin.ok("PUT", "/api/v1/admin/users/dana", map[string]string{"name": "Dana D."}, nil)
+	if u := list()["dana"]; u.Name != "Dana D." || u.Disabled {
+		t.Errorf("after renaming: %+v", u)
+	}
+	if code, _ := robin.do("PUT", "/api/v1/admin/users/nobody", map[string]bool{"disabled": true}, nil); code != 404 {
+		t.Errorf("deactivating an unknown user: %d", code)
+	}
+}
+
 func TestAdminInTheBrowser(t *testing.T) {
 	s := newSite(t)
 	now := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)

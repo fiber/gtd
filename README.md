@@ -69,6 +69,18 @@ shared spaces under Settings › Administration, after giving their password aga
 On the command line, admin commands need that user's SSH key (`gtd user key-add`), or
 direct access to the data directory while the daemon is stopped.
 
+```sh
+gtd user list                     # status, how they log in, last web login, last seen
+gtd user deactivate dana          # lock out: sessions end; password, tokens and SSH keys are refused
+gtd user activate dana            # let in again; nothing was deleted
+gtd user rename dana "Dana D."    # the display name; the id never changes
+```
+
+The admin sees when each user last logged in on the web and last used it (to five
+minutes). Tell your users. Captures by token and command-line use do not count.
+A deactivated user keeps their items and stays a member of their spaces; others
+can still see and assign to them. The same is under Settings › Administration.
+
 Run it under systemd (`/etc/systemd/system/gtd.service`):
 
 ```ini

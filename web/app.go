@@ -57,6 +57,7 @@ type app struct {
 	failures map[string]*failure
 	wizards  map[string]*wizardSession
 	unlocked map[string]time.Time // web session → until when administration is open
+	seen     map[string]time.Time // user → when their presence was last written
 }
 
 type failure struct {
@@ -81,7 +82,7 @@ type wizardSession struct {
 var reImportMap = regexp.MustCompile(`(?s)<script type="importmap">(.*?)</script>`)
 
 func (s *Server) initApp() {
-	a := &app{catalogs: map[string]map[string]string{}, failures: map[string]*failure{}, wizards: map[string]*wizardSession{}, unlocked: map[string]time.Time{}}
+	a := &app{catalogs: map[string]map[string]string{}, failures: map[string]*failure{}, wizards: map[string]*wizardSession{}, unlocked: map[string]time.Time{}, seen: map[string]time.Time{}}
 	for _, lang := range []string{"en", "de"} {
 		data, err := uiFS.ReadFile("ui/i18n/" + lang + ".json")
 		if err != nil {
@@ -300,7 +301,41 @@ func (s *Server) sessionUser(r *http.Request) (string, bool) {
 		sess.Expires = now.Add(sessionTTL)
 		s.st.PutSession(c.Value, *sess)
 	}
+	s.saw(sess.User, now, false)
 	return sess.User, true
+}
+
+// presence is when a user last logged in on the web and last used a web
+// session. It is user state: shown to the admin, not exported.
+type presence struct {
+	Login time.Time `json:"login"`
+	Seen  time.Time `json:"seen"`
+}
+
+const (
+	presenceKey  = "presence"
+	presenceStep = 5 * time.Minute
+)
+
+// saw notes that the user is here: at a login, and otherwise at most once in
+// presenceStep, so that reading pages does not write on every request.
+func (s *Server) saw(user string, now time.Time, login bool) {
+	a := s.app
+	a.mu.Lock()
+	fresh := !login && now.Sub(a.seen[user]) < presenceStep
+	if !fresh {
+		a.seen[user] = now
+	}
+	a.mu.Unlock()
+	if fresh {
+		return
+	}
+	var p presence
+	s.st.GetUserState(user, presenceKey, &p)
+	if p.Seen = now; login {
+		p.Login = now
+	}
+	s.st.PutUserState(user, presenceKey, p)
 }
 
 func (s *Server) setCookie(w http.ResponseWriter, value string, maxAge int) {
@@ -354,11 +389,18 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	delete(a.failures, in.User)
 	a.mu.Unlock()
+	if u.Disabled {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "login.disabled"})
+		return
+	}
 	id := newToken()
 	if err := s.st.PutSession(id, store.Session{User: u.ID, Created: now, Expires: now.Add(sessionTTL), Device: r.UserAgent()}); err != nil {
 		fail(w, err)
 		return
 	}
+	s.saw(u.ID, now, true)
 	s.setCookie(w, id, int(sessionTTL/time.Second))
 	reply(w, map[string]string{"user": u.ID})
 }

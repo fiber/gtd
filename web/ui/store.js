@@ -166,6 +166,7 @@ export const store = {
   adminUsers: () => get('/admin/users'),
   adminSpaces: () => get('/admin/spaces'),
   adminAddUser: (user) => post('/admin/users', user),
+  adminSetUser: (id, change) => put('/admin/users/' + encodeURIComponent(id), change),
   adminSetPassword: (id, password) => put(`/admin/users/${encodeURIComponent(id)}/password`, { password }),
   adminAddSpace: (space) => post('/admin/spaces', space),
   adminSetMember: (space, user, member) => request(member ? 'PUT' : 'DELETE', `/admin/spaces/${encodeURIComponent(space)}/members/${encodeURIComponent(user)}`),

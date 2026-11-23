@@ -376,6 +376,9 @@ func (s *Server) WatchLinks(ctx context.Context) {
 	for {
 		want := map[string]Link{}
 		s.st.EachUser(func(u *core.User) {
+			if u.Disabled {
+				return
+			}
 			for _, l := range s.userLinks(u.ID) {
 				if l.URL != "" && l.active() {
 					want[u.ID+"\x00"+l.Name+"\x00"+l.URL+"\x00"+l.Token] = l

@@ -108,6 +108,7 @@ func New(st *store.Store) *Server {
 	s.mux.HandleFunc("GET /api/v1/admin/users", s.admin(s.adminUsers))
 	s.mux.HandleFunc("GET /api/v1/admin/spaces", s.admin(s.adminSpaces))
 	s.mux.HandleFunc("POST /api/v1/admin/users", s.admin(s.addUser))
+	s.mux.HandleFunc("PUT /api/v1/admin/users/{id}", s.admin(s.setUser))
 	s.mux.HandleFunc("POST /api/v1/admin/users/{id}/keys", s.admin(s.setKey))
 	s.mux.HandleFunc("DELETE /api/v1/admin/users/{id}/keys", s.admin(s.setKey))
 	s.mux.HandleFunc("POST /api/v1/admin/spaces", s.admin(s.createSpace))
@@ -194,7 +195,7 @@ func (s *Server) any(h handler) http.HandlerFunc {
 				}
 			}
 			u := s.st.User(user)
-			if !valid || u == nil {
+			if !valid || u == nil || u.Disabled {
 				fail(w, errDenied)
 				return
 			}
@@ -294,19 +295,74 @@ func (s *Server) unlock(w http.ResponseWriter, r *http.Request, a actor) error {
 // adminUsers lists the users: who they are, not what they have.
 func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request, a actor) error {
 	type view struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		Admin    bool   `json:"admin"`
-		Service  bool   `json:"service,omitempty"`
-		Password bool   `json:"password"` // has one
-		Keys     int    `json:"keys"`
+		ID       string     `json:"id"`
+		Name     string     `json:"name"`
+		Admin    bool       `json:"admin"`
+		Service  bool       `json:"service,omitempty"`
+		Disabled bool       `json:"disabled,omitempty"`
+		Password bool       `json:"password"` // has one
+		Keys     int        `json:"keys"`
+		Login    *time.Time `json:"login,omitempty"` // last web login
+		Seen     *time.Time `json:"seen,omitempty"`  // last use of a web session, to five minutes
 	}
 	out := []view{}
 	s.st.EachUser(func(u *core.User) {
-		out = append(out, view{u.ID, u.Name, slices.Contains(s.Admins, u.ID), u.Service, u.PasswordHash != "", len(u.SSHKeys)})
+		v := view{ID: u.ID, Name: u.Name, Admin: slices.Contains(s.Admins, u.ID), Service: u.Service, Disabled: u.Disabled,
+			Password: u.PasswordHash != "", Keys: len(u.SSHKeys)}
+		var p presence
+		if s.st.GetUserState(u.ID, presenceKey, &p) {
+			if !p.Login.IsZero() {
+				v.Login = &p.Login
+			}
+			if !p.Seen.IsZero() {
+				v.Seen = &p.Seen
+			}
+		}
+		out = append(out, v)
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return reply(w, out)
+}
+
+// setUser renames a user or deactivates and reactivates them. A deactivated
+// user keeps everything they own and stays a member of their spaces, but
+// nothing of theirs gets in: web sessions end, and passwords, tokens and SSH
+// keys are refused until they are activated again.
+//
+//	PUT /admin/users/{id} {name?, disabled?}
+func (s *Server) setUser(w http.ResponseWriter, r *http.Request, a actor) error {
+	var in struct {
+		Name     *string `json:"name"`
+		Disabled *bool   `json:"disabled"`
+	}
+	if err := body(r, &in); err != nil {
+		return err
+	}
+	id := r.PathValue("id")
+	if in.Disabled != nil && *in.Disabled && id == a.user {
+		return fmt.Errorf("%w: user %q cannot deactivate themselves", core.ErrInvalid, id)
+	}
+	if err := s.st.UpdateUser(id, func(u *core.User) error {
+		if in.Name != nil {
+			name := strings.TrimSpace(*in.Name)
+			if name == "" || len(name) > 100 {
+				return fmt.Errorf("%w: a name has 1 to 100 characters", core.ErrInvalid)
+			}
+			u.Name = name
+		}
+		if in.Disabled != nil {
+			u.Disabled = *in.Disabled
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if in.Disabled != nil && *in.Disabled {
+		if err := s.st.DeleteSessions(id, ""); err != nil {
+			return err
+		}
+	}
+	return reply(w, map[string]bool{"ok": true})
 }
 
 // adminSpaces lists the shared spaces and their members. Not their content.

@@ -60,6 +60,10 @@ class Admin extends View {
     this.act(async () => { await store.adminSetPassword(id, f.password.value); f.reset(); }, 'admin.password_set');
   }
 
+  when(ts) {
+    return new Date(ts).toLocaleString(document.documentElement.lang || undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
   addSpace(e) {
     e.preventDefault();
     const f = e.target;
@@ -93,7 +97,11 @@ class Admin extends View {
           <div class="row"><span class="row-main"><span class="title">${u.name || u.id}</span>
             <span class="meta"><span class="chip">${u.id}</span>
               ${u.admin ? html`<span class="chip owner">${t('admin.is_admin')}</span>` : nothing}
-              ${u.password ? nothing : html`<span class="chip waiting">${t('admin.no_password')}</span>`}</span></span>
+              ${u.disabled ? html`<span class="chip stuck">${t('admin.deactivated')}</span>` : nothing}
+              ${u.password ? nothing : html`<span class="chip waiting">${t('admin.no_password')}</span>`}
+              <small>${u.login ? t('admin.presence', { login: this.when(u.login), seen: this.when(u.seen) }) : t('admin.never')}</small></span></span>
+            ${u.id === store.me.user.id ? nothing : html`<button type="button"
+              @click=${() => this.act(() => store.adminSetUser(u.id, { disabled: !u.disabled }))}>${t(u.disabled ? 'admin.activate' : 'admin.deactivate')}</button>`}
             <form class="row-actions" @submit=${(e) => this.setPassword(e, u.id)}>
               <input type="password" name="password" minlength="8" maxlength="72" required placeholder=${t('settings.password_new')} autocomplete="new-password">
               <button type="submit">${t('admin.set_password')}</button></form></div>`)}

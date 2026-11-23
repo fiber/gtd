@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"testing"
@@ -285,6 +286,27 @@ func TestDaemonAuth(t *testing.T) {
 	e.run("robin", "space", "add-member", "net", "jo")
 	e.run("robin", "space", "rm-member", "net", "jo")
 	e.run("robin", "user", "add", "kid")
+
+	// Users: list, rename, deactivate and activate. A deactivated user's SSH
+	// key is refused.
+	e.run("robin", "user", "rename", "kid", "The Kid")
+	if out := e.run("robin", "user", "list"); !strings.Contains(out, "LAST LOGIN") || !strings.Contains(out, "The Kid") ||
+		!regexp.MustCompile(`robin\s+\S+\s+active, admin\s+1 ssh keys\s+never\s+never`).MatchString(out) {
+		t.Errorf("user list:\n%s", out)
+	}
+	e.run("dana", "add", "still in")
+	e.run("robin", "user", "deactivate", "dana")
+	if out := e.run("robin", "user", "list"); !regexp.MustCompile(`dana\s+\S+\s+deactivated`).MatchString(out) {
+		t.Errorf("user list after deactivating:\n%s", out)
+	}
+	if msg := e.fail("dana", "add", "locked out"); msg == "" {
+		t.Error("a deactivated user's command went through")
+	}
+	if msg := e.fail("robin", "user", "deactivate", "robin"); !strings.Contains(msg, "cannot deactivate themselves") {
+		t.Errorf("deactivating oneself: %s", msg)
+	}
+	e.run("robin", "user", "activate", "dana")
+	e.run("dana", "add", "back in")
 
 	for _, c := range []struct {
 		name string

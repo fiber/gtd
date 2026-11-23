@@ -46,6 +46,9 @@ const usage = `usage: gtd [-data dir] [-user id] [-key pubkey-file] <command>
   reindex                                   drop all embeddings and build them again (needs the daemon)
   user add [-init] [-name n] [-ssh-key k] <id> | key-add <id> <key> | key-rm <id> <key>
   user passwd <id>                          set the web password (prompted, or one line on stdin)
+  user list                                 users with status, last web login and last seen
+  user deactivate <id> | activate <id>      lock a user out, or let them in again; nothing is deleted
+  user rename <id> <name>                   change the display name
   space create [-name n] <id> [member]... | add-member <space> <user> | rm-member <space> <user>
 
   -data  data directory (default $GTD_DATA)
@@ -618,6 +621,86 @@ func cmdUser(g globals, sub string, args []string, stdin io.Reader, stdout io.Wr
 			return err
 		}
 		fmt.Fprintf(stdout, "user %s created with personal space %s\n", args[0], args[0])
+		return nil
+	case "list":
+		if err := want("user list", args, 0, "no arguments"); err != nil {
+			return err
+		}
+		c, err := connect(g, false)
+		if err != nil {
+			return err
+		}
+		defer c.close()
+		var users []struct {
+			ID       string     `json:"id"`
+			Name     string     `json:"name"`
+			Admin    bool       `json:"admin"`
+			Service  bool       `json:"service"`
+			Disabled bool       `json:"disabled"`
+			Password bool       `json:"password"`
+			Keys     int        `json:"keys"`
+			Login    *time.Time `json:"login"`
+			Seen     *time.Time `json:"seen"`
+		}
+		if err := c.do("GET", "/api/v1/admin/users", nil, &users); err != nil {
+			return err
+		}
+		when := func(t *time.Time) string {
+			if t == nil {
+				return "never"
+			}
+			return t.Local().Format("2006-01-02 15:04")
+		}
+		tw := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tLOGIN WITH\tLAST LOGIN\tLAST SEEN")
+		for _, u := range users {
+			status := "active"
+			if u.Disabled {
+				status = "deactivated"
+			}
+			if u.Admin {
+				status += ", admin"
+			}
+			if u.Service {
+				status += ", service"
+			}
+			var with []string
+			if u.Password {
+				with = append(with, "password")
+			}
+			if u.Keys > 0 {
+				with = append(with, fmt.Sprintf("%d ssh keys", u.Keys))
+			}
+			if len(with) == 0 {
+				with = []string{"nothing yet"}
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", u.ID, u.Name, status, strings.Join(with, ", "), when(u.Login), when(u.Seen))
+		}
+		return tw.Flush()
+	case "deactivate", "activate", "rename":
+		in, n, what := map[string]any{"disabled": sub == "deactivate"}, 1, "a user id"
+		if sub == "rename" {
+			n, what = 2, "a user id and the new name"
+		}
+		if err := want("user "+sub, args, n, what); err != nil {
+			return err
+		}
+		if sub == "rename" {
+			in = map[string]any{"name": args[1]}
+		}
+		c, err := connect(g, false)
+		if err != nil {
+			return err
+		}
+		defer c.close()
+		if err := c.do("PUT", "/api/v1/admin/users/"+url.PathEscape(args[0]), in, nil); err != nil {
+			return err
+		}
+		done := map[string]string{"deactivate": "deactivated: sessions ended, logins, tokens and SSH keys refused", "activate": "activated"}[sub]
+		if sub == "rename" {
+			done = "renamed to " + args[1]
+		}
+		fmt.Fprintf(stdout, "user %s %s\n", args[0], done)
 		return nil
 	case "key-add", "key-rm":
 		if err := want("user "+sub, args, 2, "a user id and a public key (file or key line)"); err != nil {

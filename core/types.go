@@ -184,6 +184,7 @@ type User struct {
 	Name             string   `json:"name"`
 	Lang             string   `json:"lang,omitempty"`
 	Service          bool     `json:"service,omitempty"`
+	Disabled         bool     `json:"disabled,omitempty"` // deactivated: no login, no token, no SSH key gets in
 	PasswordHash     string   `json:"password_hash,omitempty"`
 	SSHKeys          []string `json:"ssh_keys,omitempty"`
 	PersonalContexts []string `json:"personal_contexts,omitempty"`
